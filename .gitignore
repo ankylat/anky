@@ -96,3 +96,20 @@ apps/auth
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# documentation
+docs/next.*
+docs/node_modules/
+
+# react natie app
+app/node_modules/
+app/.expo/
+app/dist/
+app/npm-debug.*
+app/*.jks
+app/*.p8
+app/*.p12
+app/*.key
+app/*.mobileprovision
+app/*.orig.*
+app/web-build/
