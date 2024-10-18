@@ -9,10 +9,10 @@ import {
   Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useUser } from "../../context/UserContext";
-import { User } from "../../types/User";
-import { Cast } from "../../types/Cast";
-import ProfileGrid from "../../components/Profile/ProfileGrid";
+import { useUser } from "@/src/context/UserContext";
+import { User } from "@/src/types/User";
+import { Cast } from "@/src/types/Cast";
+import ProfileGrid from "@/src/components/Profile/ProfileGrid";
 
 const ProfileScreen = () => {
   const { casts, isLoading, error } = useUser();

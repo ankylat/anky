@@ -1,20 +1,28 @@
 {
   "expo": {
-    "name": "app",
-    "slug": "app",
+    "name": "Anky",
+    "slug": "Anky",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "myapp",
+    "scheme": "anky",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/images/splash.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#ffffff"
+      "resizeMode": "cover",
+      "backgroundColor": "#19446A"
     },
+
     "ios": {
+      "usesAppleSignIn": true,
       "supportsTablet": true,
-      "bundleIdentifier": "bot.anky.app"
+      "bundleIdentifier": "bot.anky.app",
+      "associatedDomains": ["webcredentials:anky.bot"],
+      "infoPlist": {
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        }
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -28,12 +36,17 @@
       "output": "static",
       "favicon": "./assets/images/favicon.png"
     },
-    "plugins": [
-      "expo-router",
-      "expo-secure-store"
-    ],
+    "plugins": ["expo-router", "expo-secure-store"],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "privyAppId": "cm2c8o5c408d77jxem23kc1ar",
+      "privyClientId": "client-WY5chG7dTMwMMgFXh7TFpfohjoupiznBwKAx7W6nAjtrZ",
+      "passkeyAssociatedDomain": "https://anky.bot",
+      "eas": {
+        "projectId": "80956a2f-0c54-47f6-9d5b-9a6204859397"
+      }
     }
   }
 }
