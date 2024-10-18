@@ -6,6 +6,7 @@ import {
   Animated,
   Dimensions,
   TouchableWithoutFeedback,
+  TouchableOpacity,
 } from "react-native";
 import { useAnky } from "@/src/context/AnkyContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -87,25 +88,26 @@ const WritingGame: React.FC<WritingGameProps> = ({
 
   if (gameOver) {
     return (
-      <View className="flex-1 justify-start items-center p-5 bg-purple-600">
-        <Text className="text-2xl font-bold mb-5">Writing Session Over!</Text>
+      <View className="w-full flex-1 justify-center items-center p-5 ">
         <Text className="text-lg mb-2.5">Words written: {wordsWritten}</Text>
         <Text className="text-lg mb-2.5">
-          Time spent: {timeSpent.toFixed(1)} seconds
+          Time spent: {Math.floor(timeSpent)} seconds
         </Text>
-        <Text
-          className="text-lg text-blue-500 p-3 rounded-md bg-purple-500"
+        <TouchableOpacity
+          className="bg-blue-500 px-6 py-3 rounded-full shadow-md active:bg-blue-600"
           onPress={() => setIsWriteModalVisible(false)}
         >
-          Continue to App
-        </Text>
+          <Text className="text-white text-lg font-semibold">
+            Continue to App
+          </Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
   return (
     <TouchableWithoutFeedback>
-      <View className="flex-1 bg-red-200">
+      <View className="flex-1 items-center justify-center w-full">
         <Animated.View
           className="h-2.5 bg-green-500"
           style={{
@@ -114,7 +116,7 @@ const WritingGame: React.FC<WritingGameProps> = ({
           }}
         />
         <TextInput
-          className="flex-1 text-lg p-5"
+          className="flex-1 justify-center text-lg p-5"
           multiline
           value={text}
           onChangeText={handleTextChange}

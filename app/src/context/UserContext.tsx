@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
-import { Cast } from "../types/Cast";
+import { Cast } from "@/src/types/Cast";
 
 interface UserContextType {
   casts: Cast[];
@@ -38,13 +38,17 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
         throw new Error("No authentication token found");
       }
       const userFid = 18350;
+      console.log("fetching user data", API_URL);
+
       const response = await axios.get(`${API_URL}/user-casts/${userFid}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
+      console.log("the response is", response.data);
 
       setCasts(response.data);
       await AsyncStorage.setItem("userCasts", JSON.stringify(response.data));
     } catch (err) {
+      console.log("the error is", err);
       setError("Failed to fetch user casts");
       console.error(err);
     } finally {
