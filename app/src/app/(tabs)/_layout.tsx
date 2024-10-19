@@ -1,6 +1,7 @@
 import { Tabs } from "expo-router";
 import React, { useEffect } from "react";
 import { Modal, View, Text, Button } from "react-native";
+import { RouteProp } from "@react-navigation/native";
 
 import { TabBarIcon } from "@/src/components/navigation/TabBarIcon";
 import { Colors } from "@/src/constants/Colors";
@@ -9,17 +10,32 @@ import WritingGame from "@/src/components/WritingGame";
 import { useAnky } from "@/src/context/AnkyContext";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Header } from "@react-navigation/elements";
-import { useLoginWithFarcaster, usePrivy } from "@privy-io/expo";
+import { usePrivy, User } from "@privy-io/expo";
+import { useLoginWithPasskey } from "@privy-io/expo/passkey";
 
 export default function TabLayout() {
   const { user } = usePrivy();
-  const { loginWithFarcaster } = useLoginWithFarcaster();
+  const { state, loginWithPasskey } = useLoginWithPasskey({
+    onSuccess(user, isNewUser) {
+      console.log("user logged in with passkey", user);
+      console.log("IS NEW USER", isNewUser);
+    },
+    onError(error: Error) {
+      console.log("error logging in with passkey", error);
+    },
+  });
   const colorScheme = useColorScheme();
   const { isWriteModalVisible, setIsWriteModalVisible } = useAnky();
 
-  const handleProfilePress = () => {
+  const handleProfilePress = async () => {
+    console.log("IN HERE21321, THE USER IS", user);
+    console.log("the login with farcaster is", loginWithPasskey);
     if (!user) {
-      loginWithFarcaster({ relyingParty: "https://www.anky.bot" });
+      alert("logging in with passkey on privy");
+      const passkeyLoginResponse = await loginWithPasskey({
+        relyingParty: "https://www.anky.bot",
+      });
+      console.log("the passkey login response is", passkeyLoginResponse);
     }
   };
 
@@ -28,7 +44,13 @@ export default function TabLayout() {
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
-          header: ({ route, options }) => {
+          header: ({
+            route,
+            options,
+          }: {
+            route: RouteProp<any, string>;
+            options: any;
+          }) => {
             return (
               <Header
                 title={options.title || route.name}
@@ -45,7 +67,13 @@ export default function TabLayout() {
           name="index"
           options={{
             title: "Home",
-            tabBarIcon: ({ color, focused }) => (
+            tabBarIcon: ({
+              color,
+              focused,
+            }: {
+              color: string;
+              focused: boolean;
+            }) => (
               <TabBarIcon
                 name={focused ? "home" : "home-outline"}
                 color={color}
@@ -57,7 +85,13 @@ export default function TabLayout() {
           name="anky"
           options={{
             title: "Playground",
-            tabBarIcon: ({ color, focused }) => (
+            tabBarIcon: ({
+              color,
+              focused,
+            }: {
+              color: string;
+              focused: boolean;
+            }) => (
               <MaterialCommunityIcons name="alien" size={24} color="black" />
             ),
           }}
@@ -66,7 +100,13 @@ export default function TabLayout() {
           name="write"
           options={{
             title: "Write",
-            tabBarIcon: ({ color, focused }) => (
+            tabBarIcon: ({
+              color,
+              focused,
+            }: {
+              color: string;
+              focused: boolean;
+            }) => (
               <TabBarIcon
                 name={focused ? "pencil" : "pencil-outline"}
                 color={color}
@@ -74,7 +114,7 @@ export default function TabLayout() {
             ),
           }}
           listeners={{
-            tabPress: (e) => {
+            tabPress: (e: { preventDefault: () => void }) => {
               e.preventDefault();
               setIsWriteModalVisible(true);
             },
@@ -84,7 +124,13 @@ export default function TabLayout() {
           name="inbox"
           options={{
             title: "Inbox",
-            tabBarIcon: ({ color, focused }) => (
+            tabBarIcon: ({
+              color,
+              focused,
+            }: {
+              color: string;
+              focused: boolean;
+            }) => (
               <TabBarIcon
                 name={focused ? "mail" : "mail-outline"}
                 color={color}
@@ -96,7 +142,13 @@ export default function TabLayout() {
           name="profile"
           options={{
             title: "Profile",
-            tabBarIcon: ({ color, focused }) => (
+            tabBarIcon: ({
+              color,
+              focused,
+            }: {
+              color: string;
+              focused: boolean;
+            }) => (
               <TabBarIcon
                 name={focused ? "person" : "person-outline"}
                 color={color}
@@ -104,10 +156,13 @@ export default function TabLayout() {
             ),
           }}
           listeners={{
-            tabPress: (e) => {
+            tabPress: (e: { preventDefault: () => void }) => {
+              console.log("IN HERE, THE USER IS", user);
               if (!user) {
                 e.preventDefault();
                 handleProfilePress();
+              } else {
+                console.log("user is already logged in");
               }
             },
           }}

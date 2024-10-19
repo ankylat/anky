@@ -1,7 +1,7 @@
 import React from "react";
 import { View, Text, ScrollView } from "react-native";
-import { useUser } from "../../context/UserContext";
-import CastElement from "../../components/Cast";
+import { useUser } from "@/src/context/UserContext";
+import CastElement from "@/src/components/Cast";
 
 export default function HomeScreen() {
   const { casts, isLoading, error } = useUser();

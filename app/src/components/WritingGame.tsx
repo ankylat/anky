@@ -10,6 +10,7 @@ import {
   PanResponder,
   StyleSheet,
   Keyboard,
+
 } from "react-native";
 import { useAnky } from "@/src/context/AnkyContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -162,6 +163,7 @@ const WritingGame: React.FC<WritingGameProps> = ({
           onPress={() => setIsWriteModalVisible(false)}
         >
           <Text className="text-xl text-white">Continue to App</Text>
+
         </TouchableOpacity>
       </View>
     );
@@ -207,6 +209,7 @@ const WritingGame: React.FC<WritingGameProps> = ({
       )}
       {!sessionStarted && (
         <View
+
           style={{
             position: "absolute",
             bottom: 34, // Adjust this value to match the tab bar height
@@ -232,6 +235,7 @@ const WritingGame: React.FC<WritingGameProps> = ({
         </View>
       )}
     </View>
+
   );
 };
 
