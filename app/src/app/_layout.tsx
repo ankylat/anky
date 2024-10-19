@@ -19,8 +19,10 @@ import { useColorScheme } from "@/src/hooks/useColorScheme";
 
 // Contexts
 import { PrivyProvider } from "@privy-io/expo";
-import { AnkyProvider } from "../context/AnkyContext";
+import { AnkyProvider, useAnky } from "../context/AnkyContext";
 import { UserProvider } from "../context/UserContext";
+import { Pressable, Text, View } from "react-native";
+import AnkyButton from "../components/AnkyButton";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -51,10 +53,13 @@ export default function RootLayout() {
           <ThemeProvider
             value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
           >
-            <Stack>
-              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-              <Stack.Screen name="+not-found" />
-            </Stack>
+            <View style={{ flex: 1 }}>
+              <Stack>
+                <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+                <Stack.Screen name="+not-found" />
+              </Stack>
+              <AnkyButton />
+            </View>
           </ThemeProvider>
         </UserProvider>
       </AnkyProvider>

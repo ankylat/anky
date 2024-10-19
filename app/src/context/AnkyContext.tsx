@@ -9,6 +9,8 @@ interface AnkyContextType {
   error: string | null;
   isWriteModalVisible: boolean;
   setIsWriteModalVisible: React.Dispatch<React.SetStateAction<boolean>>;
+  isUserWriting: boolean;
+  setIsUserWriting: React.Dispatch<React.SetStateAction<boolean>>;
 }
 
 const AnkyContext = createContext<AnkyContextType | undefined>(undefined);
@@ -27,6 +29,7 @@ export const AnkyProvider: React.FC<{ children: React.ReactNode }> = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isWriteModalVisible, setIsWriteModalVisible] = useState(true);
+  const [isUserWriting, setIsUserWriting] = useState(false);
 
   const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;
 
@@ -88,6 +91,8 @@ export const AnkyProvider: React.FC<{ children: React.ReactNode }> = ({
     error,
     isWriteModalVisible,
     setIsWriteModalVisible,
+    isUserWriting,
+    setIsUserWriting,
   };
 
   return <AnkyContext.Provider value={value}>{children}</AnkyContext.Provider>;

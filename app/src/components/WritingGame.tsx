@@ -1,16 +1,20 @@
 import React, { useState, useEffect, useRef } from "react";
 import {
   View,
-  Text,
   TextInput,
   Animated,
   Dimensions,
   TouchableWithoutFeedback,
+  Text,
+  TouchableOpacity,
+  PanResponder,
+  StyleSheet,
+  Keyboard,
 } from "react-native";
 import { useAnky } from "@/src/context/AnkyContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const { width } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
 
 interface WritingGameProps {
   prompt?: string;
@@ -24,17 +28,59 @@ interface Writing {
 const WritingGame: React.FC<WritingGameProps> = ({
   prompt = "Tell us who you are",
 }) => {
-  const [text, setText] = useState<string>("");
   const [gameOver, setGameOver] = useState<boolean>(false);
   const [wordsWritten, setWordsWritten] = useState<number>(0);
   const [timeSpent, setTimeSpent] = useState<number>(0);
+  const [sessionStarted, setSessionStarted] = useState<boolean>(false);
   const lastKeystroke = useRef<number>(Date.now());
   const animatedValue = useRef(new Animated.Value(1)).current;
-  const { sendWritingToAnky, setIsWriteModalVisible } = useAnky();
+  const {
+    sendWritingToAnky,
+    setIsWriteModalVisible,
+    isUserWriting,
+    setIsUserWriting,
+  } = useAnky();
+  const textInputRef = useRef<TextInput>(null);
 
   const sessionSeconds: number = 8;
 
+  const [currentMode, setCurrentMode] = useState<string>("up");
+  const modes = {
+    up: { prompt: "Tell us who you are", color: "#000000" },
+    right: { prompt: "What's your biggest dream?", color: "#1a237e" },
+    down: { prompt: "Describe your perfect day", color: "#004d40" },
+    left: { prompt: "What's your greatest fear?", color: "#b71c1c" },
+  };
+
+  const swipeThreshold = 50;
+
+  const panResponder = PanResponder.create({
+    onStartShouldSetPanResponder: () => true,
+    onMoveShouldSetPanResponder: () => true,
+    onPanResponderMove: () => {},
+    onPanResponderRelease: (_, gestureState) => {
+      const { dx, dy } = gestureState;
+      if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > swipeThreshold) {
+        // Horizontal swipe
+        if (dx > 0) {
+          setCurrentMode("right");
+        } else {
+          setCurrentMode("left");
+        }
+      } else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > swipeThreshold) {
+        // Vertical swipe
+        if (dy > 0 && currentMode !== "down") {
+          setCurrentMode("down");
+        } else if (dy < 0) {
+          setCurrentMode("up");
+        }
+      }
+    },
+  });
+
   useEffect(() => {
+    if (!sessionStarted) return;
+
     const interval = setInterval(() => {
       const now = Date.now();
       const timeSinceLastKeystroke = (now - lastKeystroke.current) / 1000;
@@ -42,8 +88,10 @@ const WritingGame: React.FC<WritingGameProps> = ({
       if (timeSinceLastKeystroke >= sessionSeconds) {
         clearInterval(interval);
         setGameOver(true);
+        const text = textInputRef.current?.props.value || "";
         sendWritingToAnky(text);
         saveWritingToStorage(text);
+        setWordsWritten(text.trim().split(/\s+/).length);
       } else {
         setTimeSpent((prev) => prev + 0.1);
       }
@@ -56,12 +104,10 @@ const WritingGame: React.FC<WritingGameProps> = ({
     }, 100);
 
     return () => clearInterval(interval);
-  }, [text]);
+  }, [sessionStarted]);
 
-  const handleTextChange = (newText: string): void => {
-    setText(newText);
+  const handleTextChange = (): void => {
     lastKeystroke.current = Date.now();
-    setWordsWritten(newText.trim().split(/\s+/).length);
     Animated.timing(animatedValue, {
       toValue: 1,
       duration: 100,
@@ -85,44 +131,107 @@ const WritingGame: React.FC<WritingGameProps> = ({
     }
   };
 
+  const handleCancel = () => {
+    setIsWriteModalVisible(false);
+  };
+
+  const startSession = () => {
+    setSessionStarted(true);
+    setIsUserWriting(true);
+    textInputRef.current?.focus();
+    Keyboard.dismiss();
+    setTimeout(() => {
+      textInputRef.current?.focus();
+    }, 100);
+  };
+
   if (gameOver) {
     return (
-      <View className="flex-1 justify-start items-center p-5 bg-purple-600">
-        <Text className="text-2xl font-bold mb-5">Writing Session Over!</Text>
-        <Text className="text-lg mb-2.5">Words written: {wordsWritten}</Text>
-        <Text className="text-lg mb-2.5">
-          Time spent: {timeSpent.toFixed(1)} seconds
+      <View className="flex-1 w-full justify-center items-center p-5 bg-black">
+        <Text className="text-3xl font-bold mb-5 text-white">
+          Writing Session Over!
         </Text>
-        <Text
-          className="text-lg text-blue-500 p-3 rounded-md bg-purple-500"
+        <Text className="text-xl mb-2.5 text-white">
+          Words written: {wordsWritten}
+        </Text>
+        <Text className="text-xl mb-2.5 text-white">
+          Time spent: {Math.floor(timeSpent)} seconds
+        </Text>
+        <TouchableOpacity
+          className="bg-purple-500 p-3 rounded-md"
           onPress={() => setIsWriteModalVisible(false)}
         >
-          Continue to App
-        </Text>
+          <Text className="text-xl text-white">Continue to App</Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
   return (
-    <TouchableWithoutFeedback>
-      <View className="flex-1 bg-red-200">
-        <Animated.View
-          className="h-2.5 bg-green-500"
+    <View
+      className="flex-1 w-full fixed"
+      style={{
+        backgroundColor: modes[currentMode as keyof typeof modes].color,
+      }}
+      {...panResponder.panHandlers}
+    >
+      <Animated.View
+        className="h-8 bg-green-500"
+        style={{
+          width: animatedValue.interpolate({
+            inputRange: [0, 1],
+            outputRange: ["0%", "100%"],
+          }),
+        }}
+      />
+      <TextInput
+        ref={textInputRef}
+        className="flex-1 text-2xl p-5 text-white"
+        multiline
+        onChangeText={handleTextChange}
+        placeholder={modes[currentMode as keyof typeof modes].prompt}
+        placeholderTextColor="#999"
+        editable={sessionStarted}
+      />
+      {!sessionStarted && (
+        <TouchableWithoutFeedback onPress={startSession}>
+          <View
+            style={{
+              ...StyleSheet.absoluteFillObject,
+              backgroundColor: "rgba(0,0,0,0.1)",
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+          />
+        </TouchableWithoutFeedback>
+      )}
+      {!sessionStarted && (
+        <View
           style={{
-            width: "100%",
-            opacity: animatedValue,
+            position: "absolute",
+            bottom: 34, // Adjust this value to match the tab bar height
+            left: 0,
+            right: 0,
+            alignItems: "center",
+            justifyContent: "center",
           }}
-        />
-        <TextInput
-          className="flex-1 text-lg p-5"
-          multiline
-          value={text}
-          onChangeText={handleTextChange}
-          placeholder="Start typing mfer..."
-          placeholderTextColor="#999"
-        />
-      </View>
-    </TouchableWithoutFeedback>
+        >
+          <TouchableOpacity
+            className="bg-purple-500 rounded-full p-4"
+            onPress={handleCancel}
+            style={{
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.25,
+              shadowRadius: 3.84,
+              elevation: 5,
+            }}
+          >
+            <Text className="text-xl text-white">👽</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
   );
 };
 
