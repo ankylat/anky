@@ -107,6 +107,7 @@ export default function TabLayout() {
             tabPress: (e) => {
               if (!user) {
                 e.preventDefault();
+                return alert("Please login to view your profile");
                 handleProfilePress();
               }
             },

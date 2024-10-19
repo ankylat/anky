@@ -16,22 +16,17 @@ const AnkyButton: React.FC = () => {
 
   return (
     <View
+      className="w-18"
       style={{
         position: "absolute",
-        bottom: 34,
-        left: 0,
-        right: 0,
-        alignItems: "center",
-        justifyContent: "center",
+        bottom: 35,
+        left: "50%",
+        transform: [{ translateX: -32 }], // Half of the emoji width
         zIndex: 2000,
       }}
     >
-      <TouchableOpacity
-        className=" rounded-full  items-center justify-center "
-        onPress={handlePress}
-        activeOpacity={0.7}
-      >
-        <Text className="text-white text-7xl">👽</Text>
+      <TouchableOpacity onPress={handlePress} activeOpacity={0.7}>
+        <Text style={{ fontSize: 60 }}>👽</Text>
       </TouchableOpacity>
     </View>
   );

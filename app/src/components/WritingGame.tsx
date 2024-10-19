@@ -209,7 +209,7 @@ const WritingGame: React.FC<WritingGameProps> = ({
         <View
           style={{
             position: "absolute",
-            bottom: 34, // Adjust this value to match the tab bar height
+            bottom: 36, // Adjust this value to match the tab bar height
             left: 0,
             right: 0,
             alignItems: "center",
