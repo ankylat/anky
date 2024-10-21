@@ -1,7 +1,18 @@
 import React, { useState } from "react";
-import { View, Text, TouchableOpacity, Image, Alert } from "react-native";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  Image,
+  Alert,
+  ScrollView,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Cast } from "@/src/types/Cast";
+import { Link } from "expo-router";
+import { SheetManager } from "react-native-actions-sheet";
+import { usePrivy } from "@privy-io/expo";
+import { useUser } from "../context/UserContext";
 
 interface CastElementProps {
   cast: Cast;
@@ -13,6 +24,7 @@ const CastElement: React.FC<CastElementProps> = ({
   isInModal = false,
 }) => {
   const [isTextExpanded, setIsTextExpanded] = useState(isInModal);
+  const { user } = useUser();
 
   const toggleTextExpansion = () => {
     if (!isInModal) {
@@ -30,10 +42,9 @@ const CastElement: React.FC<CastElementProps> = ({
             resizeMode="cover"
           />
           <Text className="text-lg font-bold">
-            <Text className="text-lg font-bold">
+            <Link href={`/u/${cast.author.fid}`} className="text-lg font-bold">
               @{cast.author.username}
-              <Text className="text-purple-600"> /anky</Text>
-            </Text>
+            </Link>
           </Text>
         </View>
         <View className="p-2 flex-row items-center gap-2 pr-4">
@@ -75,42 +86,54 @@ const CastElement: React.FC<CastElementProps> = ({
       ) : (
         <View className="aspect-square w-full bg-gray-200" />
       )}
+      <View className="w-full flex-row  justify-between mt-2 px-2">
+        <View className="flex-row gap-3">
+          <TouchableOpacity>
+            <Ionicons name="heart-outline" size={28} color="black" />
+          </TouchableOpacity>
+          <TouchableOpacity>
+            <Ionicons name="chatbubble-outline" size={28} color="black" />
+          </TouchableOpacity>
+          <TouchableOpacity>
+            <Ionicons name="sync-outline" size={28} color="black" />
+          </TouchableOpacity>
+        </View>
+        <View className="flex-row gap-3">
+          <TouchableOpacity>
+            <Ionicons name="diamond-outline" size={28} color="black" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              SheetManager.show("share-cast-modal", {
+                payload: {
+                  castHash: cast.hash,
+                  whoIsSharing: user?.fid || 18350,
+                },
+              });
+            }}
+          >
+            <Ionicons name="paper-plane-outline" size={28} color="black" />
+          </TouchableOpacity>
+        </View>
+      </View>
       <View className="p-2">
         <Text className="text-lg font-bold mb-2">{cast.author.username}</Text>
-        <TouchableOpacity onPress={toggleTextExpansion}>
-          <View>
+        {isInModal ? (
+          <Text className="text-sm text-gray-800">{cast.text}</Text>
+        ) : (
+          <TouchableOpacity onPress={toggleTextExpansion}>
             <Text
-              className="text-sm text-gray-800"
-              numberOfLines={isTextExpanded ? undefined : 3}
+              className={`text-sm text-gray-800 ${
+                isTextExpanded ? "line-normal" : "line-clamp-3"
+              }`}
             >
               {cast.text}
             </Text>
             {!isTextExpanded && cast.text.length > 150 && (
               <Text className="text-sm text-purple-600 mt-1">Read more...</Text>
             )}
-          </View>
-        </TouchableOpacity>
-        <View className="w-full flex-row  justify-between mt-2">
-          <View className="flex-row gap-3">
-            <TouchableOpacity>
-              <Ionicons name="heart-outline" size={28} color="black" />
-            </TouchableOpacity>
-            <TouchableOpacity>
-              <Ionicons name="chatbubble-outline" size={28} color="black" />
-            </TouchableOpacity>
-            <TouchableOpacity>
-              <Ionicons name="sync-outline" size={28} color="black" />
-            </TouchableOpacity>
-          </View>
-          <View className="flex-row gap-3">
-            <TouchableOpacity>
-              <Ionicons name="diamond-outline" size={28} color="black" />
-            </TouchableOpacity>
-            <TouchableOpacity>
-              <Ionicons name="paper-plane-outline" size={28} color="black" />
-            </TouchableOpacity>
-          </View>
-        </View>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );

@@ -1,15 +1,7 @@
 import React, { useState } from "react";
-import {
-  View,
-  Dimensions,
-  FlatList,
-  Modal,
-  TouchableOpacity,
-  Text,
-} from "react-native";
+import { View, Dimensions, FlatList } from "react-native";
 import ProfileGridElement from "./ProfileGridElement";
 import { Cast } from "@/src/types/Cast";
-import CastElement from "@/src/components/Cast";
 
 interface ProfileGridProps {
   casts: Cast[];
@@ -29,14 +21,14 @@ const ProfileGrid: React.FC<ProfileGridProps> = ({ casts }) => {
   );
 
   return (
-    <View>
-      <FlatList
-        data={casts}
-        renderItem={renderItem}
-        keyExtractor={(item) => item.hash}
-        numColumns={3}
-      />
-    </View>
+    <FlatList
+      data={casts}
+      renderItem={renderItem}
+      keyExtractor={(item) => item.hash}
+      numColumns={3}
+      scrollEnabled={false}
+      nestedScrollEnabled={true}
+    />
   );
 };
 

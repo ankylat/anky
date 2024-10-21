@@ -1,6 +1,6 @@
 import { Tabs } from "expo-router";
-import React, { useEffect } from "react";
-import { Modal, View, Text, Button } from "react-native";
+import React, { useState } from "react";
+import { StyleSheet, View } from "react-native";
 
 import { TabBarIcon } from "@/src/components/navigation/TabBarIcon";
 import { Colors } from "@/src/constants/Colors";
@@ -26,6 +26,7 @@ export default function TabLayout() {
   console.log("state", state);
   const colorScheme = useColorScheme();
   const { isWriteModalVisible, setIsWriteModalVisible } = useAnky();
+  const [showWritingGame, setShowWritingGame] = useState(false);
 
   const handleProfilePress = () => {
     console.log("user", user);
@@ -77,7 +78,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="write"
           options={{
-            title: "Write",
+            title: "",
             tabBarIcon: ({ color, focused }) => (
               <TabBarIcon
                 name={focused ? "pencil" : "pencil-outline"}
@@ -89,6 +90,7 @@ export default function TabLayout() {
             tabPress: (e) => {
               e.preventDefault();
               setIsWriteModalVisible(true);
+              setShowWritingGame(true);
             },
           }}
         />
@@ -108,6 +110,7 @@ export default function TabLayout() {
           name="profile"
           options={{
             title: "Profile",
+            headerShown: false,
             tabBarIcon: ({ color, focused }) => (
               <TabBarIcon
                 name={focused ? "person" : "person-outline"}
@@ -124,19 +127,24 @@ export default function TabLayout() {
             },
           }}
         />
+        <Tabs.Screen
+          name="u/[fid]"
+          options={{
+            tabBarButton: (props) => null,
+            headerShown: false,
+          }}
+        />
       </Tabs>
-      <Modal
-        animationType="slide"
-        transparent={false}
-        visible={isWriteModalVisible}
-        onRequestClose={() => setIsWriteModalVisible(false)}
-      >
-        <View
-          style={{ flex: 1, justifyContent: "center", alignItems: "center" }}
-        >
-          <WritingGame />
+      {showWritingGame && isWriteModalVisible && (
+        <View style={{ ...StyleSheet.absoluteFillObject, zIndex: 1000 }}>
+          <WritingGame
+            onClose={() => {
+              setShowWritingGame(false);
+              setIsWriteModalVisible(false);
+            }}
+          />
         </View>
-      </Modal>
+      )}
     </>
   );
 }

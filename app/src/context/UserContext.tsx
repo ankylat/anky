@@ -2,12 +2,14 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { Cast } from "../types/Cast";
+import { User } from "../types/User";
 
 interface UserContextType {
   casts: Cast[];
   isLoading: boolean;
   error: string | null;
   refreshUserData: () => Promise<void>;
+  user: User | null;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -26,6 +28,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
   const [casts, setCasts] = useState<Cast[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(null);
 
   const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;
 
@@ -44,6 +47,15 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
 
       setCasts(response.data);
       await AsyncStorage.setItem("userCasts", JSON.stringify(response.data));
+      setUser({
+        fid: 16098,
+        display_name: "jp",
+        follower_count: 1111,
+        following_count: 15018,
+        pfp_url:
+          "https://imagedelivery.net/BXluQx4ige9GuW0Ia56BHw/b88430bb-e9fc-44d5-1c17-c5ef2107b700/original",
+        username: "jpfraneto.eth",
+      });
     } catch (err) {
       setError("Failed to fetch user casts");
       console.error(err);
@@ -73,6 +85,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
     isLoading,
     error,
     refreshUserData,
+    user,
   };
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
