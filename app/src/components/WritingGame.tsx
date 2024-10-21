@@ -13,11 +13,26 @@ import {
 } from "react-native";
 import { useAnky } from "@/src/context/AnkyContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { processWritingSession } from "../app/lib/writingGame";
+import { usePrivy } from "@privy-io/expo";
 
 const { width, height } = Dimensions.get("window");
 
-interface WritingGameProps {
-  prompt?: string;
+interface ModeConfig {
+  prompt: string;
+  color: string;
+  component?: React.ComponentType<any>;
+}
+
+interface PlaygroundProps {
+  modes?: {
+    up: ModeConfig;
+    right: ModeConfig;
+    down: ModeConfig;
+    left: ModeConfig;
+  };
+  sessionSeconds?: number;
+  onGameOver?: (wordsWritten: number, timeSpent: number) => void;
 }
 
 interface Writing {
@@ -25,9 +40,31 @@ interface Writing {
   timestamp: string;
 }
 
-const WritingGame: React.FC<WritingGameProps> = ({
-  prompt = "Tell us who you are",
+const defaultModes = {
+  up: { prompt: "Tell us who you are", color: "#000000", component: null },
+  right: {
+    prompt: "What's your biggest dream?",
+    color: "#1a237e",
+    component: null,
+  },
+  down: {
+    prompt: "Describe your perfect day",
+    color: "#004d40",
+    component: null,
+  },
+  left: {
+    prompt: "What's your greatest fear?",
+    color: "#b71c1c",
+    component: null,
+  },
+};
+
+const WritingGame: React.FC<PlaygroundProps> = ({
+  modes = defaultModes,
+  sessionSeconds = 8,
+  onGameOver,
 }) => {
+  const { user } = usePrivy();
   const [gameOver, setGameOver] = useState<boolean>(false);
   const [wordsWritten, setWordsWritten] = useState<number>(0);
   const [timeSpent, setTimeSpent] = useState<number>(0);
@@ -42,15 +79,7 @@ const WritingGame: React.FC<WritingGameProps> = ({
   } = useAnky();
   const textInputRef = useRef<TextInput>(null);
 
-  const sessionSeconds: number = 8;
-
   const [currentMode, setCurrentMode] = useState<string>("up");
-  const modes = {
-    up: { prompt: "Tell us who you are", color: "#000000" },
-    right: { prompt: "What's your biggest dream?", color: "#1a237e" },
-    down: { prompt: "Describe your perfect day", color: "#004d40" },
-    left: { prompt: "What's your greatest fear?", color: "#b71c1c" },
-  };
 
   const swipeThreshold = 50;
 
@@ -61,14 +90,12 @@ const WritingGame: React.FC<WritingGameProps> = ({
     onPanResponderRelease: (_, gestureState) => {
       const { dx, dy } = gestureState;
       if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > swipeThreshold) {
-        // Horizontal swipe
         if (dx > 0) {
           setCurrentMode("right");
         } else {
           setCurrentMode("left");
         }
       } else if (Math.abs(dy) > Math.abs(dx) && Math.abs(dy) > swipeThreshold) {
-        // Vertical swipe
         if (dy > 0 && currentMode !== "down") {
           setCurrentMode("down");
         } else if (dy < 0) {
@@ -89,9 +116,20 @@ const WritingGame: React.FC<WritingGameProps> = ({
         clearInterval(interval);
         setGameOver(true);
         const text = textInputRef.current?.props.value || "";
-        sendWritingToAnky(text);
-        saveWritingToStorage(text);
-        setWordsWritten(text.trim().split(/\s+/).length);
+
+        // Here the writing needs to be processed
+        if (user) {
+          processWritingSession(text, timeSpent, user);
+        } else {
+          alert("User is not authenticated");
+        }
+
+        const words = text.trim().split(/\s+/).length;
+        setWordsWritten(words);
+
+        if (onGameOver) {
+          onGameOver(words, Math.floor(timeSpent));
+        }
       } else {
         setTimeSpent((prev) => prev + 0.1);
       }
@@ -104,7 +142,7 @@ const WritingGame: React.FC<WritingGameProps> = ({
     }, 100);
 
     return () => clearInterval(interval);
-  }, [sessionStarted]);
+  }, [sessionStarted, sessionSeconds, onGameOver]);
 
   const handleTextChange = (): void => {
     lastKeystroke.current = Date.now();
@@ -167,6 +205,9 @@ const WritingGame: React.FC<WritingGameProps> = ({
     );
   }
 
+  const CurrentModeComponent =
+    modes[currentMode as keyof typeof modes]?.component;
+
   return (
     <View
       className="flex-1 w-full fixed"
@@ -176,7 +217,7 @@ const WritingGame: React.FC<WritingGameProps> = ({
       {...panResponder.panHandlers}
     >
       <Animated.View
-        className="h-8 bg-green-500"
+        className="h-14 bg-green-500"
         style={{
           width: animatedValue.interpolate({
             inputRange: [0, 1],
@@ -184,15 +225,19 @@ const WritingGame: React.FC<WritingGameProps> = ({
           }),
         }}
       />
-      <TextInput
-        ref={textInputRef}
-        className="flex-1 text-2xl p-5 text-white"
-        multiline
-        onChangeText={handleTextChange}
-        placeholder={modes[currentMode as keyof typeof modes].prompt}
-        placeholderTextColor="#999"
-        editable={sessionStarted}
-      />
+      {CurrentModeComponent ? (
+        <CurrentModeComponent />
+      ) : (
+        <TextInput
+          ref={textInputRef}
+          className="flex-1 text-2xl p-5 text-white"
+          multiline
+          onChangeText={handleTextChange}
+          placeholder={modes[currentMode as keyof typeof modes].prompt}
+          placeholderTextColor="#999"
+          editable={sessionStarted}
+        />
+      )}
       {!sessionStarted && (
         <TouchableWithoutFeedback onPress={startSession}>
           <View
@@ -209,7 +254,7 @@ const WritingGame: React.FC<WritingGameProps> = ({
         <View
           style={{
             position: "absolute",
-            bottom: 36, // Adjust this value to match the tab bar height
+            bottom: 36,
             left: 0,
             right: 0,
             alignItems: "center",

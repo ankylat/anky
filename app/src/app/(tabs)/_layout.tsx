@@ -13,12 +13,24 @@ import { useLoginWithFarcaster, usePrivy } from "@privy-io/expo";
 
 export default function TabLayout() {
   const { user } = usePrivy();
-  const { loginWithFarcaster } = useLoginWithFarcaster();
+  console.log("inside the tab layout the user is", user);
+  const { loginWithFarcaster, state } = useLoginWithFarcaster({
+    onSuccess: (user, isNewUser) => {
+      console.log("User logged in:", user);
+      console.log("Is new user:", isNewUser);
+    },
+    onError: (error) => {
+      console.log("Error logging in with farcaster:", error);
+    },
+  });
+  console.log("state", state);
   const colorScheme = useColorScheme();
   const { isWriteModalVisible, setIsWriteModalVisible } = useAnky();
 
   const handleProfilePress = () => {
+    console.log("user", user);
     if (!user) {
+      console.log("logging in with farcaster");
       loginWithFarcaster({ relyingParty: "https://www.anky.bot" });
     }
   };
@@ -107,7 +119,6 @@ export default function TabLayout() {
             tabPress: (e) => {
               if (!user) {
                 e.preventDefault();
-                return alert("Please login to view your profile");
                 handleProfilePress();
               }
             },

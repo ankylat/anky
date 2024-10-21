@@ -1,0 +1,41 @@
+{
+  "cli": {
+    "version": ">= 12.5.3",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "development-simulator": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "EXPO_PUBLIC_ANKY_API_URL": "https://poiesis.anky.bot",
+        "EXPO_PUBLIC_PRIVY_APP_ID": "cm2c8o5c408d77jxem23kc1ar",
+        "EXPO_PUBLIC_PRIVY_CLIENT_ID": "client-WY5chG7dTMwMMgFXh7TFpfohjoupiznBwKAx7W6nAjtrZ"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_ANKY_API_URL": "https://poiesis.anky.bot",
+        "EXPO_PUBLIC_PRIVY_APP_ID": "cm2c8o5c408d77jxem23kc1ar",
+        "EXPO_PUBLIC_PRIVY_CLIENT_ID": "client-WY5chG7dTMwMMgFXh7TFpfohjoupiznBwKAx7W6nAjtrZ"
+      },
+      "android": {
+        "resourceClass": "large"
+      }
+    },
+    "production": {
+      "autoIncrement": true
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}

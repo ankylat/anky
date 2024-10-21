@@ -9,7 +9,9 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
+import { Picker } from "@react-native-picker/picker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
 
 interface Message {
   role: "user" | "assistant";
@@ -17,12 +19,15 @@ interface Message {
   timestamp: number;
 }
 
+type PlaygroundMode = "chat" | "image" | "voice" | "code";
+
 export default function ChatScreen() {
   const [message, setMessage] = useState<string>("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [displayedMessages, setDisplayedMessages] = useState<Message[]>([]);
   const [page, setPage] = useState<number>(1);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [mode, setMode] = useState<PlaygroundMode>("chat");
 
   useEffect(() => {
     loadChatHistory();
@@ -123,12 +128,57 @@ export default function ChatScreen() {
     }
   };
 
+  const getModeColor = (currentMode: PlaygroundMode) => {
+    switch (currentMode) {
+      case "chat":
+        return "#4CAF50";
+      case "image":
+        return "#2196F3";
+      case "voice":
+        return "#FFC107";
+      case "code":
+        return "#9C27B0";
+      default:
+        return "#000000";
+    }
+  };
+
+  const getModeIcon = (currentMode: PlaygroundMode) => {
+    switch (currentMode) {
+      case "chat":
+        return "chatbubbles-outline";
+      case "image":
+        return "image-outline";
+      case "voice":
+        return "mic-outline";
+      case "code":
+        return "code-slash-outline";
+      default:
+        return "help-outline";
+    }
+  };
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       className="flex-1"
     >
       <View className="flex-1 p-5">
+        <View className="mb-4">
+          <Picker
+            selectedValue={mode}
+            onValueChange={(itemValue: PlaygroundMode) => setMode(itemValue)}
+            style={{ backgroundColor: getModeColor(mode) }}
+          >
+            <Picker.Item label="Chat" value="chat" />
+            <Picker.Item label="Image" value="image" />
+            <Picker.Item label="Voice" value="voice" />
+            <Picker.Item label="Code" value="code" />
+          </Picker>
+          <View className="absolute right-2 top-3">
+            <Ionicons name={getModeIcon(mode)} size={24} color="white" />
+          </View>
+        </View>
         <FlatList
           data={displayedMessages}
           renderItem={renderChatItem}
@@ -141,7 +191,11 @@ export default function ChatScreen() {
         <View className="flex-row mt-2.5">
           <TextInput
             className="flex-1 h-10 border border-gray-300 rounded-full px-2.5 text-base mr-2.5"
-            placeholder="Type a message..."
+            placeholder={
+              mode === "image"
+                ? "The profile picture of the buddha"
+                : "Type a message..."
+            }
             placeholderTextColor="#999"
             value={message}
             onChangeText={setMessage}
