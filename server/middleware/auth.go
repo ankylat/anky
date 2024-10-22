@@ -6,8 +6,10 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"golang.org/x/time/rate"
 )
 
 func PrivyAuth(appID, appSecret string) gin.HandlerFunc {
@@ -98,6 +100,46 @@ func PrivyAuth(appID, appSecret string) gin.HandlerFunc {
 		log.Printf("Set userID in context: %s", user.ID)
 
 		log.Println("PrivyAuth middleware completed successfully")
+		c.Next()
+	}
+}
+
+func Logger() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		path := c.Request.URL.Path
+		raw := c.Request.URL.RawQuery
+
+		c.Next()
+
+		latency := time.Since(start)
+		clientIP := c.ClientIP()
+		method := c.Request.Method
+		statusCode := c.Writer.Status()
+
+		if raw != "" {
+			path = path + "?" + raw
+		}
+
+		log.Printf("[GIN] %v | %3d | %13v | %15s | %-7s %s\n",
+			start.Format("2006/01/02 - 15:04:05"),
+			statusCode,
+			latency,
+			clientIP,
+			method,
+			path,
+		)
+	}
+}
+
+func RateLimiter() gin.HandlerFunc {
+	limiter := rate.NewLimiter(1, 5)
+	return func(c *gin.Context) {
+		if !limiter.Allow() {
+			c.JSON(http.StatusTooManyRequests, gin.H{"error": "Too many requests"})
+			c.Abort()
+			return
+		}
 		c.Next()
 	}
 }

@@ -41,12 +41,12 @@ type WritingSession struct {
 	LastUpdatedAt   time.Time  `json:"last_updated_at" bson:"last_updated_at"`
 }
 
-func (ws *WritingSession) IsValid() bool {
+func (ws *WritingSession) IsValidAnky() bool {
 	return ws.Duration >= 480 // 8 minutes in seconds
 }
 
 func (ws *WritingSession) SetAnkyStatus() {
-	ws.IsAnky = ws.IsValid()
+	ws.IsAnky = ws.IsValidAnky()
 	if ws.IsAnky {
 		ws.Status = "pending_processing"
 	} else {
