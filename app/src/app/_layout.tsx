@@ -27,6 +27,7 @@ import { Pressable, Text, View, TouchableOpacity } from "react-native";
 import AnkyButton from "../components/AnkyButton";
 import WritingGame from "../components/WritingGame";
 import CustomTabBar from "../components/navigation/CustomTabBar";
+import { getCurrentAnkyverseDay } from "./lib/ankyverse";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -47,6 +48,9 @@ export default function RootLayout() {
   const [buttonRotation] = useState(new Animated.Value(0));
   const [buttonScale] = useState(new Animated.Value(1));
 
+  const ankyverseDay = getCurrentAnkyverseDay();
+  console.log("IN HERE, the ankyverse day is", ankyverseDay);
+
   if (!loaded) {
     return null;
   }
@@ -54,11 +58,6 @@ export default function RootLayout() {
   const toggleWritingGame = () => {
     setShowWritingGame(!showWritingGame);
   };
-
-  const spin = buttonRotation.interpolate({
-    inputRange: [0, 1],
-    outputRange: ["0deg", "360deg"],
-  });
 
   return (
     <PrivyProvider
@@ -87,11 +86,13 @@ export default function RootLayout() {
                       // After processing, toggle the writing game view
                       // toggleWritingGame();
                     }}
-                    sessionSeconds={8}
+                    sessionSeconds={3}
+                    sessionTargetSeconds={8}
+                    ankyverseDay={ankyverseDay}
                     modes={{
                       up: {
                         prompt: "What's on your mind right now?",
-                        color: "#4a148c",
+                        color: ankyverseDay.currentColor.secondary,
                       },
                       right: {
                         prompt: "Describe a recent challenge you overcame",
@@ -130,17 +131,28 @@ export default function RootLayout() {
                   }}
                 >
                   <TouchableOpacity
-                    className="bg-purple-500 rounded-full p-4"
-                    onPress={toggleWritingGame}
                     style={{
+                      backgroundColor: ankyverseDay.currentColor.secondary,
+                      borderRadius: 9999,
+                      padding: 16,
                       shadowColor: "#000",
                       shadowOffset: { width: 0, height: 2 },
                       shadowOpacity: 0.25,
                       shadowRadius: 3.84,
                       elevation: 5,
                     }}
+                    onPress={toggleWritingGame}
+                    activeOpacity={0.9} // This prevents the button from fully disappearing when pressed
                   >
-                    <Text className="text-xl text-white text-center">👽</Text>
+                    <Text
+                      style={{
+                        fontSize: 24,
+                        color: "white",
+                        textAlign: "center",
+                      }}
+                    >
+                      👽
+                    </Text>
                   </TouchableOpacity>
                 </View>
               </View>

@@ -3,12 +3,29 @@ function daysBetweenDates(start: Date, end: Date): number {
   return Math.round((end.getTime() - start.getTime()) / oneDay);
 }
 
-interface AnkyverseDay {
+export interface AnkyverseDay {
   date: string;
   currentSojourn: number;
   status: "Sojourn" | "Great Slumber";
   currentKingdom: string;
   wink: number | null;
+  currentColor: { main: string; secondary: string; textColor: string };
+}
+
+let cachedAnkyverseDay: AnkyverseDay | null = null;
+let cachedDate: string | null = null;
+
+function getCurrentAnkyverseDay(): AnkyverseDay {
+  const now = new Date();
+  const today = now.toISOString().split("T")[0]; // Get current date in YYYY-MM-DD format
+
+  if (cachedAnkyverseDay && cachedDate === today) {
+    return cachedAnkyverseDay;
+  }
+
+  cachedAnkyverseDay = getAnkyverseDay(now);
+  cachedDate = today;
+  return cachedAnkyverseDay;
 }
 
 function getAnkyverseDay(date: Date): AnkyverseDay {
@@ -26,29 +43,49 @@ function getAnkyverseDay(date: Date): AnkyverseDay {
     "Claridium",
     "Poiesis",
   ];
+  const colors = [
+    { main: "#4D0000", secondary: "#FF0000", textColor: "#FFFFFF" }, // Red with 70% black overlay
+    { main: "#4D2600", secondary: "#FFA500", textColor: "#FFFFFF" }, // Orange with 70% black overlay
+    { main: "#4D4D00", secondary: "#FFFF00", textColor: "#000000" }, // Yellow with 70% black overlay
+    { main: "#002600", secondary: "#008000", textColor: "#FFFFFF" }, // Green with 70% black overlay
+    { main: "#00004D", secondary: "#0000FF", textColor: "#FFFFFF" }, // Blue with 70% black overlay
+    { main: "#0F0026", secondary: "#4B0082", textColor: "#FFFFFF" }, // Indigo with 70% black overlay
+    { main: "#260026", secondary: "#8F00FF", textColor: "#FFFFFF" }, // Violet with 70% black overlay
+    { main: "#4D4D4D", secondary: "#FFFFFF", textColor: "#000000" }, // White with 70% black overlay
+  ];
 
   const elapsedDays = daysBetweenDates(ankyverseStart, date);
   const currentSojourn = Math.floor(elapsedDays / cycleLength) + 1;
   const dayWithinCurrentCycle = elapsedDays % cycleLength;
 
   let currentKingdom: string;
+  let currentColor: { main: string; secondary: string; textColor: string };
   let status: "Sojourn" | "Great Slumber";
   let wink: number | null;
 
   if (dayWithinCurrentCycle < daysInSojourn) {
     status = "Sojourn";
     wink = dayWithinCurrentCycle + 1; // Wink starts from 1
-    currentKingdom = kingdoms[dayWithinCurrentCycle % 8];
+    const kingdomIndex = dayWithinCurrentCycle % 8;
+    currentKingdom = kingdoms[kingdomIndex];
+    currentColor = colors[kingdomIndex];
+    console.log("here", currentColor);
   } else {
     status = "Great Slumber";
     wink = null; // No Wink during the Great Slumber
     currentKingdom = "None";
+    currentColor = {
+      main: "#000000",
+      secondary: "#FFFFFF",
+      textColor: "#FFFFFF",
+    };
   }
   return {
     date: date.toISOString(),
     currentSojourn,
     status,
     currentKingdom,
+    currentColor,
     wink,
   };
 }
@@ -178,10 +215,10 @@ function decodeFromAnkyverseLanguage(input: string): string {
 }
 
 const date = getAnkyverseDay(new Date());
-console.log(`the ankyverse date today is: `, date);
 
 export {
   getAnkyverseDay,
+  getCurrentAnkyverseDay,
   encodeToAnkyverseLanguage,
   decodeFromAnkyverseLanguage,
 };
