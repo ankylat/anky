@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"fmt"
 	"log"
 	"net/http"
 
@@ -29,31 +28,8 @@ func SubmitWritingSession(c *gin.Context) {
 	session.UserID = userID.(string)
 	log.Printf("Processing session for user: %s", session.UserID)
 
-	// Process the writing session with AI
-	aiService := services.NewAIService()
-	imagePrompt, selfInquiryQuestion, err := aiService.ProcessWritingSession(session.Content)
-	if err != nil {
-		log.Printf("Failed to process writing with AI: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to process writing with AI"})
-		return
-	}
-
-	// Update the session with AI-generated content
-	session.ProcessAIContent(imagePrompt, selfInquiryQuestion)
-	log.Printf("AI content processed. Image prompt: %s, Self-inquiry question: %s", imagePrompt, selfInquiryQuestion)
-
-	// Set validity of the Anky
-	isValidAnky := session.IsValidAnky() // Assuming this method exists and returns a bool
-	log.Printf("Anky validity: %v", isValidAnky)
-
-	// Calculate and set Newen earned
-	newenService := services.NewNewenService()
-	newenEarned := newenService.CalculateNewenEarned(session.UserID, isValidAnky)
-	session.NewenEarned = float64(newenEarned) // Convert int to float64
-	log.Printf("Newen earned: %f", session.NewenEarned)
-
-	// Save the processed writing session
-	err = services.SaveWritingSession(session)
+	// Save the writing session to the PostgreSQL database
+	err := services.SaveWritingSession(&session)
 	if err != nil {
 		log.Printf("Failed to save writing session: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save writing session"})
@@ -63,11 +39,7 @@ func SubmitWritingSession(c *gin.Context) {
 	log.Println("Writing session saved successfully")
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":               "Writing session submitted and processed successfully",
-		"is_valid_anky":         isValidAnky,
-		"newen_earned":          session.NewenEarned,
-		"image_prompt":          session.ImagePrompt,
-		"self_inquiry_question": session.SelfInquiryQuestion,
+		"message":    "Writing session submitted and saved successfully",
+		"session_id": session.SessionID,
 	})
-	fmt.Println("Response sent to client")
 }

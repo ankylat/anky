@@ -12,10 +12,12 @@ import (
 	"golang.org/x/time/rate"
 )
 
+// PrivyAuth is a middleware function that authenticates requests using Privy
 func PrivyAuth(appID, appSecret string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		log.Println("Starting PrivyAuth middleware")
 
+		// Check for the Authorization header
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
 			log.Println("Missing authorization header")
@@ -33,7 +35,7 @@ func PrivyAuth(appID, appSecret string) gin.HandlerFunc {
 			log.Println("Removed 'Bearer ' prefix from token")
 		}
 
-		// Create the Basic Auth header
+		// Create the Basic Auth header for Privy API
 		auth := base64.StdEncoding.EncodeToString([]byte(appID + ":" + appSecret))
 		log.Println("Created Basic Auth header")
 
@@ -47,13 +49,13 @@ func PrivyAuth(appID, appSecret string) gin.HandlerFunc {
 		}
 		log.Println("Created new request to Privy API")
 
-		// Set the required headers
+		// Set the required headers for Privy API request
 		req.Header.Set("Authorization", "Basic "+auth)
 		req.Header.Set("privy-app-id", appID)
 		req.Header.Set("Authorization", "Bearer "+token)
 		log.Println("Set headers for Privy API request")
 
-		// Send the request
+		// Send the request to Privy API
 		client := &http.Client{}
 		log.Println("Sending request to Privy API")
 		resp, err := client.Do(req)
@@ -66,7 +68,7 @@ func PrivyAuth(appID, appSecret string) gin.HandlerFunc {
 		defer resp.Body.Close()
 		log.Printf("Received response from Privy API with status: %s", resp.Status)
 
-		// Check the response status
+		// Check if the response status is OK
 		if resp.StatusCode != http.StatusOK {
 			log.Printf("Invalid token. Status code: %d", resp.StatusCode)
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
@@ -74,7 +76,7 @@ func PrivyAuth(appID, appSecret string) gin.HandlerFunc {
 			return
 		}
 
-		// Read and parse the response
+		// Read and parse the response body
 		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			log.Printf("Failed to read response: %v", err)
@@ -84,6 +86,7 @@ func PrivyAuth(appID, appSecret string) gin.HandlerFunc {
 		}
 		log.Printf("Response body: %s", string(body))
 
+		// Unmarshal the JSON response to extract the user ID
 		var user struct {
 			ID string `json:"id"`
 		}
@@ -104,6 +107,7 @@ func PrivyAuth(appID, appSecret string) gin.HandlerFunc {
 	}
 }
 
+// Logger is a middleware function that logs request details
 func Logger() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		start := time.Now()
@@ -112,6 +116,7 @@ func Logger() gin.HandlerFunc {
 
 		c.Next()
 
+		// Calculate request duration and log request details
 		latency := time.Since(start)
 		clientIP := c.ClientIP()
 		method := c.Request.Method
@@ -132,9 +137,12 @@ func Logger() gin.HandlerFunc {
 	}
 }
 
+// RateLimiter is a middleware function that implements rate limiting
 func RateLimiter() gin.HandlerFunc {
+	// Create a new rate limiter that allows 1 request per second with a burst of 5
 	limiter := rate.NewLimiter(1, 5)
 	return func(c *gin.Context) {
+		// Check if the request is allowed based on the rate limit
 		if !limiter.Allow() {
 			c.JSON(http.StatusTooManyRequests, gin.H{"error": "Too many requests"})
 			c.Abort()

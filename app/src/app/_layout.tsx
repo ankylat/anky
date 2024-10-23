@@ -71,63 +71,71 @@ export default function RootLayout() {
               value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
             >
               <View style={{ flex: 1 }}>
-                {showWritingGame ? (
-                  <WritingGame
-                    onGameOver={(wordsWritten, timeSpent) => {
-                      console.log(
-                        `Words written: ${wordsWritten}, Time spent: ${timeSpent}`
-                      );
-                      // Process the writing game results
-                      console.log(
-                        `Processing writing game results: ${wordsWritten} words written in ${timeSpent} seconds`
-                      );
-                      // TODO: Add logic to handle the writing game results (e.g., save to storage, update user stats)
-
-                      // After processing, toggle the writing game view
-                      // toggleWritingGame();
-                    }}
-                    sessionSeconds={3}
-                    sessionTargetSeconds={8}
-                    ankyverseDay={ankyverseDay}
-                    modes={{
-                      up: {
-                        prompt: "What's on your mind right now?",
-                        color: ankyverseDay.currentColor.secondary,
-                      },
-                      right: {
-                        prompt: "Describe a recent challenge you overcame",
-                        color: "#1a237e",
-                      },
-                      down: {
-                        prompt: "What are you grateful for today?",
-                        color: "#004d40",
-                      },
-                      left: {
-                        prompt: "Write about a goal you want to achieve",
-                        color: "#b71c1c",
-                      },
-                    }}
+                <Stack>
+                  <Stack.Screen
+                    name="(tabs)"
+                    options={{ headerShown: false }}
                   />
-                ) : (
-                  <>
-                    <Stack>
-                      <Stack.Screen
-                        name="(tabs)"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen name="+not-found" />
-                    </Stack>
-                  </>
+                  <Stack.Screen name="+not-found" />
+                </Stack>
+
+                {showWritingGame && (
+                  <View
+                    style={{
+                      position: "absolute",
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      zIndex: 10,
+                    }}
+                  >
+                    <WritingGame
+                      onGameOver={(wordsWritten, timeSpent) => {
+                        console.log(
+                          `Words written: ${wordsWritten}, Time spent: ${timeSpent}`
+                        );
+                        console.log(
+                          `Processing writing game results: ${wordsWritten} words written in ${timeSpent} seconds`
+                        );
+                        // TODO: Add logic to handle the writing game results (e.g., save to storage, update user stats)
+                        // setShowWritingGame(false);
+                      }}
+                      sessionSeconds={3}
+                      sessionTargetSeconds={8}
+                      ankyverseDay={ankyverseDay}
+                      modes={{
+                        up: {
+                          prompt: "What's on your mind right now?",
+                          color: ankyverseDay.currentColor.secondary,
+                        },
+                        right: {
+                          prompt: "Describe a recent challenge you overcame",
+                          color: "#1a237e",
+                        },
+                        down: {
+                          prompt: "What are you grateful for today?",
+                          color: "#004d40",
+                        },
+                        left: {
+                          prompt: "Write about a goal you want to achieve",
+                          color: "#b71c1c",
+                        },
+                      }}
+                    />
+                  </View>
                 )}
+
                 <View
                   style={{
                     position: "absolute",
-                    bottom: 36,
+                    bottom: 33,
                     left: 0,
                     right: 0,
                     alignItems: "center",
                     justifyContent: "center",
                     pointerEvents: "box-none",
+                    zIndex: 100,
                   }}
                 >
                   <TouchableOpacity
@@ -141,8 +149,10 @@ export default function RootLayout() {
                       shadowRadius: 3.84,
                       elevation: 5,
                     }}
-                    onPress={toggleWritingGame}
-                    activeOpacity={0.9} // This prevents the button from fully disappearing when pressed
+                    onPress={() => {
+                      setShowWritingGame((x) => !x);
+                    }}
+                    activeOpacity={0.9}
                   >
                     <Text
                       style={{

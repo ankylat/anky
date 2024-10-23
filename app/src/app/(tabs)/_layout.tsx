@@ -134,6 +134,13 @@ export default function TabLayout() {
             headerShown: false,
           }}
         />
+        <Tabs.Screen
+          name="transactions/[fid]"
+          options={{
+            tabBarButton: (props) => null,
+            title: "$newen transactions",
+          }}
+        />
       </Tabs>
       {showWritingGame && isWriteModalVisible && (
         <View style={{ ...StyleSheet.absoluteFillObject, zIndex: 1000 }}>

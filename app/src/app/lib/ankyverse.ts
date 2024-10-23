@@ -44,14 +44,14 @@ function getAnkyverseDay(date: Date): AnkyverseDay {
     "Poiesis",
   ];
   const colors = [
-    { main: "#4D0000", secondary: "#FF0000", textColor: "#FFFFFF" }, // Red with 70% black overlay
-    { main: "#4D2600", secondary: "#FFA500", textColor: "#FFFFFF" }, // Orange with 70% black overlay
-    { main: "#4D4D00", secondary: "#FFFF00", textColor: "#000000" }, // Yellow with 70% black overlay
-    { main: "#002600", secondary: "#008000", textColor: "#FFFFFF" }, // Green with 70% black overlay
-    { main: "#00004D", secondary: "#0000FF", textColor: "#FFFFFF" }, // Blue with 70% black overlay
-    { main: "#0F0026", secondary: "#4B0082", textColor: "#FFFFFF" }, // Indigo with 70% black overlay
-    { main: "#260026", secondary: "#8F00FF", textColor: "#FFFFFF" }, // Violet with 70% black overlay
-    { main: "#4D4D4D", secondary: "#FFFFFF", textColor: "#000000" }, // White with 70% black overlay
+    { main: "#FF4136", secondary: "#FF725C", textColor: "#FFFFFF" }, // Vibrant Red (Root Chakra)
+    { main: "#FF851B", secondary: "#FFA942", textColor: "#FFFFFF" }, // Strong Orange (Sacral Chakra)
+    { main: "#FFDC00", secondary: "#FFE566", textColor: "#000000" }, // Bright Yellow (Solar Plexus Chakra)
+    { main: "#2ECC40", secondary: "#5EE66B", textColor: "#FFFFFF" }, // Rich Green (Heart Chakra)
+    { main: "#0074D9", secondary: "#3D9DF2", textColor: "#FFFFFF" }, // Deep Blue (Throat Chakra)
+    { main: "#3D1C7A", secondary: "#5E3A9D", textColor: "#FFFFFF" }, // Strong Indigo (Third Eye Chakra)
+    { main: "#B10DC9", secondary: "#C644DC", textColor: "#FFFFFF" }, // Vivid Violet (Crown Chakra)
+    { main: "#FFFFFF", secondary: "#F1F1F1", textColor: "#000000" }, // Pure White (Unity Consciousness)
   ];
 
   const elapsedDays = daysBetweenDates(ankyverseStart, date);
@@ -69,7 +69,6 @@ function getAnkyverseDay(date: Date): AnkyverseDay {
     const kingdomIndex = dayWithinCurrentCycle % 8;
     currentKingdom = kingdoms[kingdomIndex];
     currentColor = colors[kingdomIndex];
-    console.log("here", currentColor);
   } else {
     status = "Great Slumber";
     wink = null; // No Wink during the Great Slumber

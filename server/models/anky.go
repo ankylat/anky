@@ -5,14 +5,17 @@ import (
 )
 
 type WritingSession struct {
-	ID                 string    `json:"id" bson:"_id,omitempty"`
+	SessionID          string    `json:"session_id" bson:"session_id"`
 	UserID             string    `json:"user_id" bson:"user_id"`
 	Content            string    `json:"content" bson:"content"`
-	Duration           int       `json:"duration" bson:"duration"` // Duration in seconds
+	WordsWritten       int       `json:"words_written" bson:"words_written"`
+	TimeSpent          int       `json:"time_spent" bson:"time_spent"` // Duration in seconds
 	Timestamp          time.Time `json:"timestamp" bson:"timestamp"`
 	IsAnky             bool      `json:"is_anky" bson:"is_anky"`
 	NewenEarned        float64   `json:"newen_earned" bson:"newen_earned"`
 	DailySessionNumber int       `json:"daily_session_number" bson:"daily_session_number"`
+	Prompt             string    `json:"prompt" bson:"prompt"`
+	FID                string    `json:"fid" bson:"fid"`
 
 	// Threading component
 	ParentAnkyID string `json:"parent_anky_id" bson:"parent_anky_id"`
@@ -35,14 +38,14 @@ type WritingSession struct {
 	Status string `json:"status" bson:"status"`
 
 	// Metadata
-	AIProcessedAt   *time.Time `json:"ai_processed_at" bson:"ai_processed_at"`
-	NFTMintedAt     *time.Time `json:"nft_minted_at" bson:"nft_minted_at"`
+	AIProcessedAt      *time.Time `json:"ai_processed_at" bson:"ai_processed_at"`
+	NFTMintedAt        *time.Time `json:"nft_minted_at" bson:"nft_minted_at"`
 	BlockchainSyncedAt *time.Time `json:"blockchain_synced_at" bson:"blockchain_synced_at"`
-	LastUpdatedAt   time.Time  `json:"last_updated_at" bson:"last_updated_at"`
+	LastUpdatedAt      time.Time  `json:"last_updated_at" bson:"last_updated_at"`
 }
 
 func (ws *WritingSession) IsValidAnky() bool {
-	return ws.Duration >= 480 // 8 minutes in seconds
+	return ws.TimeSpent >= 480 // 8 minutes in seconds
 }
 
 func (ws *WritingSession) SetAnkyStatus() {

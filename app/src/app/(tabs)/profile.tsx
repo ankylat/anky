@@ -14,6 +14,10 @@ import { User } from "../../types/User";
 import { Cast } from "../../types/Cast";
 import ProfileGrid from "../../components/Profile/ProfileGrid";
 import { usePrivy } from "@privy-io/expo";
+import AetherCoin from "@/assets/icons/aether.svg";
+import LuminaCoin from "@/assets/icons/lumina.svg";
+import TerraCoin from "@/assets/icons/terra.svg";
+import { Link } from "expo-router";
 
 const ProfileScreen = () => {
   const [isOwnProfile, setIsOwnProfile] = useState(true);
@@ -109,6 +113,29 @@ const ProfileScreen = () => {
             </View>
           </View>
         </View>
+        <Link href={`/transactions/18350`} asChild>
+          <TouchableOpacity className="w-2/3 border-2 border-yellow-400 rounded-lg p-4 my-4">
+            <View className="flex-row justify-between w-full">
+              <View className="flex-row items-center">
+                <AetherCoin width={40} height={40} />
+                <Text className="ml-2 text-lg">100</Text>
+              </View>
+              <View className="flex-row items-center">
+                <LuminaCoin width={40} height={40} />
+                <Text className="ml-2 text-lg">75</Text>
+              </View>
+              <View className="flex-row items-center">
+                <TerraCoin width={40} height={40} />
+                <Text className="ml-2 text-lg">50</Text>
+              </View>
+            </View>
+            <View className="flex-row justify-between items-center mt-2">
+              <Text className="text-sm text-gray-600">
+                Balance: {100 * 1000 + 75 * 100 + 50 * 25} $newen
+              </Text>
+            </View>
+          </TouchableOpacity>
+        </Link>
 
         <Text className="text-left w-full font-bold mb-1">
           Jorge Pablo Franetovic 🎩

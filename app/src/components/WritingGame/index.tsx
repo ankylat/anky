@@ -338,6 +338,20 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
       }
     };
 
+    const onRetry = useCallback(() => {
+      setGameOver(false);
+      setSessionStarted(false);
+      setWordsWritten(0);
+      setTimeSpent(0);
+      setTargetReached(false);
+      setText("");
+      setTapCount(0);
+      setSessionId(uuidv4());
+      lastKeystroke.current = Date.now();
+      animatedValue.setValue(1);
+      startSession();
+    }, [startSession]);
+
     console.log("Game over state:", gameOver);
 
     if (gameOver) {
@@ -355,6 +369,7 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
             color: modes[currentMode as keyof typeof modes].color,
           }}
           onClose={handleCancel}
+          onRetry={onRetry}
         />
       );
     }
