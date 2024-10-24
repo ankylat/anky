@@ -22,7 +22,12 @@ func SubmitWritingSession(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	log.Printf("Received writing session: %+v", session)
+	sessionJSON, err := json.MarshalIndent(session, "", "  ")
+	if err != nil {
+		log.Printf("Error marshalling session to JSON: %v", err)
+	} else {
+		log.Printf("Received writing session: %s", sessionJSON)
+	}
 
 	// Get user information from the authenticated context
 	privyUser, exists := c.Get("privyUser")
@@ -67,7 +72,7 @@ func SubmitWritingSession(c *gin.Context) {
 
 	// Save the writing session to the PostgreSQL database
 	log.Println("Attempting to save writing session to database")
-	err := services.SaveWritingSession(&session)
+	err = services.SaveWritingSession(&session)
 	if err != nil {
 		log.Printf("Failed to save writing session: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to save writing session"})
@@ -99,7 +104,7 @@ func processWithLLM(session models.WritingSession) {
 		Messages: []models.Message{
 			{
 				Role:    "system",
-				Content: "You are an AI embodiment of Ramana Maharshi, a profound spiritual teacher known for his method of self-inquiry. You are going to receive a stream of consciousness that a user wrote, and your task is to analyze the user's writing deeply, looking beyond the surface to uncover the hidden aspects of their psyche. Based on their content, generate a JSON object with the following: 1. Four penetrating self-inquiry questions, each designed to address a different archetype of the user's psyche (e.g., the Inner Child, the Shadow, the Higher Self, the Wounded Healer). These questions should be crafted to guide the user towards a deeper understanding of their true nature. 2. A fifth question that serves as a direct pointer to the user's sense of 'I', in the style of Ramana Maharshi's core teaching. 3. A description for an image that captures the essence of their writing, focusing on symbolism that represents the user's current state of consciousness and potential for self-realization. 4. A brief analysis of the unconscious themes or patterns you detect in the user's writing. Your goal is to create a profound vehicle for self-inquiry, using the user's writing as a mirror to reflect their deeper truths and guide them towards self-realization. Be bold, insightful, and transformative in your approach. Respond with a json object with the following format: {prompt1, prompt2, prompt3, prompt4, prompt5, image_description, analysis}",
+				Content: "You are an AI embodiment of Ramana Maharshi, a profound spiritual teacher known for his method of self-inquiry. You are going to receive a stream of consciousness that a user wrote, and your task is to analyze the user's writing deeply, looking beyond the surface to uncover the hidden aspects of their psyche. Based on their content, generate a JSON object with the following: 1. Four penetrating self-inquiry questions, each designed to address a different archetype of the user's psyche (the Inner Child, the Shadow, the Higher Self, the Wounded Healer). These questions should be crafted to guide the user towards a deeper understanding of their true nature. 2. A fifth question that serves as a direct pointer to the user's sense of 'I', in the style of Ramana Maharshi's core teaching. 3. A description for an image that captures the essence of their writing, focusing on symbolism that represents the user's current state of consciousness and potential for self-realization. 4. A brief analysis of the unconscious themes or patterns you detect in the user's writing. Your goal is to create a profound vehicle for self-inquiry, using the user's writing as a mirror to reflect their deeper truths and guide them towards self-realization. Be bold, insightful, and transformative in your approach. Respond with a json object with the following format: {prompt1, prompt2, prompt3, prompt4, prompt5, image_description, analysis}",
 			},
 			{
 				Role:    "user",
@@ -259,23 +264,40 @@ func generateImage(imagePrompt string) {
 
 func publishToFarcaster(session models.WritingSession) {
 	log.Printf("Publishing to Farcaster for session ID: %s", session.SessionID)
+	fmt.Println("Publishing to Farcaster for session ID:", session.SessionID)
 
 	neynarService := services.NewNeynarService()
+	fmt.Println("NeynarService initialized:", neynarService)
 
 	// Prepare the cast text
 	castText := fmt.Sprintf("New writing session completed!\nWords written: %d\nTime spent: %d seconds\nPrompt: %s",
 		session.WordsWritten, session.TimeSpent, session.Prompt)
+	fmt.Println("Cast Text prepared:", castText)
 
 	apiKey := os.Getenv("NEYNAR_API_KEY")
-	signerUUID := os.Getenv("NEYNAR_SIGNER_UUID")
+	signerUUID := os.Getenv("ANKY_SIGNER_UUID")
 	channelID := "anky"       // Replace with your actual channel ID
 	idem := session.SessionID // Using SessionID as a unique identifier for this cast
+
+	log.Printf("API Key: %s", apiKey)
+	log.Printf("Signer UUID: %s", signerUUID)
+	log.Printf("Channel ID: %s", channelID)
+	log.Printf("Idem: %s", idem)
+	log.Printf("Cast Text: %s", castText)
+
+	fmt.Println("API Key:", apiKey)
+	fmt.Println("Signer UUID:", signerUUID)
+	fmt.Println("Channel ID:", channelID)
+	fmt.Println("Idem:", idem)
+	fmt.Println("Cast Text:", castText)
 
 	err := neynarService.WriteCast(apiKey, signerUUID, castText, channelID, idem)
 	if err != nil {
 		log.Printf("Error publishing to Farcaster: %v", err)
+		fmt.Println("Error publishing to Farcaster:", err)
 		return
 	}
 
 	log.Printf("Farcaster publishing completed for session ID: %s", session.SessionID)
+	fmt.Println("Farcaster publishing completed for session ID:", session.SessionID)
 }

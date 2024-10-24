@@ -1,13 +1,13 @@
 package services
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
-	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -193,35 +193,53 @@ func (s *NeynarService) FetchUserCasts(fid int) ([]Cast, error) {
 }
 
 func (s *NeynarService) WriteCast(apiKey, signerUUID, text, channelID, idem string) error {
+	log.Println("Starting WriteCast function")
+
 	url := "https://api.neynar.com/v2/farcaster/cast"
+	log.Printf("URL: %s", url)
 
-	payload := fmt.Sprintf(`{
-		"signer_uuid": "%s",
-		"text": "%s",
-		"channel_id": "%s",
-		"idem": "%s"
-	}`, signerUUID, text, channelID, idem)
+	payload := map[string]string{
+		"signer_uuid": signerUUID,
+		"text":        text,
+		"channel_id":  channelID,
+		"idem":        idem,
+	}
 
-	req, err := http.NewRequest("POST", url, strings.NewReader(payload))
+	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
+		log.Printf("Error marshaling payload: %v", err)
+		return fmt.Errorf("error marshaling payload: %v", err)
+	}
+	log.Printf("Payload: %s", string(payloadBytes))
+
+	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payloadBytes))
+	if err != nil {
+		log.Printf("Error creating request: %v", err)
 		return fmt.Errorf("error creating request: %v", err)
 	}
+	log.Println("Request created successfully")
 
 	req.Header.Add("accept", "application/json")
 	req.Header.Add("api_key", apiKey)
 	req.Header.Add("content-type", "application/json")
+	log.Printf("Request headers: %v", req.Header)
 
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
+		log.Printf("Error sending request: %v", err)
 		return fmt.Errorf("error sending request: %v", err)
 	}
 	defer res.Body.Close()
+	log.Println("Request sent successfully")
 
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
+		log.Printf("Error reading response body: %v", err)
 		return fmt.Errorf("error reading response body: %v", err)
 	}
+	log.Printf("Response body read successfully: %s", string(body))
 
+	log.Printf("Response status code: %d", res.StatusCode)
 	if res.StatusCode != http.StatusOK {
 		return fmt.Errorf("unexpected status code: %d, body: %s", res.StatusCode, string(body))
 	}
