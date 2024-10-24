@@ -28,6 +28,7 @@ func (s *LLMService) SendChatRequest(chatRequest models.ChatRequest) (<-chan str
 		Model:    "llama3.1",
 		Messages: chatRequest.Messages,
 		Stream:   false,
+		Format:   "json",
 	}
 	fmt.Printf("Created LLMRequest: %+v\n", llmRequest)
 
