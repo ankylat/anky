@@ -68,7 +68,7 @@ const WritingGameSessionEnded: React.FC<WritingGameSessionEndedProps> = ({
       case 0:
         return (
           <View style={styles.stepContainer}>
-            <Text style={styles.title}>Welcome to Anky!</Text>
+            <Text style={styles.title}>Welcome to Anky</Text>
             <Text style={styles.description}>
               You've just completed your first writing session. Let's walk
               through what happened.

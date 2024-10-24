@@ -7,7 +7,7 @@ const POIESIS_API_KEY = process.env.POIESIS_API_KEY;
 // TODO: Add this endpoint on the backend
 export const getLandingFeed = async (fid: number = 18350): Promise<Cast[]> => {
   try {
-    let endpoint = `${API_URL}/user-casts/${fid}`;
+    let endpoint = `${API_URL}/user-casts/18350`;
 
     const response = await axios.get(endpoint, {
       headers: {

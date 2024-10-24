@@ -118,14 +118,6 @@ export default function TabLayout() {
               />
             ),
           }}
-          listeners={{
-            tabPress: (e) => {
-              if (!user) {
-                e.preventDefault();
-                handleProfilePress();
-              }
-            },
-          }}
         />
         <Tabs.Screen
           name="u/[fid]"

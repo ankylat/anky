@@ -13,6 +13,7 @@ export default function PostScreen() {
     queryKey: ["getCast", hash],
     queryFn: () => getCast(hash as string, ""),
   });
+  console.log("the post is: ", JSON.stringify(post, null, 2));
 
   if (isLoading) {
     return (
@@ -30,5 +31,5 @@ export default function PostScreen() {
     );
   }
 
-  return <CastElement cast={post} />;
+  return <CastElement cast={post} isInModal={true} />;
 }

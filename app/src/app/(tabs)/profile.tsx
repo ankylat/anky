@@ -8,6 +8,8 @@ import {
   Dimensions,
   Pressable,
 } from "react-native";
+import * as Clipboard from "expo-clipboard";
+
 import { Ionicons } from "@expo/vector-icons";
 import { useUser } from "../../context/UserContext";
 import { User } from "../../types/User";
@@ -20,18 +22,23 @@ import LuminaCoin from "@/assets/icons/lumina.svg";
 import TerraCoin from "@/assets/icons/terra.svg";
 import { Link } from "expo-router";
 import { calculateBalance } from "@/src/app/lib/transactions";
+import NotLoggedInUserView from "@/src/components/Profile/NotLoggedInUserView";
+import { useEmbeddedWallet, usePrivy } from "@privy-io/expo";
 
 const ProfileScreen = () => {
-  const [isOwnProfile, setIsOwnProfile] = useState(true);
   const [viewMode, setViewMode] = useState<"ankys" | "drafts" | "collected">(
     "ankys"
   );
-  const { casts, drafts, isLoading, error } = useUser();
-  const { user } = useQuilibrium();
+  const { user, isReady } = useQuilibrium();
+  console.log("THE USER IS: ", JSON.stringify(user, null, 2));
+  const { logout } = usePrivy();
+  const wallet = useEmbeddedWallet();
+
+  const { casts, drafts } = useUser();
   const screenWidth = Dimensions.get("window").width;
   const itemSize = screenWidth / 3;
 
-  if (isLoading || !user) {
+  if (!isReady) {
     return (
       <View className="flex-1 justify-center items-center">
         <Text>Loading...</Text>
@@ -39,20 +46,8 @@ const ProfileScreen = () => {
     );
   }
 
-  if (error) {
-    return (
-      <View className="flex-1 justify-center items-center">
-        <Text>Error: {error}</Text>
-      </View>
-    );
-  }
-
   if (!user) {
-    return (
-      <View className="flex-1 justify-center items-center">
-        <Text>No user data available</Text>
-      </View>
-    );
+    return <NotLoggedInUserView />;
   }
 
   const farcasterAccount = user.linked_accounts.find(
@@ -60,22 +55,20 @@ const ProfileScreen = () => {
   );
 
   return (
-    <ScrollView className="flex-1 bg-white pt-10">
+    <View className="flex-1 bg-white pt-10">
       <View className="items-center p-5 ">
         <View className="flex flex-row justify-between w-full">
           <Text className="text-2xl font-bold mr-auto pl-2 mb-2">
-            @{farcasterAccount?.username || "Username"}
-
+            @{farcasterAccount?.username || "your_username"}
           </Text>
+
           <View className="flex flex-row gap-4">
-            {isOwnProfile && (
-              <TouchableOpacity
-                onPress={() => alert("Settings")}
-                className="bg-blue-500 rounded-full p-2"
-              >
-                <Ionicons name="settings-outline" size={24} color="white" />
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              onPress={() => alert("Settings")}
+              className="bg-blue-500 rounded-full p-2"
+            >
+              <Ionicons name="settings-outline" size={24} color="white" />
+            </TouchableOpacity>
 
             <TouchableOpacity
               onPress={() => alert("Share")}
@@ -110,15 +103,31 @@ const ProfileScreen = () => {
               <Text className="text-sm text-gray-600">ankys</Text>
             </View>
             <View className="items-center">
-              <Text className="text-2xl font-bold">--</Text>
-              <Text className="text-sm text-gray-600">followers</Text>
-            </View>
-            <View className="items-center">
-              <Text className="text-2xl font-bold">--</Text>
-              <Text className="text-sm text-gray-600">following</Text>
+              <Text className="text-2xl font-bold">0</Text>
+              <Text className="text-sm text-gray-600">streak</Text>
             </View>
           </View>
         </View>
+        <Pressable
+          className=""
+          onPress={async () => {
+            // return const response = await logout();
+            try {
+              console.log("the wallet is", wallet?.account?.address);
+              console.log("copying to clipboard");
+              await Clipboard.setStringAsync(wallet?.account?.address || "");
+            } catch (error) {
+              console.log("there was an error creating the wallet", error);
+            }
+          }}
+        >
+          <Text className="text-lg my-2">
+            {user.linked_accounts.find(
+              (account) =>
+                account.type === "wallet" && account.wallet_client == "privy"
+            )?.address || "logout"}
+          </Text>
+        </Pressable>
         <Link
           href={`/transactions/${farcasterAccount?.fid || "18350"}`}
           asChild
@@ -139,7 +148,9 @@ const ProfileScreen = () => {
               </View>
             </View>
             <View className="flex-row justify-between items-center mt-2">
-              <Text className="text-sm text-gray-600">Balance: -- $newen</Text>
+              <Text className="text-sm text-gray-600 ml-auto">
+                Balance: -- $newen
+              </Text>
             </View>
           </TouchableOpacity>
         </Link>
@@ -168,24 +179,23 @@ const ProfileScreen = () => {
               Ankys
             </Text>
           </TouchableOpacity>
-          {isOwnProfile && (
-            <TouchableOpacity
-              className={`border-b-2 ${
-                viewMode === "drafts" ? "border-gray-300" : "border-transparent"
-              } px-4 py-2 mr-4`}
-              onPress={() => setViewMode("drafts")}
+          <TouchableOpacity
+            className={`border-b-2 ${
+              viewMode === "drafts" ? "border-gray-300" : "border-transparent"
+            } px-4 py-2 mr-4`}
+            onPress={() => setViewMode("drafts")}
+          >
+            <Text
+              className={`${
+                viewMode === "drafts"
+                  ? "text-gray-700 font-medium"
+                  : "text-gray-500"
+              }`}
             >
-              <Text
-                className={`${
-                  viewMode === "drafts"
-                    ? "text-gray-700 font-medium"
-                    : "text-gray-500"
-                }`}
-              >
-                Drafts
-              </Text>
-            </TouchableOpacity>
-          )}
+              Drafts
+            </Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             className={`border-b-2 ${
               viewMode === "collected"
@@ -206,10 +216,12 @@ const ProfileScreen = () => {
           </TouchableOpacity>
         </View>
       </View>
-      {viewMode === "ankys" && <ProfileGrid casts={casts} />}
-      {viewMode === "drafts" && <DraftsGrid drafts={drafts} />}
-      {viewMode === "collected" && <Text>Collected view</Text>}
-    </ScrollView>
+      <ScrollView className="flex-1">
+        {viewMode === "ankys" && <ProfileGrid casts={casts} />}
+        {viewMode === "drafts" && <DraftsGrid drafts={drafts} />}
+        {viewMode === "collected" && <Text>Collected view</Text>}
+      </ScrollView>
+    </View>
   );
 };
 
