@@ -18,6 +18,7 @@ import AetherCoin from "@/assets/icons/aether.svg";
 import LuminaCoin from "@/assets/icons/lumina.svg";
 import TerraCoin from "@/assets/icons/terra.svg";
 import { Link } from "expo-router";
+import { calculateBalance } from "@/src/app/lib/transactions";
 
 const ProfileScreen = () => {
   const [isOwnProfile, setIsOwnProfile] = useState(true);
@@ -28,9 +29,8 @@ const ProfileScreen = () => {
   const { user } = usePrivy();
   const screenWidth = Dimensions.get("window").width;
   const itemSize = screenWidth / 3;
-  console.log("the  user is", casts[0]?.author);
 
-  if (isLoading) {
+  if (isLoading || !user) {
     return (
       <View className="flex-1 justify-center items-center">
         <Text>Loading...</Text>
@@ -46,22 +46,16 @@ const ProfileScreen = () => {
     );
   }
 
-  if (!casts || casts.length === 0) {
-    return (
-      <View className="flex-1 justify-center items-center">
-        <Text>No casts available</Text>
-      </View>
-    );
-  }
-
-  const userInfo: User = casts[0].author;
+  const farcasterAccount = user.linked_accounts.find(
+    (account) => account.type === "farcaster"
+  );
 
   return (
     <ScrollView className="flex-1 bg-white pt-10">
       <View className="items-center p-5 ">
         <View className="flex flex-row justify-between w-full">
           <Text className="text-2xl font-bold mr-auto pl-2 mb-2">
-            @jpfraneto.eth
+            @{farcasterAccount?.username || "Unknown"}
           </Text>
           <View className="flex flex-row gap-4">
             {isOwnProfile && (
@@ -86,7 +80,9 @@ const ProfileScreen = () => {
           <View className="relative ">
             <Image
               source={{
-                uri: "https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/017bb663-b817-4064-bf93-46d6bf6e7f00/anim=false,fit=contain,f=auto,w=336",
+                uri:
+                  farcasterAccount?.profile_picture_url ||
+                  "https://via.placeholder.com/150",
               }}
               className="w-24 h-24 rounded-full mb-2.5"
             />
@@ -100,7 +96,7 @@ const ProfileScreen = () => {
 
           <View className="flex flex-row gap-4 flex-1 px-16 justify-between">
             <View className="items-center">
-              <Text className="text-2xl font-bold">{casts.length}</Text>
+              <Text className="text-2xl font-bold">{casts?.length || 0}</Text>
               <Text className="text-sm text-gray-600">ankys</Text>
             </View>
             <View className="items-center">
@@ -131,18 +127,17 @@ const ProfileScreen = () => {
             </View>
             <View className="flex-row justify-between items-center mt-2">
               <Text className="text-sm text-gray-600">
-                Balance: {100 * 1000 + 75 * 100 + 50 * 25} $newen
+                Balance: {calculateBalance()} $newen
               </Text>
             </View>
           </TouchableOpacity>
         </Link>
 
         <Text className="text-left w-full font-bold mb-1">
-          Jorge Pablo Franetovic 🎩
+          {farcasterAccount?.display_name || "Unknown"}
         </Text>
         <Text className="text-lg mb-1 w-full text-left">
-          father. im here to mainly ask curious questions and anky pill you
-          (anky.bot)
+          {farcasterAccount?.bio || "No bio available"}
         </Text>
 
         <View className="flex-row mt-2">

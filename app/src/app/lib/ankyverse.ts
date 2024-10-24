@@ -44,14 +44,14 @@ function getAnkyverseDay(date: Date): AnkyverseDay {
     "Poiesis",
   ];
   const colors = [
-    { main: "#FF4136", secondary: "#FF725C", textColor: "#FFFFFF" }, // Vibrant Red (Root Chakra)
-    { main: "#FF851B", secondary: "#FFA942", textColor: "#FFFFFF" }, // Strong Orange (Sacral Chakra)
-    { main: "#FFDC00", secondary: "#FFE566", textColor: "#000000" }, // Bright Yellow (Solar Plexus Chakra)
-    { main: "#2ECC40", secondary: "#5EE66B", textColor: "#FFFFFF" }, // Rich Green (Heart Chakra)
-    { main: "#0074D9", secondary: "#3D9DF2", textColor: "#FFFFFF" }, // Deep Blue (Throat Chakra)
-    { main: "#3D1C7A", secondary: "#5E3A9D", textColor: "#FFFFFF" }, // Strong Indigo (Third Eye Chakra)
-    { main: "#B10DC9", secondary: "#C644DC", textColor: "#FFFFFF" }, // Vivid Violet (Crown Chakra)
-    { main: "#FFFFFF", secondary: "#F1F1F1", textColor: "#000000" }, // Pure White (Unity Consciousness)
+    { main: "#8B0000", secondary: "#A52A2A", textColor: "#FFFFFF" }, // Subtle Red (Root Chakra)
+    { main: "#D2691E", secondary: "#CD853F", textColor: "#FFFFFF" }, // Muted Orange (Sacral Chakra)
+    { main: "#DAA520", secondary: "#F4A460", textColor: "#000000" }, // Soft Yellow (Solar Plexus Chakra)
+    { main: "#2E8B57", secondary: "#3CB371", textColor: "#FFFFFF" }, // Subdued Green (Heart Chakra)
+    { main: "#4682B4", secondary: "#5F9EA0", textColor: "#FFFFFF" }, // Soft Blue (Throat Chakra)
+    { main: "#483D8B", secondary: "#6A5ACD", textColor: "#FFFFFF" }, // Muted Indigo (Third Eye Chakra)
+    { main: "#8B008B", secondary: "#9932CC", textColor: "#FFFFFF" }, // Subtle Violet (Crown Chakra)
+    { main: "#F0F0F0", secondary: "#E0E0E0", textColor: "#000000" }, // Off-White (Unity Consciousness)
   ];
 
   const elapsedDays = daysBetweenDates(ankyverseStart, date);

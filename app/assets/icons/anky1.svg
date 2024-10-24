@@ -1,0 +1,101 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500">
+  <!-- Radial gradient definitions -->
+  <defs>
+    <radialGradient id="bgGradient" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#0B2447" stop-opacity="0"/>
+      <stop offset="100%" style="stop-color:#000000" stop-opacity="0"/>
+    </radialGradient>
+    
+    <radialGradient id="alienGlow" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" style="stop-color:#19376D" stop-opacity="0.8"/>
+      <stop offset="100%" style="stop-color:#0B2447" stop-opacity="0.3"/>
+    </radialGradient>
+    
+    <radialGradient id="eyeGlow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#FFD700"/>
+      <stop offset="100%" style="stop-color:#FFA500"/>
+    </radialGradient>
+  </defs>
+
+  <!-- Background - now fully transparent -->
+  <circle cx="250" cy="250" r="250" fill="url(#bgGradient)"/>
+  
+  <!-- Mandala pattern with reduced opacity -->
+  <g transform="translate(250,250)">
+    {[...Array(12)].map((_, i) => (
+      <g transform={`rotate(${i * 30})`}>
+        <path d="M-200,0 C-150,-50 -100,-50 -50,0 C-100,50 -150,50 -200,0Z" 
+              fill="none" 
+              stroke="#19376D" 
+              stroke-width="2"
+              opacity="0.15"/>
+        <path d="M-180,0 C-130,-40 -80,-40 -30,0 C-80,40 -130,40 -180,0Z" 
+              fill="none" 
+              stroke="#0B2447" 
+              stroke-width="2"
+              opacity="0.1"/>
+      </g>
+    ))}
+  </g>
+
+  <!-- Main face -->
+  <g transform="translate(250,250)">
+    <!-- Face background glow with reduced opacity -->
+    <circle cx="0" cy="0" r="120" fill="url(#alienGlow)"/>
+    
+    <!-- Face shape -->
+    <path d="M-80,-60 
+             C-100,-100 -50,-120 0,-120
+             C50,-120 100,-100 80,-60
+             C60,-20 40,0 0,40
+             C-40,0 -60,-20 -80,-60Z"
+          fill="#19376D"
+          stroke="#276BAD"
+          stroke-width="2"/>
+    
+    <!-- Eyes -->
+    <g transform="translate(-40,-20)">
+      <ellipse cx="0" cy="0" rx="25" ry="35" fill="#000"/>
+      <ellipse cx="0" cy="0" rx="20" ry="30" fill="url(#eyeGlow)"/>
+      <circle cx="5" cy="-5" r="5" fill="#FFF" opacity="0.7"/>
+    </g>
+    <g transform="translate(40,-20)">
+      <ellipse cx="0" cy="0" rx="25" ry="35" fill="#000"/>
+      <ellipse cx="0" cy="0" rx="20" ry="30" fill="url(#eyeGlow)"/>
+      <circle cx="5" cy="-5" r="5" fill="#FFF" opacity="0.7"/>
+    </g>
+    
+    <!-- Smile -->
+    <path d="M-40,20 C-20,50 20,50 40,20"
+          fill="none"
+          stroke="#276BAD"
+          stroke-width="4"
+          stroke-linecap="round"/>
+          
+    <!-- Decorative patterns with reduced opacity -->
+    <g>
+      {[...Array(8)].map((_, i) => (
+        <path d={`M${80 * Math.cos(i * Math.PI/4)},${80 * Math.sin(i * Math.PI/4)}
+                  C${60 * Math.cos(i * Math.PI/4)},${60 * Math.sin(i * Math.PI/4)}
+                   ${40 * Math.cos(i * Math.PI/4)},${40 * Math.sin(i * Math.PI/4)}
+                   ${20 * Math.cos(i * Math.PI/4)},${20 * Math.sin(i * Math.PI/4)}`}
+              stroke="#FFD700"
+              stroke-width="2"
+              fill="none"
+              opacity="0.3"/>
+      ))}
+    </g>
+  </g>
+  
+  <!-- Outer glow effects with reduced opacity -->
+  <circle cx="250" cy="250" r="240" 
+          fill="none" 
+          stroke="#19376D" 
+          stroke-width="2"
+          opacity="0.2"/>
+  <circle cx="250" cy="250" r="220" 
+          fill="none" 
+          stroke="#0B2447" 
+          stroke-width="2"
+          opacity="0.15"/>
+</svg>

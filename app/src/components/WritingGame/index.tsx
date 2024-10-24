@@ -202,6 +202,12 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
             }
             return newTimeSpent;
           });
+
+          // Vibrate at last 30% of life
+          if (timeSinceLastKeystroke >= sessionSeconds * 0.7) {
+            console.log("Vibrating at last 30% of life");
+            Vibration.vibrate(200);
+          }
         }
 
         Animated.timing(animatedValue, {
