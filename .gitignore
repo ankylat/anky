@@ -113,3 +113,15 @@ app/*.key
 app/*.mobileprovision
 app/*.orig.*
 app/web-build/
+
+# Server
+server/go.sum
+server/.env
+
+# Smart Contracts
+smart_contracts/src/node_modules/
+smart_contracts/src/cache/
+smart_contracts/src/coverage/
+smart_contracts/src/out/
+
+smart_contracts/*.env

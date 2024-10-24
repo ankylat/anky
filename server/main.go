@@ -28,10 +28,20 @@ func main() {
 
 	// Existing routes
 	r.POST("/talk-to-anky", handlers.HandleChat)
-	r.GET("/user-casts/:fid", handlers.HandleUserCasts)
+	r.GET("/user-casts/:fid", handlers.HandleUserCastsNeynar)
 
 	// New route for submitting writing sessions
 	r.POST("/submit-writing-session", middleware.PrivyAuth(appID, appSecret), handlers.SubmitWritingSession)
+
+	// Farcaster routes
+	farcasterGroup := r.Group("/farcaster")
+	{
+		farcasterGroup.GET("/user/:fid", handlers.GetFarcasterUser)
+		farcasterGroup.GET("/casts/:fid", handlers.GetUserCastsByFid)
+		farcasterGroup.GET("/cast/:hash", handlers.GetCastFromHash)
+		farcasterGroup.POST("/cast", handlers.CreateCast)
+		farcasterGroup.POST("/cast-reaction/:hash", handlers.CreateCastReaction)
+	}
 
 	// Start the server
 	log.Println("Starting server on :8888")

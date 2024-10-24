@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
 	"github.com/ankylat/anky/server/models"
 	"github.com/ankylat/anky/server/services"
+	"github.com/gin-gonic/gin"
 )
 
 func HandleChat(c *gin.Context) {
@@ -20,10 +20,18 @@ func HandleChat(c *gin.Context) {
 	}
 	fmt.Println("Chat request bound successfully")
 
+	jsonFormatting := true
+	if jsonFormattingParam := c.Query("json_formatting"); jsonFormattingParam != "" {
+		if jsonFormattingParam == "false" {
+			jsonFormatting = false
+		}
+	}
+	fmt.Printf("json_formatting: %v\n", jsonFormatting)
+
 	llmService := services.NewLLMService()
 	fmt.Println("LLM service created")
 
-	responseChan, err := llmService.SendChatRequest(chatRequest)
+	responseChan, err := llmService.SendChatRequest(chatRequest, jsonFormatting)
 	if err != nil {
 		fmt.Println("Error sending chat request:", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})

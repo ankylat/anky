@@ -21,14 +21,16 @@ func NewLLMService() *LLMService {
 	}
 }
 
-func (s *LLMService) SendChatRequest(chatRequest models.ChatRequest) (<-chan string, error) {
+func (s *LLMService) SendChatRequest(chatRequest models.ChatRequest, jsonFormatting bool) (<-chan string, error) {
 	fmt.Println("SendChatRequest called with:", chatRequest)
 
 	llmRequest := models.LLMRequest{
 		Model:    "llama3.1",
 		Messages: chatRequest.Messages,
 		Stream:   false,
-		Format:   "json",
+	}
+	if jsonFormatting {
+		llmRequest.Format = "json"
 	}
 	fmt.Printf("Created LLMRequest: %+v\n", llmRequest)
 
