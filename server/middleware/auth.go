@@ -86,11 +86,31 @@ func PrivyAuth(appID, appSecret string) gin.HandlerFunc {
 		}
 		log.Printf("Response body: %s", string(body))
 
-		// Unmarshal the JSON response to extract the user ID
-		var user struct {
-			ID string `json:"id"`
+		// Define a struct to hold the user information
+		var privyUser struct {
+			ID             string `json:"id"`
+			CreatedAt      int64  `json:"created_at"`
+			LinkedAccounts []struct {
+				Type              string `json:"type"`
+				Address           string `json:"address,omitempty"`
+				ChainType         string `json:"chain_type,omitempty"`
+				FID               int    `json:"fid,omitempty"`
+				OwnerAddress      string `json:"owner_address,omitempty"`
+				Username          string `json:"username,omitempty"`
+				DisplayName       string `json:"display_name,omitempty"`
+				Bio               string `json:"bio,omitempty"`
+				ProfilePicture    string `json:"profile_picture,omitempty"`
+				ProfilePictureURL string `json:"profile_picture_url,omitempty"`
+				VerifiedAt        int64  `json:"verified_at"`
+				FirstVerifiedAt   int64  `json:"first_verified_at"`
+				LatestVerifiedAt  int64  `json:"latest_verified_at"`
+			} `json:"linked_accounts"`
+			HasAcceptedTerms bool `json:"has_accepted_terms"`
+			IsGuest          bool `json:"is_guest"`
 		}
-		err = json.Unmarshal(body, &user)
+
+		// Unmarshal the JSON response into the privyUser struct
+		err = json.Unmarshal(body, &privyUser)
 		if err != nil {
 			log.Printf("Failed to parse response: %v", err)
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse response"})
@@ -98,9 +118,9 @@ func PrivyAuth(appID, appSecret string) gin.HandlerFunc {
 			return
 		}
 
-		// Set the user ID in the context for later use
-		c.Set("userID", user.ID)
-		log.Printf("Set userID in context: %s", user.ID)
+		// Set the entire privyUser struct in the context
+		c.Set("privyUser", privyUser)
+		log.Printf("Set privyUser in context: %+v", privyUser)
 
 		log.Println("PrivyAuth middleware completed successfully")
 		c.Next()

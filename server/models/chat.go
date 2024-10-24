@@ -13,6 +13,7 @@ type LLMRequest struct {
 	Model    string    `json:"model"`
 	Messages []Message `json:"messages"`
 	Stream   bool      `json:"stream"`
+	Format   string    `json:"format"`
 }
 
 type StreamResponse struct {

@@ -7,6 +7,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
@@ -23,22 +24,22 @@ type NeynarResponse struct {
 }
 
 type Cast struct {
-	Object         string         `json:"object"`
-	Hash           string         `json:"hash"`
-	ThreadHash     string         `json:"thread_hash"`
-	ParentHash     *string        `json:"parent_hash"`
-	ParentURL      *string        `json:"parent_url"`
-	RootParentURL  *string        `json:"root_parent_url"`
-	ParentAuthor   ParentAuthor   `json:"parent_author"`
-	Author         Author         `json:"author"`
-	Text           string         `json:"text"`
-	Timestamp      string         `json:"timestamp"`
-	Embeds         []Embed        `json:"embeds"`
-	Reactions      Reactions      `json:"reactions"`
-	Replies        Replies        `json:"replies"`
-	Channel        *Channel       `json:"channel"`
+	Object            string        `json:"object"`
+	Hash              string        `json:"hash"`
+	ThreadHash        string        `json:"thread_hash"`
+	ParentHash        *string       `json:"parent_hash"`
+	ParentURL         *string       `json:"parent_url"`
+	RootParentURL     *string       `json:"root_parent_url"`
+	ParentAuthor      ParentAuthor  `json:"parent_author"`
+	Author            Author        `json:"author"`
+	Text              string        `json:"text"`
+	Timestamp         string        `json:"timestamp"`
+	Embeds            []Embed       `json:"embeds"`
+	Reactions         Reactions     `json:"reactions"`
+	Replies           Replies       `json:"replies"`
+	Channel           *Channel      `json:"channel"`
 	MentionedProfiles []interface{} `json:"mentioned_profiles"`
-	ViewerContext  ViewerContext  `json:"viewer_context"`
+	ViewerContext     ViewerContext `json:"viewer_context"`
 }
 
 type ParentAuthor struct {
@@ -46,20 +47,20 @@ type ParentAuthor struct {
 }
 
 type Author struct {
-	Object           string           `json:"object"`
-	Fid              int              `json:"fid"`
-	CustodyAddress   string           `json:"custody_address"`
-	Username         string           `json:"username"`
-	DisplayName      string           `json:"display_name"`
-	PfpURL           string           `json:"pfp_url"`
-	Profile          Profile          `json:"profile"`
-	FollowerCount    int              `json:"follower_count"`
-	FollowingCount   int              `json:"following_count"`
-	Verifications    []string         `json:"verifications"`
+	Object            string            `json:"object"`
+	Fid               int               `json:"fid"`
+	CustodyAddress    string            `json:"custody_address"`
+	Username          string            `json:"username"`
+	DisplayName       string            `json:"display_name"`
+	PfpURL            string            `json:"pfp_url"`
+	Profile           Profile           `json:"profile"`
+	FollowerCount     int               `json:"follower_count"`
+	FollowingCount    int               `json:"following_count"`
+	Verifications     []string          `json:"verifications"`
 	VerifiedAddresses VerifiedAddresses `json:"verified_addresses"`
-	ActiveStatus     string           `json:"active_status"`
-	PowerBadge       bool             `json:"power_badge"`
-	ViewerContext    ViewerContext    `json:"viewer_context"`
+	ActiveStatus      string            `json:"active_status"`
+	PowerBadge        bool              `json:"power_badge"`
+	ViewerContext     ViewerContext     `json:"viewer_context"`
 }
 
 type Profile struct {
@@ -106,9 +107,9 @@ type OgImage struct {
 }
 
 type Reactions struct {
-	LikesCount   int    `json:"likes_count"`
-	RecastsCount int    `json:"recasts_count"`
-	Likes        []Like `json:"likes"`
+	LikesCount   int           `json:"likes_count"`
+	RecastsCount int           `json:"recasts_count"`
+	Likes        []Like        `json:"likes"`
 	Recasts      []interface{} `json:"recasts"`
 }
 
@@ -129,7 +130,7 @@ type Channel struct {
 }
 
 type ViewerContext struct {
-	Following bool `json:"following"`
+	Following  bool `json:"following"`
 	FollowedBy bool `json:"followed_by"`
 	Blocking   bool `json:"blocking"`
 	BlockedBy  bool `json:"blocked_by"`
@@ -189,4 +190,42 @@ func (s *NeynarService) FetchUserCasts(fid int) ([]Cast, error) {
 	}
 
 	return neynarResponse.Casts, nil
+}
+
+func (s *NeynarService) WriteCast(apiKey, signerUUID, text, channelID, idem string) error {
+	url := "https://api.neynar.com/v2/farcaster/cast"
+
+	payload := fmt.Sprintf(`{
+		"signer_uuid": "%s",
+		"text": "%s",
+		"channel_id": "%s",
+		"idem": "%s"
+	}`, signerUUID, text, channelID, idem)
+
+	req, err := http.NewRequest("POST", url, strings.NewReader(payload))
+	if err != nil {
+		return fmt.Errorf("error creating request: %v", err)
+	}
+
+	req.Header.Add("accept", "application/json")
+	req.Header.Add("api_key", apiKey)
+	req.Header.Add("content-type", "application/json")
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("error sending request: %v", err)
+	}
+	defer res.Body.Close()
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return fmt.Errorf("error reading response body: %v", err)
+	}
+
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d, body: %s", res.StatusCode, string(body))
+	}
+
+	log.Printf("Successfully wrote cast. Response: %s", string(body))
+	return nil
 }
