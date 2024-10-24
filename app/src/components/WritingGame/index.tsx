@@ -87,11 +87,11 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
   }) => {
     console.log("WritingGame component rendered");
     const { user, isReady, getAccessToken } = usePrivy();
-    console.log("IN here the user is: ", user);
     const [gameOver, setGameOver] = useState<boolean>(false);
     const [wordsWritten, setWordsWritten] = useState<number>(0);
     const [timeSpent, setTimeSpent] = useState<number>(0);
     const [sessionStarted, setSessionStarted] = useState<boolean>(false);
+    const [text, setText] = useState<string>("");
     const [targetReached, setTargetReached] = useState<boolean>(false);
     const lastKeystroke = useRef<number>(Date.now());
     const animatedValue = useRef(new Animated.Value(1)).current;
@@ -105,7 +105,6 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
 
     const [currentMode, setCurrentMode] = useState<string>("up");
     const [keyboardHeight, setKeyboardHeight] = useState<number>(0);
-    const [text, setText] = useState<string>("");
     const [tapCount, setTapCount] = useState<number>(0);
     const [sessionId, setSessionId] = useState<string>("");
 
@@ -177,7 +176,6 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
         console.log("Time since last keystroke:", timeSinceLastKeystroke);
 
         if (timeSinceLastKeystroke >= sessionSeconds) {
-          console.log("Session time exceeded, ending game");
           clearInterval(interval);
           setGameOver(true);
 
@@ -191,6 +189,7 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
           }
 
           // Send writing session to backend
+          console.log("sending the writing session to the backend");
           sendWritingSessionToBackend();
         } else {
           setTimeSpent((prev) => {
@@ -235,6 +234,7 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
     const handleTextChange = useCallback(
       (newText: string): void => {
         console.log("Text changed, length:", newText.length);
+        setText(newText);
         lastKeystroke.current = Date.now();
         Animated.timing(animatedValue, {
           toValue: 1,
@@ -271,14 +271,16 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
     }, [setIsUserWriting]);
 
     const sendWritingSessionToBackend = async () => {
+      console.log("==========THE TEXT HERE IS==========", text);
+      const isAnky = true || timeSpent >= 480;
       const writingSession: WritingSession = {
         session_id: sessionId,
         user_id: user ? user.id : "anonymous",
         content: text,
-        words_written: wordsWritten,
-        time_spent: timeSpent,
+        words_written: text.length,
+        time_spent: Math.floor(timeSpent),
         timestamp: new Date(),
-        is_anky: timeSpent >= 480,
+        is_anky: isAnky,
         newen_earned: 0, // This should be calculated based on your logic
         daily_session_number: 0, // This should be determined based on user's sessions for the day
         prompt: modes[currentMode as keyof typeof modes].prompt,
@@ -317,7 +319,7 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
       }
 
       // If user is logged in and session is long enough, send to backend
-      if (user && timeSpent >= 480) {
+      if (user && isAnky) {
         try {
           const accessToken = await getAccessToken();
           const response = await axios.post(

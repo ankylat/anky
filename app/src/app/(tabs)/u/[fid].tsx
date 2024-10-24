@@ -22,15 +22,16 @@ const UserProfileScreen = () => {
   const { fid } = useLocalSearchParams<{ fid: string }>();
   const [viewMode, setViewMode] = useState<"ankys" | "collected">("ankys");
   const screenWidth = Dimensions.get("window").width;
-
+  console.log("in here, the fid is: ", fid);
   const {
-    data: userProfile,
+    data: userData,
     isLoading,
     error,
   } = useQuery({
     queryKey: ["getUserProfile", fid],
     queryFn: () => getUserProfile(fid as string),
   });
+  console.log("the user profile is: ", JSON.stringify(userData, null, 2));
 
   if (isLoading) {
     return (
@@ -48,7 +49,7 @@ const UserProfileScreen = () => {
     );
   }
 
-  if (!userProfile) {
+  if (!userData) {
     return (
       <View className="flex-1 justify-center items-center bg-white">
         <Text className="text-2xl font-bold">User profile not found</Text>
@@ -56,7 +57,7 @@ const UserProfileScreen = () => {
     );
   }
 
-  const { user, casts } = userProfile;
+  const { user, casts } = userData;
 
   return (
     <ScrollView className="flex-1 bg-white pt-10">

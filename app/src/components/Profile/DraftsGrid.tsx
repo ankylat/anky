@@ -12,6 +12,7 @@ interface DraftsGridProps {
 
 const DraftsGrid: React.FC<DraftsGridProps> = ({ drafts }) => {
   const navigation = useNavigation();
+  console.log("the drafts are", JSON.stringify(drafts, null, 2));
 
   const handleDeleteDraft = async (draftId: string) => {
     // TODO: Implement delete functionality

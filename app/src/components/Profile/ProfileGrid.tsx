@@ -14,11 +14,11 @@ const ProfileGrid: React.FC<ProfileGridProps> = ({ casts }) => {
   const itemSize = screenWidth / 3;
 
   const renderItem = ({ item }: { item: Cast }) => (
-    <Link href={`/post/${item.hash}` as const} asChild>
+    <Link href={`/cast/${item.hash}` as const} asChild>
       <ProfileGridElement
         cast={item}
         size={itemSize}
-        onPress={() => router.push(`/post/${item.hash}`)}
+        onPress={() => router.push(`/cast/${item.hash}`)}
       />
     </Link>
   );

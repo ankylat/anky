@@ -15,7 +15,7 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
 import "react-native-reanimated";
 import { SheetProvider } from "react-native-actions-sheet";
-import { Animated, Easing } from "react-native";
+import { Animated, Easing, Vibration } from "react-native";
 
 import { useColorScheme } from "@/src/hooks/useColorScheme";
 
@@ -83,10 +83,13 @@ export default function RootLayout() {
                         options={{ headerShown: false }}
                       />
                       <Stack.Screen
-                        name="post/[hash]"
+                        name="cast/[hash]"
                         options={{
-                          presentation: "card",
-                          animation: "slide_from_right",
+                          presentation: "modal",
+                          animation: "slide_from_bottom",
+                          headerShown: false,
+                          headerShadowVisible: false,
+                          contentStyle: { marginTop: 0 },
                         }}
                       />
                       <Stack.Screen name="+not-found" />
@@ -114,8 +117,8 @@ export default function RootLayout() {
                             // TODO: Add logic to handle the writing game results (e.g., save to storage, update user stats)
                             // setShowWritingGame(false);
                           }}
-                          sessionSeconds={3}
-                          sessionTargetSeconds={8}
+                          sessionSeconds={8}
+                          sessionTargetSeconds={480}
                           ankyverseDay={ankyverseDay}
                           modes={{
                             up: {
@@ -164,6 +167,7 @@ export default function RootLayout() {
                           elevation: 5,
                         }}
                         onPress={() => {
+                          Vibration.vibrate(5);
                           setShowWritingGame((x) => !x);
                         }}
                         activeOpacity={0.9}

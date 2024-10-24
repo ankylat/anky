@@ -34,7 +34,7 @@ const CastElement: React.FC<CastElementProps> = ({
   };
 
   return (
-    <View className="mb-4">
+    <View className={isInModal ? "overflow-y-scroll pb-4" : "mb-4"}>
       <View className="flex-row justify-between">
         <View className="flex-row items-center  gap-2 p-2">
           <Image
@@ -120,10 +120,10 @@ const CastElement: React.FC<CastElementProps> = ({
           </TouchableOpacity>
         </View>
       </View>
-      <View className="p-2">
+      <ScrollView className="p-2">
         <Text className="text-lg font-bold mb-2">{cast.author.username}</Text>
         {isInModal ? (
-          <Text className="text-sm text-gray-800">{cast.text}</Text>
+          <Text className="text-sm text-gray-800 ">{cast.text}</Text>
         ) : (
           <TouchableOpacity onPress={toggleTextExpansion}>
             <Text
@@ -138,7 +138,7 @@ const CastElement: React.FC<CastElementProps> = ({
             )}
           </TouchableOpacity>
         )}
-      </View>
+      </ScrollView>
     </View>
   );
 };
