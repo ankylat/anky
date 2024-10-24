@@ -6,6 +6,86 @@ export enum TransactionType {
   DISPLAY_USER_ANKY = "DISPLAY_USER_ANKY",
 }
 
+export const transactions = [
+  {
+    id: "1",
+    type: "Daily Writing",
+    timestamp: "2023-06-15T09:30:00Z",
+    inflow: 2675,
+    outflow: 0,
+  },
+  {
+    id: "2",
+    type: "Image Generation",
+    timestamp: "2023-06-15T10:15:00Z",
+    inflow: 0,
+    outflow: 500,
+  },
+  {
+    id: "3",
+    type: "Anky Minted by User123",
+    timestamp: "2023-06-15T11:45:00Z",
+    inflow: 1000,
+    outflow: 0,
+  },
+  {
+    id: "4",
+    type: "Text Completion",
+    timestamp: "2023-06-15T14:20:00Z",
+    inflow: 0,
+    outflow: 300,
+  },
+  {
+    id: "5",
+    type: "Daily Writing",
+    timestamp: "2023-06-16T09:15:00Z",
+    inflow: 2675,
+    outflow: 0,
+  },
+  {
+    id: "6",
+    type: "NFT Sale",
+    timestamp: "2023-06-16T13:30:00Z",
+    inflow: 5000,
+    outflow: 0,
+  },
+  {
+    id: "7",
+    type: "Community Contribution",
+    timestamp: "2023-06-17T11:00:00Z",
+    inflow: 1500,
+    outflow: 0,
+  },
+  {
+    id: "8",
+    type: "AI Model Training",
+    timestamp: "2023-06-17T16:45:00Z",
+    inflow: 0,
+    outflow: 1000,
+  },
+  {
+    id: "9",
+    type: "Referral Bonus",
+    timestamp: "2023-06-18T10:20:00Z",
+    inflow: 3000,
+    outflow: 0,
+  },
+  {
+    id: "10",
+    type: "Premium Feature Unlock",
+    timestamp: "2023-06-18T14:55:00Z",
+    inflow: 0,
+    outflow: 2000,
+  },
+];
+
+export const calculateBalance = () => {
+  return transactions.reduce(
+    (acc, transaction) => acc + transaction.inflow - transaction.outflow,
+    0
+  );
+};
+
 interface TransactionDetails {
   type: TransactionType;
   amount: number;

@@ -19,6 +19,7 @@ import AetherCoin from "@/assets/icons/aether.svg";
 import LuminaCoin from "@/assets/icons/lumina.svg";
 import TerraCoin from "@/assets/icons/terra.svg";
 import { Link } from "expo-router";
+import { calculateBalance } from "@/src/app/lib/transactions";
 
 const ProfileScreen = () => {
   const [isOwnProfile, setIsOwnProfile] = useState(true);
@@ -30,7 +31,7 @@ const ProfileScreen = () => {
   const screenWidth = Dimensions.get("window").width;
   const itemSize = screenWidth / 3;
 
-  if (isLoading) {
+  if (isLoading || !user) {
     return (
       <View className="flex-1 justify-center items-center">
         <Text>Loading...</Text>
@@ -64,6 +65,7 @@ const ProfileScreen = () => {
         <View className="flex flex-row justify-between w-full">
           <Text className="text-2xl font-bold mr-auto pl-2 mb-2">
             @{farcasterAccount?.username || "Username"}
+
           </Text>
           <View className="flex flex-row gap-4">
             {isOwnProfile && (
