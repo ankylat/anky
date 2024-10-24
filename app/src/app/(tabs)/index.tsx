@@ -28,7 +28,7 @@ export default function HomeScreen() {
   const [showTabBar, setShowTabBar] = useState(false);
 
   useEffect(() => {
-    setContentHeight(Math.max(screenHeight, casts.length * 200 + 100));
+    setContentHeight(Math.max(screenHeight, casts?.length * 200 + 100));
   }, [casts, screenHeight]);
 
   const panResponder = PanResponder.create({
@@ -105,7 +105,7 @@ export default function HomeScreen() {
         scrollEventThrottle={16}
         contentContainerStyle={{ minHeight: contentHeight }}
       >
-        {casts.slice(0, 5).map((cast, index) => (
+        {casts?.slice(0, 5).map((cast, index) => (
           <View
             key={index}
             className="bg-white bg-opacity-80 rounded-lg m-4 shadow-md"

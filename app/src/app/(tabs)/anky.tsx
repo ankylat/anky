@@ -1,216 +1,180 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
-  Text,
-  TextInput,
   KeyboardAvoidingView,
   Platform,
-  FlatList,
+  Text,
+  TextInput,
+  ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
+  Keyboard,
 } from "react-native";
-import { Picker } from "@react-native-picker/picker";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { Ionicons } from "@expo/vector-icons";
+import axios from "axios";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
-  timestamp: number;
 }
 
-type PlaygroundMode = "chat" | "image" | "voice" | "code";
-
 export default function ChatScreen() {
-  const [message, setMessage] = useState<string>("");
   const [messages, setMessages] = useState<Message[]>([]);
-  const [displayedMessages, setDisplayedMessages] = useState<Message[]>([]);
-  const [page, setPage] = useState<number>(1);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
-  const [mode, setMode] = useState<PlaygroundMode>("chat");
+  const [inputText, setInputText] = useState("");
+  const [isInputActive, setIsInputActive] = useState(false);
+  const inputRef = useRef<TextInput>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   useEffect(() => {
-    loadChatHistory();
+    // Add welcome message from Anky
+    setMessages([
+      {
+        role: "assistant",
+        content:
+          "welcome home, dear reader. or writer, if you dare to. your mission is to do it for 8 minutes every day. we will do the rest (or it will happen on its own)",
+      },
+    ]);
   }, []);
 
-  useEffect(() => {
-    updateDisplayedMessages();
-  }, [messages, page]);
+  const handleSendMessage = async () => {
+    if (inputText.trim() === "") return;
 
-  const loadChatHistory = async () => {
-    try {
-      const storedHistory = await AsyncStorage.getItem("chatHistory");
-      if (storedHistory) {
-        setMessages(JSON.parse(storedHistory));
-      }
-    } catch (error) {
-      console.error("Error loading chat history:", error);
-    }
-  };
-
-  const updateDisplayedMessages = () => {
-    const startIndex = Math.max(0, messages.length - page * 10);
-    const endIndex = messages.length;
-    setDisplayedMessages(messages.slice(startIndex, endIndex).reverse());
-  };
-
-  const saveChatHistory = async (newHistory: Message[]) => {
-    try {
-      await AsyncStorage.setItem("chatHistory", JSON.stringify(newHistory));
-    } catch (error) {
-      console.error("Error saving chat history:", error);
-    }
-  };
-
-  const sendMessage = async () => {
-    if (message.trim() === "") return;
+    console.log("Sending message:", inputText);
 
     const newMessage: Message = {
       role: "user",
-      content: message,
-      timestamp: Date.now(),
+      content: inputText.trim(),
     };
+
     const updatedMessages = [...messages, newMessage];
     setMessages(updatedMessages);
-    saveChatHistory(updatedMessages);
-    setMessage("");
-    setIsLoading(true);
+    setInputText("");
 
     try {
-      const response = await fetch(
+      console.log("Sending request to API");
+      const response = await axios.post(
         `${process.env.EXPO_PUBLIC_ANKY_API_URL}/talk-to-anky`,
         {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            messages: [{ role: "user", content: message }],
-          }),
+          messages: updatedMessages,
         }
       );
-      const data = await response.json();
-      if (data && data.response) {
-        const assistantMessage: Message = {
-          role: "assistant",
-          content: data.response,
-          timestamp: Date.now(),
-        };
-        const newUpdatedMessages = [...updatedMessages, assistantMessage];
-        setMessages(newUpdatedMessages);
-        saveChatHistory(newUpdatedMessages);
-      }
+
+      console.log("Received response from API:", response.data.response);
+
+      const assistantMessage: Message = {
+        role: "assistant",
+        content: response.data.response,
+      };
+
+      setMessages([...updatedMessages, assistantMessage]);
     } catch (error) {
       console.error("Error sending message:", error);
-    } finally {
-      setIsLoading(false);
     }
   };
 
-  const renderChatItem = ({ item }: { item: Message }) => (
-    <View
-      className={`p-2.5 rounded-lg mb-2.5 max-w-[70%] ${
-        item.role === "user"
-          ? "self-end bg-green-200"
-          : "self-start bg-gray-200"
-      }`}
-    >
-      <Text>{item.content}</Text>
-      <Text className="text-xs text-gray-500 self-end mt-1">
-        {new Date(item.timestamp).toLocaleString()}
-      </Text>
-    </View>
-  );
-
-  const loadMoreMessages = () => {
-    if (page * 10 < messages.length) {
-      setPage((prevPage) => prevPage + 1);
-    }
+  const activateInput = () => {
+    console.log("Activating input");
+    setIsInputActive(true);
+    setTimeout(() => {
+      console.log("Focusing input");
+      inputRef.current?.focus();
+    }, 100);
   };
 
-  const getModeColor = (currentMode: PlaygroundMode) => {
-    switch (currentMode) {
-      case "chat":
-        return "#4CAF50";
-      case "image":
-        return "#2196F3";
-      case "voice":
-        return "#FFC107";
-      case "code":
-        return "#9C27B0";
-      default:
-        return "#000000";
-    }
-  };
-
-  const getModeIcon = (currentMode: PlaygroundMode) => {
-    switch (currentMode) {
-      case "chat":
-        return "chatbubbles-outline";
-      case "image":
-        return "image-outline";
-      case "voice":
-        return "mic-outline";
-      case "code":
-        return "code-slash-outline";
-      default:
-        return "help-outline";
-    }
-  };
+  useEffect(() => {
+    console.log("Scrolling to end of messages");
+    scrollViewRef.current?.scrollToEnd({ animated: true });
+  }, [messages]);
 
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === "ios" ? "padding" : "height"}
       className="flex-1"
+      keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
     >
-      <View className="flex-1 p-5">
-        <View className="mb-4">
-          <Picker
-            selectedValue={mode}
-            onValueChange={(itemValue: PlaygroundMode) => setMode(itemValue)}
-            style={{ backgroundColor: getModeColor(mode) }}
-          >
-            <Picker.Item label="Chat" value="chat" />
-            <Picker.Item label="Image" value="image" />
-            <Picker.Item label="Voice" value="voice" />
-            <Picker.Item label="Code" value="code" />
-          </Picker>
-          <View className="absolute right-2 top-3">
-            <Ionicons name={getModeIcon(mode)} size={24} color="white" />
-          </View>
-        </View>
-        <FlatList
-          data={displayedMessages}
-          renderItem={renderChatItem}
-          keyExtractor={(item) => item.timestamp.toString()}
-          className="flex-1"
-          inverted
-          onEndReached={loadMoreMessages}
-          onEndReachedThreshold={0.1}
-        />
-        <View className="flex-row mt-2.5">
-          <TextInput
-            className="flex-1 h-10 border border-gray-300 rounded-full px-2.5 text-base mr-2.5"
-            placeholder={
-              mode === "image"
-                ? "The profile picture of the buddha"
-                : "Type a message..."
-            }
-            placeholderTextColor="#999"
-            value={message}
-            onChangeText={setMessage}
-            editable={!isLoading}
-          />
+      <View className="flex-1">
+        <ScrollView
+          ref={scrollViewRef}
+          style={{ flex: 1, padding: 10 }}
+          contentContainerStyle={{ paddingBottom: 20 }}
+        >
+          {messages.map((message, index) => (
+            <View
+              key={index}
+              style={{
+                alignSelf: message.role === "user" ? "flex-end" : "flex-start",
+                backgroundColor:
+                  message.role === "user" ? "#DCF8C6" : "#E5E5EA",
+                borderRadius: 10,
+                padding: 10,
+                marginBottom: 10,
+                maxWidth: "80%",
+              }}
+            >
+              <Text>{message.content}</Text>
+            </View>
+          ))}
+        </ScrollView>
+        <View style={{ flexDirection: "row", padding: 10 }}>
+          {isInputActive ? (
+            <TextInput
+              ref={inputRef}
+              style={{
+                flex: 1,
+                borderWidth: 1,
+                borderColor: "#ccc",
+                borderRadius: 20,
+                paddingHorizontal: 15,
+                paddingVertical: 10,
+                marginRight: 10,
+              }}
+              value={inputText}
+              onChangeText={(text) => {
+                console.log("Input text changed:", text);
+                setInputText(text);
+              }}
+              placeholder="Type a message..."
+              onBlur={() => {
+                console.log("Input blurred");
+                if (inputText.trim() === "") {
+                  console.log("Input empty, deactivating");
+                  setIsInputActive(false);
+                }
+              }}
+            />
+          ) : (
+            <TouchableOpacity
+              style={{
+                flex: 1,
+                borderWidth: 1,
+                borderColor: "#ccc",
+                borderRadius: 20,
+                paddingHorizontal: 15,
+                paddingVertical: 10,
+                marginRight: 10,
+                justifyContent: "center",
+              }}
+              onPress={activateInput}
+            >
+              <Text style={{ color: "#999" }}>
+                Can you give me three tips to deal with imposter syndrome?
+              </Text>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity
-            className="justify-center items-center bg-blue-500 rounded-full px-5"
-            onPress={sendMessage}
-            disabled={isLoading}
+            className="mt-auto"
+            style={{
+              backgroundColor: "#007AFF",
+              borderRadius: 20,
+              paddingHorizontal: 20,
+              height: 40,
+
+              justifyContent: "center",
+            }}
+            onPress={() => {
+              console.log("Send button pressed");
+              handleSendMessage();
+            }}
           >
-            {isLoading ? (
-              <ActivityIndicator color="#ffffff" />
-            ) : (
-              <Text>Send</Text>
-            )}
+            <Text style={{ color: "white" }}>Ask Anky</Text>
           </TouchableOpacity>
         </View>
       </View>

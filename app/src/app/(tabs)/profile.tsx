@@ -13,7 +13,8 @@ import { useUser } from "../../context/UserContext";
 import { User } from "../../types/User";
 import { Cast } from "../../types/Cast";
 import ProfileGrid from "../../components/Profile/ProfileGrid";
-import { usePrivy } from "@privy-io/expo";
+import DraftsGrid from "../../components/Profile/DraftsGrid";
+import { useQuilibrium } from "@/src/context/QuilibriumContext";
 import AetherCoin from "@/assets/icons/aether.svg";
 import LuminaCoin from "@/assets/icons/lumina.svg";
 import TerraCoin from "@/assets/icons/terra.svg";
@@ -24,11 +25,10 @@ const ProfileScreen = () => {
   const [viewMode, setViewMode] = useState<"ankys" | "drafts" | "collected">(
     "ankys"
   );
-  const { casts, isLoading, error } = useUser();
-  const { user } = usePrivy();
+  const { casts, drafts, isLoading, error } = useUser();
+  const { user } = useQuilibrium();
   const screenWidth = Dimensions.get("window").width;
   const itemSize = screenWidth / 3;
-  console.log("the  user is", casts[0]?.author);
 
   if (isLoading) {
     return (
@@ -46,22 +46,24 @@ const ProfileScreen = () => {
     );
   }
 
-  if (!casts || casts.length === 0) {
+  if (!user) {
     return (
       <View className="flex-1 justify-center items-center">
-        <Text>No casts available</Text>
+        <Text>No user data available</Text>
       </View>
     );
   }
 
-  const userInfo: User = casts[0].author;
+  const farcasterAccount = user.linked_accounts.find(
+    (account) => account.type === "farcaster"
+  );
 
   return (
     <ScrollView className="flex-1 bg-white pt-10">
       <View className="items-center p-5 ">
         <View className="flex flex-row justify-between w-full">
           <Text className="text-2xl font-bold mr-auto pl-2 mb-2">
-            @jpfraneto.eth
+            @{farcasterAccount?.username || "Username"}
           </Text>
           <View className="flex flex-row gap-4">
             {isOwnProfile && (
@@ -86,7 +88,9 @@ const ProfileScreen = () => {
           <View className="relative ">
             <Image
               source={{
-                uri: "https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/017bb663-b817-4064-bf93-46d6bf6e7f00/anim=false,fit=contain,f=auto,w=336",
+                uri:
+                  farcasterAccount?.profile_picture_url ||
+                  "https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/017bb663-b817-4064-bf93-46d6bf6e7f00/anim=false,fit=contain,f=auto,w=336",
               }}
               className="w-24 h-24 rounded-full mb-2.5"
             />
@@ -100,49 +104,49 @@ const ProfileScreen = () => {
 
           <View className="flex flex-row gap-4 flex-1 px-16 justify-between">
             <View className="items-center">
-              <Text className="text-2xl font-bold">{casts.length}</Text>
+              <Text className="text-2xl font-bold">{casts?.length || 0}</Text>
               <Text className="text-sm text-gray-600">ankys</Text>
             </View>
             <View className="items-center">
-              <Text className="text-2xl font-bold">23</Text>
+              <Text className="text-2xl font-bold">--</Text>
               <Text className="text-sm text-gray-600">followers</Text>
             </View>
             <View className="items-center">
-              <Text className="text-2xl font-bold">8</Text>
+              <Text className="text-2xl font-bold">--</Text>
               <Text className="text-sm text-gray-600">following</Text>
             </View>
           </View>
         </View>
-        <Link href={`/transactions/18350`} asChild>
+        <Link
+          href={`/transactions/${farcasterAccount?.fid || "18350"}`}
+          asChild
+        >
           <TouchableOpacity className="w-2/3 border-2 border-yellow-400 rounded-lg p-4 my-4">
             <View className="flex-row justify-between w-full">
               <View className="flex-row items-center">
                 <AetherCoin width={40} height={40} />
-                <Text className="ml-2 text-lg">100</Text>
+                <Text className="ml-2 text-lg">--</Text>
               </View>
               <View className="flex-row items-center">
                 <LuminaCoin width={40} height={40} />
-                <Text className="ml-2 text-lg">75</Text>
+                <Text className="ml-2 text-lg">--</Text>
               </View>
               <View className="flex-row items-center">
                 <TerraCoin width={40} height={40} />
-                <Text className="ml-2 text-lg">50</Text>
+                <Text className="ml-2 text-lg">--</Text>
               </View>
             </View>
             <View className="flex-row justify-between items-center mt-2">
-              <Text className="text-sm text-gray-600">
-                Balance: {100 * 1000 + 75 * 100 + 50 * 25} $newen
-              </Text>
+              <Text className="text-sm text-gray-600">Balance: -- $newen</Text>
             </View>
           </TouchableOpacity>
         </Link>
 
         <Text className="text-left w-full font-bold mb-1">
-          Jorge Pablo Franetovic 🎩
+          {farcasterAccount?.display_name || "Display Name"}
         </Text>
         <Text className="text-lg mb-1 w-full text-left">
-          father. im here to mainly ask curious questions and anky pill you
-          (anky.bot)
+          {farcasterAccount?.bio || "No bio available"}
         </Text>
 
         <View className="flex-row mt-2">
@@ -201,9 +205,7 @@ const ProfileScreen = () => {
         </View>
       </View>
       {viewMode === "ankys" && <ProfileGrid casts={casts} />}
-      {viewMode === "drafts" && isOwnProfile && (
-        <Text>Drafts view (only visible to profile owner)</Text>
-      )}
+      {viewMode === "drafts" && <DraftsGrid drafts={drafts} />}
       {viewMode === "collected" && <Text>Collected view</Text>}
     </ScrollView>
   );

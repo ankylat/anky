@@ -1,14 +1,15 @@
-import React, { useState } from "react";
-import { View, Dimensions, FlatList } from "react-native";
+import React from "react";
+import { Dimensions, FlatList } from "react-native";
 import ProfileGridElement from "./ProfileGridElement";
 import { Cast } from "@/src/types/Cast";
+import { useRouter } from "expo-router";
 
 interface ProfileGridProps {
   casts: Cast[];
 }
 
 const ProfileGrid: React.FC<ProfileGridProps> = ({ casts }) => {
-  const [selectedCast, setSelectedCast] = useState<Cast | null>(null);
+  const router = useRouter();
   const screenWidth = Dimensions.get("window").width;
   const itemSize = screenWidth / 3;
 
@@ -16,7 +17,7 @@ const ProfileGrid: React.FC<ProfileGridProps> = ({ casts }) => {
     <ProfileGridElement
       cast={item}
       size={itemSize}
-      onPress={() => setSelectedCast(item)}
+      onPress={() => router.push(`/post/${item.hash}`)}
     />
   );
 
