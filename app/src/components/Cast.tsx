@@ -13,6 +13,7 @@ import { Link } from "expo-router";
 import { SheetManager } from "react-native-actions-sheet";
 import { usePrivy } from "@privy-io/expo";
 import { useUser } from "../context/UserContext";
+import { useQuilibrium } from "../context/QuilibriumContext";
 
 interface CastElementProps {
   cast: Cast;
@@ -24,7 +25,7 @@ const CastElement: React.FC<CastElementProps> = ({
   isInModal = false,
 }) => {
   const [isTextExpanded, setIsTextExpanded] = useState(isInModal);
-  const { user } = useUser();
+  const { user } = useQuilibrium();
 
   const toggleTextExpansion = () => {
     if (!isInModal) {
@@ -107,7 +108,10 @@ const CastElement: React.FC<CastElementProps> = ({
               SheetManager.show("share-cast-modal", {
                 payload: {
                   castHash: cast.hash,
-                  whoIsSharing: user?.fid || 18350,
+                  whoIsSharing:
+                    user?.linked_accounts.find(
+                      (account) => account.type === "farcaster"
+                    )?.fid || 18350,
                 },
               });
             }}

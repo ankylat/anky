@@ -112,6 +112,9 @@ const WritingGameSessionEnded: React.FC<WritingGameSessionEndedProps> = ({
               your mission is to write for 480 seconds. that's 8 minutes. just
               write anything
             </Text>
+            <Text style={styles.description}>
+              if you stop writing for more than 8 seconds, your session ends.
+            </Text>
             <TouchableOpacity
               style={styles.button}
               onPress={() => {

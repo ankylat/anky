@@ -28,6 +28,7 @@ import WritingGameSessionEnded from "./WritingGameSessionEnded";
 import { AnkyverseDay } from "@/src/app/lib/ankyverse";
 import { v4 as uuidv4 } from "uuid";
 import axios from "axios";
+import { WritingSession } from "@/src/types/Anky";
 
 const { width, height } = Dimensions.get("window");
 
@@ -234,7 +235,6 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
     const handleTextChange = useCallback(
       (newText: string): void => {
         console.log("Text changed, length:", newText.length);
-        setText(newText);
         lastKeystroke.current = Date.now();
         Animated.timing(animatedValue, {
           toValue: 1,
@@ -244,20 +244,6 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
       },
       [animatedValue]
     );
-
-    const handleScreenTap = useCallback(() => {
-      console.log("inside the screen tap");
-      if (sessionStarted) {
-        Vibration.vibrate(100);
-        setTapCount((prevCount) => {
-          const newCount = prevCount + 1;
-          if (newCount >= 3) {
-            handleCancel();
-          }
-          return newCount;
-        });
-      }
-    }, [sessionStarted]);
 
     const handleCancel = useCallback(() => {
       console.log("Cancel button pressed");
@@ -285,22 +271,58 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
     }, [setIsUserWriting]);
 
     const sendWritingSessionToBackend = async () => {
-      if (user) {
+      const writingSession: WritingSession = {
+        session_id: sessionId,
+        user_id: user ? user.id : "anonymous",
+        content: text,
+        words_written: wordsWritten,
+        time_spent: timeSpent,
+        timestamp: new Date(),
+        is_anky: timeSpent >= 480,
+        newen_earned: 0, // This should be calculated based on your logic
+        daily_session_number: 0, // This should be determined based on user's sessions for the day
+        prompt: modes[currentMode as keyof typeof modes].prompt,
+        fid:
+          user?.linked_accounts.find((account) => account.type === "farcaster")
+            ?.fid || 18350,
+        parent_anky_id: "", // This should be set if it's a response to another Anky
+        anky_response: "", // This should be set if it's a response from an Anky
+        image_prompt: "",
+        self_inquiry_question: modes[currentMode as keyof typeof modes].prompt,
+        token_id: "",
+        contract_address: "",
+        image_ipfs_hash: "",
+        image_url: "",
+        cast_hash: "",
+        status: timeSpent >= 480 ? "completed" : "draft",
+        ai_processed_at: null,
+        nft_minted_at: null,
+        blockchain_synced_at: null,
+        last_updated_at: new Date(),
+      };
+
+      // Save session locally
+      try {
+        const sessions = await AsyncStorage.getItem("writingSessions");
+        const updatedSessions = sessions
+          ? [...JSON.parse(sessions), writingSession]
+          : [writingSession];
+        await AsyncStorage.setItem(
+          "writingSessions",
+          JSON.stringify(updatedSessions)
+        );
+        console.log("Writing session saved locally");
+      } catch (error) {
+        console.error("Error saving writing session locally:", error);
+      }
+
+      // If user is logged in and session is long enough, send to backend
+      if (user && timeSpent >= 480) {
         try {
           const accessToken = await getAccessToken();
           const response = await axios.post(
             `${process.env.EXPO_PUBLIC_ANKY_API_URL}/submit-writing-session`,
-            {
-              sessionId,
-              content: text,
-              wordsWritten,
-              timeSpent,
-              userId: user.id,
-              fid: user.linked_accounts.find(
-                (account) => account.type === "farcaster"
-              )?.fid,
-              prompt: modes[currentMode as keyof typeof modes].prompt,
-            },
+            writingSession,
             {
               headers: {
                 Authorization: `Bearer ${accessToken}`,
@@ -308,38 +330,11 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
             }
           );
 
-          console.log("Writing session submitted successfully:", response.data);
+          console.log("Anky submitted successfully:", response.data);
           // Here you can update the landing feed with the new Anky
           // For example, you could dispatch an action to update your app's state
         } catch (error) {
-          console.error("Error submitting writing session:", error);
-        }
-      } else {
-        // Save session locally if user is not logged in
-        try {
-          const draft = {
-            sessionId,
-            sessionDuration: timeSpent,
-            wordsWritten,
-            totalTaps: tapCount,
-            initialInquiry: {
-              prompt: modes[currentMode as keyof typeof modes].prompt,
-              color: modes[currentMode as keyof typeof modes].color,
-            },
-            content: text,
-            date: new Date().toISOString(),
-          };
-          const drafts = await AsyncStorage.getItem("writingDrafts");
-          const updatedDrafts = drafts
-            ? [...JSON.parse(drafts), draft]
-            : [draft];
-          await AsyncStorage.setItem(
-            "writingDrafts",
-            JSON.stringify(updatedDrafts)
-          );
-          console.log("Draft saved successfully");
-        } catch (error) {
-          console.error("Error saving draft:", error);
+          console.error("Error submitting Anky:", error);
         }
       }
     };
@@ -355,7 +350,7 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
       setSessionId(uuidv4());
       lastKeystroke.current = Date.now();
       animatedValue.setValue(1);
-      startSession();
+      // startSession();
     }, [startSession]);
 
     console.log("Game over state:", gameOver);
@@ -439,7 +434,7 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
             }}
             multiline
             onChangeText={handleTextChange}
-            value={text}
+            defaultValue=""
             placeholder={modes[currentMode as keyof typeof modes].prompt}
             placeholderTextColor={`${
               ankyverseDay?.currentColor.textColor || "white"
