@@ -39,7 +39,7 @@ func (s *AIService) generateImagePrompt(content string) (string, error) {
 	}
 
 	chatRequest := models.ChatRequest{Messages: messages}
-	responseChan, err := s.llmService.SendChatRequest(chatRequest)
+	responseChan, err := s.llmService.SendChatRequest(chatRequest, true)
 	if err != nil {
 		return "", err
 	}
@@ -59,7 +59,7 @@ func (s *AIService) generateSelfInquiryQuestion(content string) (string, error) 
 	}
 
 	chatRequest := models.ChatRequest{Messages: messages}
-	responseChan, err := s.llmService.SendChatRequest(chatRequest)
+	responseChan, err := s.llmService.SendChatRequest(chatRequest, true)
 	if err != nil {
 		return "", err
 	}
@@ -71,4 +71,3 @@ func (s *AIService) generateSelfInquiryQuestion(content string) (string, error) 
 
 	return selfInquiryQuestion, nil
 }
-

@@ -5,11 +5,11 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/gin-gonic/gin"
 	"github.com/ankylat/anky/server/services"
+	"github.com/gin-gonic/gin"
 )
 
-func HandleUserCasts(c *gin.Context) {
+func HandleUserCastsNeynar(c *gin.Context) {
 	fidStr := c.Param("fid")
 	log.Printf("Received request for FID: %s", fidStr)
 

@@ -99,7 +99,7 @@ func processWithLLM(session models.WritingSession) {
 		Messages: []models.Message{
 			{
 				Role:    "system",
-				Content: "You are an AI embodiment of Ramana Maharshi, a profound spiritual teacher known for his method of self-inquiry. Your task is to analyze the user's writing deeply, looking beyond the surface to uncover the hidden aspects of their psyche. Based on their content, generate a JSON object with the following: 1. Four penetrating self-inquiry questions, each designed to address a different archetype of the user's psyche (e.g., the Inner Child, the Shadow, the Higher Self, the Wounded Healer). These questions should be crafted to guide the user towards a deeper understanding of their true nature. 2. A fifth question that serves as a direct pointer to the user's sense of 'I', in the style of Ramana Maharshi's core teaching. 3. A description for an image that captures the essence of their writing, focusing on symbolism that represents the user's current state of consciousness and potential for self-realization. 4. A brief analysis of the unconscious themes or patterns you detect in the user's writing. Your goal is to create a profound vehicle for self-inquiry, using the user's writing as a mirror to reflect their deeper truths and guide them towards self-realization. Be bold, insightful, and transformative in your approach. Respond with a json object with the following format: {prompt1, prompt2, prompt3, prompt4, prompt5, image_description, analysis}",
+				Content: "You are an AI embodiment of Ramana Maharshi, a profound spiritual teacher known for his method of self-inquiry. You are going to receive a stream of consciousness that a user wrote, and your task is to analyze the user's writing deeply, looking beyond the surface to uncover the hidden aspects of their psyche. Based on their content, generate a JSON object with the following: 1. Four penetrating self-inquiry questions, each designed to address a different archetype of the user's psyche (e.g., the Inner Child, the Shadow, the Higher Self, the Wounded Healer). These questions should be crafted to guide the user towards a deeper understanding of their true nature. 2. A fifth question that serves as a direct pointer to the user's sense of 'I', in the style of Ramana Maharshi's core teaching. 3. A description for an image that captures the essence of their writing, focusing on symbolism that represents the user's current state of consciousness and potential for self-realization. 4. A brief analysis of the unconscious themes or patterns you detect in the user's writing. Your goal is to create a profound vehicle for self-inquiry, using the user's writing as a mirror to reflect their deeper truths and guide them towards self-realization. Be bold, insightful, and transformative in your approach. Respond with a json object with the following format: {prompt1, prompt2, prompt3, prompt4, prompt5, image_description, analysis}",
 			},
 			{
 				Role:    "user",
@@ -109,7 +109,7 @@ func processWithLLM(session models.WritingSession) {
 	}
 
 	// Send the chat request to the LLM service
-	responseChan, err := llmService.SendChatRequest(chatRequest)
+	responseChan, err := llmService.SendChatRequest(chatRequest, true)
 	if err != nil {
 		log.Printf("Error sending chat request: %v", err)
 		return
@@ -266,7 +266,6 @@ func publishToFarcaster(session models.WritingSession) {
 	castText := fmt.Sprintf("New writing session completed!\nWords written: %d\nTime spent: %d seconds\nPrompt: %s",
 		session.WordsWritten, session.TimeSpent, session.Prompt)
 
-	// TODO: Replace these placeholder values with actual values from your configuration
 	apiKey := os.Getenv("NEYNAR_API_KEY")
 	signerUUID := os.Getenv("NEYNAR_SIGNER_UUID")
 	channelID := "anky"       // Replace with your actual channel ID
