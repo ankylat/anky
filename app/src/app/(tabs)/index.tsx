@@ -10,14 +10,31 @@ import {
   PanResponder,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  ActivityIndicator,
 } from "react-native";
 import { useUser } from "../../context/UserContext";
 import CastElement from "../../components/Cast";
+import { useQuery } from "@tanstack/react-query";
+import { getLandingFeed } from "@/src/api/feed";
+import { usePrivy } from "@privy-io/expo";
 
 const BACKGROUND_IMAGE = require("@/assets/images/bg.png");
 
 export default function HomeScreen() {
-  const { casts, isLoading, error } = useUser();
+  const { user } = usePrivy();
+  const userFid =
+    user?.linked_accounts?.find((account) => account.type === "farcaster")
+      ?.fid || 18350;
+
+  const {
+    data: casts,
+    isLoading,
+    error,
+  } = useQuery({
+    queryKey: ["getLandingFeed", userFid],
+    queryFn: () => getLandingFeed(userFid),
+  });
+
   const scrollY = useRef(new Animated.Value(0)).current;
   const [contentHeight, setContentHeight] = useState(0);
   const { height: screenHeight, width: screenWidth } = Dimensions.get("window");
@@ -28,7 +45,7 @@ export default function HomeScreen() {
   const [showTabBar, setShowTabBar] = useState(false);
 
   useEffect(() => {
-    setContentHeight(Math.max(screenHeight, casts?.length * 200 + 100));
+    setContentHeight(Math.max(screenHeight, (casts?.length || 1) * 200 + 100));
   }, [casts, screenHeight]);
 
   const panResponder = PanResponder.create({
@@ -72,7 +89,7 @@ export default function HomeScreen() {
   if (isLoading) {
     return (
       <View className="flex-1 justify-center items-center">
-        <Text>Loading...</Text>
+        <ActivityIndicator size="large" />
       </View>
     );
   }
@@ -80,7 +97,7 @@ export default function HomeScreen() {
   if (error) {
     return (
       <View className="flex-1 justify-center items-center">
-        <Text>Error: {error}</Text>
+        <Text>Error: {error.message}</Text>
       </View>
     );
   }

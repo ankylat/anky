@@ -52,6 +52,10 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
           headers: { Authorization: `Bearer ${token}` },
         }
       );
+      console.log(
+        "The user casts are: ",
+        JSON.stringify(castsResponse.data, null, 2)
+      );
       setCasts(castsResponse.data);
       await AsyncStorage.setItem(
         "userCasts",
@@ -69,8 +73,6 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
         console.log("No drafts found in local storage");
         setDrafts([]);
       }
-
-      // Set user data
 
       console.log("User data fetched successfully");
     } catch (err) {

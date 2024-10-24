@@ -29,9 +29,12 @@ import WritingGame from "../components/WritingGame";
 import CustomTabBar from "../components/navigation/CustomTabBar";
 import { getCurrentAnkyverseDay } from "./lib/ankyverse";
 import { QuilibriumProvider } from "../context/QuilibriumContext";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
+
+const queryClient = new QueryClient();
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
@@ -66,119 +69,122 @@ export default function RootLayout() {
       clientId={process.env.EXPO_PUBLIC_PRIVY_CLIENT_ID!}
     >
       <QuilibriumProvider>
-        <SheetProvider>
-          <AnkyProvider>
-            <UserProvider>
-              <ThemeProvider
-                value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
-              >
-                <View style={{ flex: 1 }}>
-                  <Stack>
-                    <Stack.Screen
-                      name="(tabs)"
-                      options={{ headerShown: false }}
-                    />
-                    <Stack.Screen
-                      name="post/[hash]"
-                      options={{
-                        presentation: "card",
-                        animation: "slide_from_right",
-                      }}
-                    />
-                    <Stack.Screen name="+not-found" />
-                  </Stack>
+        <QueryClientProvider client={queryClient}>
+          <SheetProvider>
+            <AnkyProvider>
+              <UserProvider>
+                <ThemeProvider
+                  value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Stack>
+                      <Stack.Screen
+                        name="(tabs)"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
+                        name="post/[hash]"
+                        options={{
+                          presentation: "card",
+                          animation: "slide_from_right",
+                        }}
+                      />
+                      <Stack.Screen name="+not-found" />
+                    </Stack>
 
-                  {showWritingGame && (
+                    {showWritingGame && (
+                      <View
+                        style={{
+                          position: "absolute",
+                          top: 0,
+                          left: 0,
+                          right: 0,
+                          bottom: 0,
+                          zIndex: 10,
+                        }}
+                      >
+                        <WritingGame
+                          onGameOver={(wordsWritten, timeSpent) => {
+                            console.log(
+                              `Words written: ${wordsWritten}, Time spent: ${timeSpent}`
+                            );
+                            console.log(
+                              `Processing writing game results: ${wordsWritten} words written in ${timeSpent} seconds`
+                            );
+                            // TODO: Add logic to handle the writing game results (e.g., save to storage, update user stats)
+                            // setShowWritingGame(false);
+                          }}
+                          sessionSeconds={3}
+                          sessionTargetSeconds={8}
+                          ankyverseDay={ankyverseDay}
+                          modes={{
+                            up: {
+                              prompt: "What's on your mind right now?",
+                              color: ankyverseDay.currentColor.secondary,
+                            },
+                            right: {
+                              prompt:
+                                "Describe a recent challenge you overcame",
+                              color: "#1a237e",
+                            },
+                            down: {
+                              prompt: "What are you grateful for today?",
+                              color: "#004d40",
+                            },
+                            left: {
+                              prompt: "Write about a goal you want to achieve",
+                              color: "#b71c1c",
+                            },
+                          }}
+                        />
+                      </View>
+                    )}
+
                     <View
                       style={{
                         position: "absolute",
-                        top: 0,
+                        bottom: 33,
                         left: 0,
                         right: 0,
-                        bottom: 0,
-                        zIndex: 10,
+                        alignItems: "center",
+                        justifyContent: "center",
+                        pointerEvents: "box-none",
+                        zIndex: 100,
                       }}
                     >
-                      <WritingGame
-                        onGameOver={(wordsWritten, timeSpent) => {
-                          console.log(
-                            `Words written: ${wordsWritten}, Time spent: ${timeSpent}`
-                          );
-                          console.log(
-                            `Processing writing game results: ${wordsWritten} words written in ${timeSpent} seconds`
-                          );
-                          // TODO: Add logic to handle the writing game results (e.g., save to storage, update user stats)
-                          // setShowWritingGame(false);
-                        }}
-                        sessionSeconds={3}
-                        sessionTargetSeconds={8}
-                        ankyverseDay={ankyverseDay}
-                        modes={{
-                          up: {
-                            prompt: "What's on your mind right now?",
-                            color: ankyverseDay.currentColor.secondary,
-                          },
-                          right: {
-                            prompt: "Describe a recent challenge you overcame",
-                            color: "#1a237e",
-                          },
-                          down: {
-                            prompt: "What are you grateful for today?",
-                            color: "#004d40",
-                          },
-                          left: {
-                            prompt: "Write about a goal you want to achieve",
-                            color: "#b71c1c",
-                          },
-                        }}
-                      />
-                    </View>
-                  )}
-
-                  <View
-                    style={{
-                      position: "absolute",
-                      bottom: 33,
-                      left: 0,
-                      right: 0,
-                      alignItems: "center",
-                      justifyContent: "center",
-                      pointerEvents: "box-none",
-                      zIndex: 100,
-                    }}
-                  >
-                    <TouchableOpacity
-                      style={{
-                        backgroundColor: ankyverseDay.currentColor.secondary,
-                        borderRadius: 9999,
-                        padding: 16,
-                        shadowColor: "#000",
-                        shadowOffset: { width: 0, height: 2 },
-                        shadowOpacity: 0.25,
-                        shadowRadius: 3.84,
-                        elevation: 5,
-                      }}
-                      onPress={() => {
-                        setShowWritingGame((x) => !x);
-                      }}
-                      activeOpacity={0.9}
-                    >
-                      <Text
+                      <TouchableOpacity
                         style={{
-                          fontSize: 24,
-                          color: "white",
-                          textAlign: "center",
+                          backgroundColor: ankyverseDay.currentColor.secondary,
+                          borderRadius: 9999,
+                          padding: 16,
+                          shadowColor: "#000",
+                          shadowOffset: { width: 0, height: 2 },
+                          shadowOpacity: 0.25,
+                          shadowRadius: 3.84,
+                          elevation: 5,
                         }}
+                        onPress={() => {
+                          setShowWritingGame((x) => !x);
+                        }}
+                        activeOpacity={0.9}
                       >
-                        👽
-                      </Text>
-                    </TouchableOpacity>
+                        <Text
+                          style={{
+                            fontSize: 24,
+                            color: "white",
+                            textAlign: "center",
+                          }}
+                        >
+                          👽
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
-              </ThemeProvider>
-            </UserProvider>
-          </AnkyProvider>
-        </SheetProvider>
+                </ThemeProvider>
+              </UserProvider>
+            </AnkyProvider>
+          </SheetProvider>
+        </QueryClientProvider>
       </QuilibriumProvider>
     </PrivyProvider>
   );
