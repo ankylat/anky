@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Dimensions,
   Pressable,
+  Alert,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 
@@ -23,7 +24,14 @@ import TerraCoin from "@/assets/icons/terra.svg";
 import { Link } from "expo-router";
 import { calculateBalance } from "@/src/app/lib/transactions";
 import NotLoggedInUserView from "@/src/components/Profile/NotLoggedInUserView";
-import { useEmbeddedWallet, usePrivy } from "@privy-io/expo";
+import {
+  useEmbeddedWallet,
+  usePrivy,
+  useUnlinkFarcaster,
+} from "@privy-io/expo";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import CollectedGrid from "@/src/components/Profile/CollectedGrid";
+import { WritingSession } from "@/src/types/Anky";
 
 const ProfileScreen = () => {
   const [viewMode, setViewMode] = useState<"ankys" | "drafts" | "collected">(
@@ -32,11 +40,24 @@ const ProfileScreen = () => {
   const { user, isReady } = useQuilibrium();
   console.log("THE USER IS: ", JSON.stringify(user, null, 2));
   const { logout } = usePrivy();
+  const unlinkFarcaster = useUnlinkFarcaster();
   const wallet = useEmbeddedWallet();
+  const [drafts, setDrafts] = useState<WritingSession[]>([]);
 
-  const { casts, drafts } = useUser();
+  const { casts, userMintedAnkys } = useUser();
   const screenWidth = Dimensions.get("window").width;
   const itemSize = screenWidth / 3;
+
+  useEffect(() => {
+    const getDrafts = async () => {
+      const storedDrafts = await AsyncStorage.getItem("writingSessions");
+      console.log("the stored drafts are", storedDrafts);
+      if (storedDrafts) {
+        setDrafts(JSON.parse(storedDrafts));
+      }
+    };
+    getDrafts();
+  }, []);
 
   if (!isReady) {
     return (
@@ -64,7 +85,34 @@ const ProfileScreen = () => {
 
           <View className="flex flex-row gap-4">
             <TouchableOpacity
-              onPress={() => alert("Settings")}
+              onPress={() => {
+                Alert.alert("Settings", "Choose an option", [
+                  {
+                    text: "Unlink Farcaster",
+                    onPress: () => {
+                      console.log("Unlinking Farcaster account");
+                    },
+                    style: "default",
+                  },
+                  {
+                    text: "Delete All Drafts",
+                    onPress: async () => {
+                      try {
+                        await AsyncStorage.removeItem("writingSessions");
+                        Alert.alert("Success", "All drafts have been deleted");
+                      } catch (error) {
+                        console.error("Error deleting drafts:", error);
+                        Alert.alert("Error", "Failed to delete drafts");
+                      }
+                    },
+                    style: "destructive",
+                  },
+                  {
+                    text: "Cancel",
+                    style: "cancel",
+                  },
+                ]);
+              }}
               className="bg-blue-500 rounded-full p-2"
             >
               <Ionicons name="settings-outline" size={24} color="white" />
@@ -219,7 +267,9 @@ const ProfileScreen = () => {
       <ScrollView className="flex-1">
         {viewMode === "ankys" && <ProfileGrid casts={casts} />}
         {viewMode === "drafts" && <DraftsGrid drafts={drafts} />}
-        {viewMode === "collected" && <Text>Collected view</Text>}
+        {viewMode === "collected" && (
+          <CollectedGrid userCollection={userMintedAnkys} />
+        )}
       </ScrollView>
     </View>
   );

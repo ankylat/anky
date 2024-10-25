@@ -1,7 +1,6 @@
 import React from "react";
 import { View, Text, FlatList, TouchableOpacity } from "react-native";
 import { useNavigation } from "@react-navigation/native";
-import { Swipeable } from "react-native-gesture-handler";
 import DraftElement from "./DraftElement";
 import { formatDistanceToNow } from "date-fns";
 import { WritingSession } from "../../types/Anky";
@@ -20,52 +19,46 @@ const DraftsGrid: React.FC<DraftsGridProps> = ({ drafts }) => {
   };
 
   const renderDraftItem = ({ item }: { item: WritingSession }) => {
-    const renderRightActions = () => {
-      return (
-        <View className="flex-row">
-          <TouchableOpacity
-            className="bg-blue-500 justify-center items-center w-16"
-            onPress={() => alert("wena choro")}
-          >
-            <Text className="text-white">Options</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            className="bg-red-500 justify-center items-center w-16"
-            onPress={() => handleDeleteDraft(item.session_id)}
-          >
-            <Text className="text-white">Delete</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    };
-
     return (
-      <Swipeable renderRightActions={renderRightActions}>
-        <DraftElement
-          preview={item.content.substring(0, 100) + "..."}
-          wordCount={item.content.split(" ").length}
-          createdAt={formatDistanceToNow(new Date(item.timestamp), {
-            addSuffix: true,
-          })}
-          onPress={() => alert("draft tapped")}
-        />
-      </Swipeable>
+      <View className="flex-row items-center">
+        <View className="flex-1">
+          <DraftElement
+            preview={item.content ? item.content.substring(0, 100) + "..." : ""}
+            wordCount={item.content ? item.content.split(" ").length : 0}
+            createdAt={formatDistanceToNow(new Date(item.timestamp), {
+              addSuffix: true,
+            })}
+            onPress={() => alert("draft tapped")}
+          />
+        </View>
+        <TouchableOpacity
+          className="bg-red-500 justify-center items-center w-16 h-16 ml-2 rounded-lg"
+          onPress={() => handleDeleteDraft(item.session_id)}
+        >
+          <Text className="text-white">Delete</Text>
+        </TouchableOpacity>
+      </View>
     );
   };
 
+  if (!drafts || drafts.length === 0) {
+    return (
+      <View className="flex-1 justify-center items-center p-4">
+        <Text className="text-gray-500 text-center">
+          Drafts are unfinished (less than 480 seconds) writing sessions.
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <View className="flex-1 bg-gray-100">
-      <Text className="text-2xl font-bold text-center my-4">Your Drafts</Text>
-      {drafts.length === 0 ? (
-        <Text className="text-center mt-4">You don't have any drafts yet.</Text>
-      ) : (
-        <FlatList
-          data={drafts}
-          renderItem={renderDraftItem}
-          keyExtractor={(item) => item.session_id}
-          className="px-4"
-        />
-      )}
+      <FlatList
+        data={drafts.filter((draft) => draft.status === "draft")}
+        renderItem={renderDraftItem}
+        keyExtractor={(item) => item.session_id}
+        className="px-4"
+      />
     </View>
   );
 };

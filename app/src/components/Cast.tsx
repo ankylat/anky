@@ -9,10 +9,9 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Cast } from "@/src/types/Cast";
-import { Link } from "expo-router";
+import { Link, router } from "expo-router";
 import { SheetManager } from "react-native-actions-sheet";
-import { usePrivy } from "@privy-io/expo";
-import { useUser } from "../context/UserContext";
+import { usePrivy, useLinkWithFarcaster } from "@privy-io/expo";
 import { useQuilibrium } from "../context/QuilibriumContext";
 
 interface CastElementProps {
@@ -26,10 +25,36 @@ const CastElement: React.FC<CastElementProps> = ({
 }) => {
   const [isTextExpanded, setIsTextExpanded] = useState(isInModal);
   const { user } = useQuilibrium();
+  const { linkWithFarcaster } = useLinkWithFarcaster();
 
   const toggleTextExpansion = () => {
     if (!isInModal) {
       setIsTextExpanded(!isTextExpanded);
+    }
+  };
+
+  const handleCastActionTrigger = async (
+    action: "like" | "recast" | "comment" | "mint" | "share"
+  ) => {
+    console.log(action);
+    const farcasterAccount = user?.linked_accounts.find(
+      (account) => account.type === "farcaster"
+    );
+    if (!farcasterAccount) {
+      return router.push("/profile");
+    } else {
+      console.log("THE FARCASTER ACCOUNT OF THE USER IS", farcasterAccount);
+      if (!farcasterAccount.signer_public_key) {
+        try {
+          console.log(
+            "There is a need to get a signer, and here is where that will happen"
+          );
+          // const response = await linkWithFarcaster();
+          // console.log("RESPONSE FROM REQUESTING A SIGNER", response);
+        } catch (error) {
+          console.log("ERROR FROM REQUESTING A SIGNER", error);
+        }
+      }
     }
   };
 
@@ -89,33 +114,21 @@ const CastElement: React.FC<CastElementProps> = ({
       )}
       <View className="w-full flex-row  justify-between mt-2 px-2">
         <View className="flex-row gap-3">
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => handleCastActionTrigger("like")}>
             <Ionicons name="heart-outline" size={28} color="black" />
           </TouchableOpacity>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => handleCastActionTrigger("comment")}>
             <Ionicons name="chatbubble-outline" size={28} color="black" />
           </TouchableOpacity>
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => handleCastActionTrigger("recast")}>
             <Ionicons name="sync-outline" size={28} color="black" />
           </TouchableOpacity>
         </View>
         <View className="flex-row gap-3">
-          <TouchableOpacity>
+          <TouchableOpacity onPress={() => handleCastActionTrigger("mint")}>
             <Ionicons name="diamond-outline" size={28} color="black" />
           </TouchableOpacity>
-          <TouchableOpacity
-            onPress={() => {
-              SheetManager.show("share-cast-modal", {
-                payload: {
-                  castHash: cast.hash,
-                  whoIsSharing:
-                    user?.linked_accounts.find(
-                      (account) => account.type === "farcaster"
-                    )?.fid || 18350,
-                },
-              });
-            }}
-          >
+          <TouchableOpacity onPress={() => handleCastActionTrigger("share")}>
             <Ionicons name="paper-plane-outline" size={28} color="black" />
           </TouchableOpacity>
         </View>

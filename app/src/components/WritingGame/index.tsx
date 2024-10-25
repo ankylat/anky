@@ -272,6 +272,7 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
 
     const sendWritingSessionToBackend = async () => {
       console.log("==========THE TEXT HERE IS==========", text);
+      if (text.length < 10) return;
       const isAnky = true || timeSpent >= 480;
       const writingSession: WritingSession = {
         session_id: sessionId,

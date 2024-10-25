@@ -1,5 +1,5 @@
 import React from "react";
-import { Dimensions, FlatList } from "react-native";
+import { Dimensions, FlatList, Text, View } from "react-native";
 import ProfileGridElement from "./ProfileGridElement";
 import { Cast } from "@/src/types/Cast";
 import { Link, useRouter } from "expo-router";
@@ -22,6 +22,16 @@ const ProfileGrid: React.FC<ProfileGridProps> = ({ casts }) => {
       />
     </Link>
   );
+
+  if (!casts || casts.length === 0) {
+    return (
+      <View className="flex-1 justify-center items-center p-4">
+        <Text className="text-gray-500 text-center">
+          Write your first anky to see it here! (480 seconds or more)
+        </Text>
+      </View>
+    );
+  }
 
   return (
     <FlatList

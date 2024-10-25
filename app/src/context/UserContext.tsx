@@ -4,6 +4,7 @@ import axios from "axios";
 import { Cast } from "../types/Cast";
 import { User } from "../types/User";
 import { WritingSession } from "../types/Anky"; // Assuming you have a Draft type defined
+import { useQuilibrium } from "./QuilibriumContext";
 
 interface UserContextType {
   casts: Cast[];
@@ -11,6 +12,7 @@ interface UserContextType {
   isLoading: boolean;
   error: string | null;
   refreshUserData: () => Promise<void>;
+  userMintedAnkys: WritingSession[];
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -28,10 +30,17 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const [casts, setCasts] = useState<Cast[]>([]);
   const [drafts, setDrafts] = useState<WritingSession[]>([]);
+  const [userMintedAnkys, setUserMintedAnkys] = useState<WritingSession[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const { user } = useQuilibrium();
+  const farcasterAccount = user?.linked_accounts.find(
+    (account) => account.type === "farcaster"
+  );
 
   const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;
+
+  const userFid = farcasterAccount?.fid || 1; // TODO: Replace with actual user FID retrieval
 
   const fetchUserData = async () => {
     console.log("Fetching user data...");
@@ -42,7 +51,6 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
       if (!token) {
         throw new Error("No authentication token found");
       }
-      const userFid = 18350; // TODO: Replace with actual user FID retrieval
 
       // Fetch user casts
       console.log("Fetching user casts...");
@@ -68,7 +76,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
       if (storedDrafts) {
         const parsedDrafts = JSON.parse(storedDrafts);
         setDrafts(parsedDrafts);
-        console.log("User drafts loaded from local storage");
+        console.log("User drafts loaded from local storage", parsedDrafts);
       } else {
         console.log("No drafts found in local storage");
         setDrafts([]);
@@ -88,16 +96,30 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
     await fetchUserData();
   };
 
+  const fetchUserMintedAnkys = async () => {
+    console.log("Fetching user minted ankys...");
+    const mintedAnkysResponse = await axios.get(
+      `${API_URL}/user-minted-ankys/${userFid}`
+    );
+    setUserMintedAnkys(mintedAnkysResponse.data);
+  };
+
   useEffect(() => {
     const loadInitialData = async () => {
       console.log("Loading initial data...");
       const storedCasts = await AsyncStorage.getItem("userCasts");
       const storedDrafts = await AsyncStorage.getItem("userDrafts");
+      const storedCollectedAnkys = await AsyncStorage.getItem(
+        "userMintedAnkys"
+      );
       if (storedCasts) {
         setCasts(JSON.parse(storedCasts));
       }
       if (storedDrafts) {
         setDrafts(JSON.parse(storedDrafts));
+      }
+      if (storedCollectedAnkys) {
+        setUserMintedAnkys(JSON.parse(storedCollectedAnkys));
       }
       await fetchUserData();
     };
@@ -108,6 +130,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
   const value = {
     casts,
     drafts,
+    userMintedAnkys,
     isLoading,
     error,
     refreshUserData,
