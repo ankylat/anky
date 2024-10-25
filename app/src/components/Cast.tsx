@@ -26,7 +26,6 @@ const CastElement: React.FC<CastElementProps> = ({
   const [isTextExpanded, setIsTextExpanded] = useState(isInModal);
   const { user } = useQuilibrium();
   const { linkWithFarcaster } = useLinkWithFarcaster();
-
   const toggleTextExpansion = () => {
     if (!isInModal) {
       setIsTextExpanded(!isTextExpanded);

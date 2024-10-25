@@ -278,7 +278,7 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
         session_id: sessionId,
         user_id: user ? user.id : "anonymous",
         content: text,
-        words_written: text.length,
+        words_written: text.split(" ").length,
         time_spent: Math.floor(timeSpent),
         timestamp: new Date(),
         is_anky: isAnky,
