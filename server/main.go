@@ -29,6 +29,8 @@ func main() {
 	// Existing routes
 	r.POST("/talk-to-anky", handlers.HandleChat)
 	r.GET("/user-casts/:fid", handlers.HandleUserCastsNeynar)
+	r.GET("/generated-anky/:sessionId", handlers.HandleGeneratedAnky)
+	r.GET("/anky-frame-images/:sessionId", handlers.HandleAnkyFrameImage)
 
 	// New route for submitting writing sessions
 	r.POST("/submit-writing-session", middleware.PrivyAuth(appID, appSecret), handlers.SubmitWritingSession)
