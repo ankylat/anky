@@ -278,7 +278,7 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
         session_id: sessionId,
         user_id: user ? user.id : "anonymous",
         content: text,
-        words_written: text.length,
+        words_written: text.split(" ").length,
         time_spent: Math.floor(timeSpent),
         timestamp: new Date(),
         is_anky: isAnky,
@@ -395,7 +395,7 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
           {...panResponder.panHandlers}
         >
           <Animated.View
-            className="h-14 bg-green-500"
+            className="h-14 bg-green-500 border-b border-black"
             style={{
               width: animatedValue.interpolate({
                 inputRange: [0, 1],

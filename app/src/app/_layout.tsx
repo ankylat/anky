@@ -30,6 +30,7 @@ import CustomTabBar from "../components/navigation/CustomTabBar";
 import { getCurrentAnkyverseDay } from "./lib/ankyverse";
 import { QuilibriumProvider } from "../context/QuilibriumContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import Ankito from "@/assets/icons/ankito.svg";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -114,8 +115,6 @@ export default function RootLayout() {
                             console.log(
                               `Processing writing game results: ${wordsWritten} words written in ${timeSpent} seconds`
                             );
-                            // TODO: Add logic to handle the writing game results (e.g., save to storage, update user stats)
-                            // setShowWritingGame(false);
                           }}
                           sessionSeconds={8}
                           sessionTargetSeconds={480}
