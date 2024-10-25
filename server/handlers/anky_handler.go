@@ -15,6 +15,7 @@ import (
 	"github.com/ankylat/anky/server/services"
 	"github.com/cloudinary/cloudinary-go/v2/api/uploader"
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"golang.org/x/exp/rand"
 )
 
@@ -87,19 +88,42 @@ func SubmitWritingSession(c *gin.Context) {
 	log.Printf("Writing session saved successfully. Session ID: %s", session.SessionID)
 
 	// Call LLM processing
-	go processWithLLM(session)
+	anky, err := processWithLLM(session)
+	if err != nil {
+		log.Printf("Error processing with LLM: %v", err)
+		// Handle the error as needed
+	} else {
+		session.Anky = anky
+		log.Printf("LLM processing completed successfully")
+	}
 
 	// Publish to Farcaster
-	go publishToFarcaster(session)
+	castResponse, err := publishToFarcaster(session)
+	if err != nil {
+		log.Printf("Error publishing to Farcaster: %v", err)
+		// Handle the error as needed
+	} else {
+		log.Printf("Successfully published to Farcaster. Cast hash: %s", castResponse.Hash)
+		session.Anky.CastHash = castResponse.Hash
+	}
+
+	// Update the writing session in the database
+	err = services.UpdateWritingSession(&session)
+	if err != nil {
+		log.Printf("Error updating writing session: %v", err)
+		// Handle the error as needed
+	} else {
+		log.Printf("Writing session updated successfully")
+	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":    "Writing session submitted and saved successfully",
+		"message":    "Writing session submitted, processed, and updated successfully",
 		"session_id": session.SessionID,
 	})
 	log.Println("SubmitWritingSession handler completed successfully")
 }
 
-func processWithLLM(session models.WritingSession) {
+func processWithLLM(session models.WritingSession) (*models.Anky, error) {
 	log.Printf("Starting LLM processing for session ID: %s", session.SessionID)
 
 	llmService := services.NewLLMService()
@@ -109,7 +133,7 @@ func processWithLLM(session models.WritingSession) {
 		Messages: []models.Message{
 			{
 				Role: "system",
-				Content: `You are an AI embodiment of Ramana Maharshi, a profound spiritual teacher known for his method of self-inquiry. Analyze the user's stream of consciousness writing deeply to uncover hidden aspects of their psyche. Generate a JSON object with the following structure:
+				Content: `You are an AI embodiment of Ramana Maharshi, a profound spiritual teacher known for his method of self-inquiry. Analyze the user's stream of consciousness writing deeply to uncover hidden aspects of their psyche. Your mission is to come up with prompts that inquiry the user to go deeper into their psyche, using the response to your questions as the guiding principle for that. Generate a JSON object with the following structure:
 
 	{
 	"inner_child": "Question directly directed to the user addressing the Inner Child archetype",
@@ -117,7 +141,7 @@ func processWithLLM(session models.WritingSession) {
 	"higher_self": "Question directly directed to the user addressing the Higher Self archetype",
 	"wounded_healer": "Question directly directed to the user addressing the Wounded Healer archetype",
 	"self_inquiry": "Direct pointer to the user's sense of 'I' in Ramana Maharshi's style",
-	"image_description": "Detailed description for an image capturing the essence of the writing",
+	"image_description": "Detailed description for an image capturing the essence of the writing. Use the symbolism that you are pointing towards so that this image can be an embodiment of the piece of writing of the user.",
 	"analysis": "Brief analysis of unconscious themes or patterns in the writing"
 	}
 
@@ -135,7 +159,7 @@ Ensure each question is penetrating and guides the user towards deeper self-unde
 	responseChan, err := llmService.SendChatRequest(chatRequest, true)
 	if err != nil {
 		log.Printf("Error sending chat request: %v", err)
-		return
+		return nil, err
 	}
 
 	// Collect the response
@@ -149,14 +173,18 @@ Ensure each question is penetrating and guides the user towards deeper self-unde
 	// Parse the JSON response
 	log.Printf("Parsing JSON response from LLM")
 	var llmOutput struct {
-		Prompts          []string `json:"prompts"`
-		ImageDescription string   `json:"image_description"`
-		Analysis         string   `json:"analysis"`
+		InnerChild       string `json:"inner_child"`
+		Shadow           string `json:"shadow"`
+		HigherSelf       string `json:"higher_self"`
+		WoundedHealer    string `json:"wounded_healer"`
+		SelfInquiry      string `json:"self_inquiry"`
+		ImageDescription string `json:"image_description"`
+		Analysis         string `json:"analysis"`
 	}
 	err = json.Unmarshal([]byte(fullResponse), &llmOutput)
 	if err != nil {
 		log.Printf("Error parsing LLM response: %v", err)
-		return
+		return nil, err
 	}
 	log.Printf("Parsed LLM output: %+v", llmOutput)
 
@@ -165,90 +193,103 @@ Ensure each question is penetrating and guides the user towards deeper self-unde
 	imageResponse, err := generateImageWithMidjourney("https://s.mj.run/YLJMlMJbo70 " + llmOutput.ImageDescription)
 	if err != nil {
 		log.Printf("Error generating image: %v", err)
-		return
+		return nil, err
 	}
 	log.Printf("Image generation response: %s", imageResponse)
 
-	log.Printf("Image sent to generation successfully with ID: %s", imageResponse)
-
+	// Poll for image status
 	status, err := pollImageStatus(imageResponse)
 	if err != nil {
 		log.Printf("Error polling image status: %v", err)
-		return
+		return nil, err
 	}
-
 	log.Printf("Image generation status: %s", status)
-
-	// Upload the generated image to Cloudinary
-	imageHandler, err := NewImageHandler()
-	if err != nil {
-		log.Printf("Error creating ImageHandler: %v", err)
-		return
-	}
 
 	// Fetch the image details from the API
 	imageDetails, err := fetchImageDetails(imageResponse)
 	if err != nil {
 		log.Printf("Error fetching image details: %v", err)
-		return
+		return nil, err
 	}
 
 	// Choose a random image from the upscaled options
 	if len(imageDetails.UpscaledURLs) == 0 {
 		log.Printf("No upscaled images available")
-		return
+		return nil, fmt.Errorf("no upscaled images available")
 	}
 
-	log.Printf("Image generation status: %v", imageDetails)
 	randomIndex := rand.Intn(len(imageDetails.UpscaledURLs))
 	chosenImageURL := imageDetails.UpscaledURLs[randomIndex]
 
-	// Download the chosen image
-	resp, err := http.Get(chosenImageURL)
+	// Upload the generated image to Cloudinary
+	imageHandler, err := NewImageHandler()
 	if err != nil {
-		log.Printf("Error downloading image: %v", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	// Create a temporary file to store the downloaded image
-	tempFile, err := os.CreateTemp("", fmt.Sprintf("%s.png", session.SessionID))
-	if err != nil {
-		log.Printf("Error creating temporary file: %v", err)
-		return
-	}
-	defer os.Remove(tempFile.Name()) // Clean up the temporary file when done
-
-	// Copy the downloaded image to the temporary file
-	_, err = io.Copy(tempFile, resp.Body)
-	if err != nil {
-		log.Printf("Error saving downloaded image: %v", err)
-		return
+		log.Printf("Error creating ImageHandler: %v", err)
+		return nil, err
 	}
 
-	// Rewind the file for reading
-	_, err = tempFile.Seek(0, 0)
-	if err != nil {
-		log.Printf("Error rewinding temporary file: %v", err)
-		return
-	}
-
-	log.Printf("HEERERcreating temporary file: %v", tempFile)
-
-	uploadResult, err := imageHandler.cld.Upload.Upload(imageHandler.ctx, tempFile, uploader.UploadParams{
-		PublicID:     session.SessionID,
-		UploadPreset: "anky_mobile",
-	})
+	uploadResult, err := uploadImageToCloudinary(imageHandler, chosenImageURL, session.SessionID)
 	if err != nil {
 		log.Printf("Error uploading image to Cloudinary: %v", err)
-		return
+		return nil, err
 	}
-
-	log.Printf("Upload result: %+v", uploadResult)
 
 	log.Printf("Image uploaded to Cloudinary successfully. Public ID: %s, URL: %s", uploadResult.PublicID, uploadResult.SecureURL)
 
+	// Create and return the Anky struct
+	anky := &models.Anky{
+		ID:               uuid.New().String(),
+		WritingSessionID: session.SessionID,
+		Reflection:       llmOutput.Analysis,
+		ImagePrompt:      llmOutput.ImageDescription,
+		FollowUpPrompts: []string{
+			llmOutput.InnerChild,
+			llmOutput.Shadow,
+			llmOutput.HigherSelf,
+			llmOutput.WoundedHealer,
+			llmOutput.SelfInquiry,
+		},
+		ImageURL:      uploadResult.SecureURL,
+		CreatedAt:     time.Now(),
+		LastUpdatedAt: time.Now(),
+	}
+
 	log.Printf("LLM processing completed for session ID: %s", session.SessionID)
+	return anky, nil
+}
+
+func uploadImageToCloudinary(imageHandler *ImageHandler, imageURL, sessionID string) (*uploader.UploadResult, error) {
+	resp, err := http.Get(imageURL)
+	if err != nil {
+		return nil, fmt.Errorf("error downloading image: %v", err)
+	}
+	defer resp.Body.Close()
+
+	tempFile, err := os.CreateTemp("", fmt.Sprintf("%s.png", sessionID))
+	if err != nil {
+		return nil, fmt.Errorf("error creating temporary file: %v", err)
+	}
+	defer os.Remove(tempFile.Name())
+
+	_, err = io.Copy(tempFile, resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("error saving downloaded image: %v", err)
+	}
+
+	_, err = tempFile.Seek(0, 0)
+	if err != nil {
+		return nil, fmt.Errorf("error rewinding temporary file: %v", err)
+	}
+
+	uploadResult, err := imageHandler.cld.Upload.Upload(imageHandler.ctx, tempFile, uploader.UploadParams{
+		PublicID:     sessionID,
+		UploadPreset: "anky_mobile",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error uploading image to Cloudinary: %v", err)
+	}
+
+	return uploadResult, nil
 }
 
 func generateImageWithComfyUI(imagePrompt string) {
@@ -497,7 +538,7 @@ func pollImageStatus(id string) (string, error) {
 	}
 }
 
-func publishToFarcaster(session models.WritingSession) {
+func publishToFarcaster(session models.WritingSession) (*models.Cast, error) {
 	log.Printf("Publishing to Farcaster for session ID: %s", session.SessionID)
 	fmt.Println("Publishing to Farcaster for session ID:", session.SessionID)
 
@@ -532,15 +573,17 @@ func publishToFarcaster(session models.WritingSession) {
 	fmt.Println("Idem:", idem)
 	fmt.Println("Cast Text:", castText)
 
-	err := neynarService.WriteCast(apiKey, signerUUID, castText, channelID, idem, session.SessionID)
+	castResponse, err := neynarService.WriteCast(apiKey, signerUUID, castText, channelID, idem, session.SessionID)
 	if err != nil {
 		log.Printf("Error publishing to Farcaster: %v", err)
 		fmt.Println("Error publishing to Farcaster:", err)
-		return
+		return nil, err
 	}
 
 	log.Printf("Farcaster publishing completed for session ID: %s", session.SessionID)
 	fmt.Println("Farcaster publishing completed for session ID:", session.SessionID)
+
+	return castResponse, nil
 }
 
 func HandleGeneratedAnky(c *gin.Context) {

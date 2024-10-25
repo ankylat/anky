@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/ankylat/anky/server/models"
 	"github.com/joho/godotenv"
 )
 
@@ -192,7 +193,7 @@ func (s *NeynarService) FetchUserCasts(fid int) ([]Cast, error) {
 	return neynarResponse.Casts, nil
 }
 
-func (s *NeynarService) WriteCast(apiKey, signerUUID, text, channelID, idem, sessionId string) error {
+func (s *NeynarService) WriteCast(apiKey, signerUUID, text, channelID, idem, sessionId string) (*models.Cast, error) {
 	log.Println("Starting WriteCast function")
 
 	url := "https://api.neynar.com/v2/farcaster/cast"
@@ -213,14 +214,14 @@ func (s *NeynarService) WriteCast(apiKey, signerUUID, text, channelID, idem, ses
 	payloadBytes, err := json.Marshal(payload)
 	if err != nil {
 		log.Printf("Error marshaling payload: %v", err)
-		return fmt.Errorf("error marshaling payload: %v", err)
+		return nil, fmt.Errorf("error marshaling payload: %v", err)
 	}
 	log.Printf("Payload: %s", string(payloadBytes))
 
 	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payloadBytes))
 	if err != nil {
 		log.Printf("Error creating request: %v", err)
-		return fmt.Errorf("error creating request: %v", err)
+		return nil, fmt.Errorf("error creating request: %v", err)
 	}
 	log.Println("Request created successfully")
 
@@ -232,7 +233,7 @@ func (s *NeynarService) WriteCast(apiKey, signerUUID, text, channelID, idem, ses
 	res, err := http.DefaultClient.Do(req)
 	if err != nil {
 		log.Printf("Error sending request: %v", err)
-		return fmt.Errorf("error sending request: %v", err)
+		return nil, fmt.Errorf("error sending request: %v", err)
 	}
 	defer res.Body.Close()
 	log.Println("Request sent successfully")
@@ -240,15 +241,23 @@ func (s *NeynarService) WriteCast(apiKey, signerUUID, text, channelID, idem, ses
 	body, err := io.ReadAll(res.Body)
 	if err != nil {
 		log.Printf("Error reading response body: %v", err)
-		return fmt.Errorf("error reading response body: %v", err)
+		return nil, fmt.Errorf("error reading response body: %v", err)
 	}
 	log.Printf("Response body read successfully: %s", string(body))
 
 	log.Printf("Response status code: %d", res.StatusCode)
 	if res.StatusCode != http.StatusOK {
-		return fmt.Errorf("unexpected status code: %d, body: %s", res.StatusCode, string(body))
+		return nil, fmt.Errorf("unexpected status code: %d, body: %s", res.StatusCode, string(body))
+	}
+
+	var response struct {
+		Cast *models.Cast `json:"cast"`
+	}
+	if err := json.Unmarshal(body, &response); err != nil {
+		log.Printf("Error unmarshaling response: %v", err)
+		return nil, fmt.Errorf("error unmarshaling response: %v", err)
 	}
 
 	log.Printf("Successfully wrote cast. Response: %s", string(body))
-	return nil
+	return response.Cast, nil
 }

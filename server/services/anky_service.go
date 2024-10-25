@@ -42,6 +42,28 @@ func GetUserWritingSessions(userID string) ([]models.WritingSession, error) {
 	return userSessions, nil
 }
 
+func UpdateWritingSession(updatedSession *models.WritingSession) error {
+	sessions, err := readSessions()
+	if err != nil {
+		return err
+	}
+
+	found := false
+	for i, session := range sessions {
+		if session.SessionID == updatedSession.SessionID {
+			sessions[i] = *updatedSession
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		return errors.New("writing session not found")
+	}
+
+	return writeSessions(sessions)
+}
+
 func readSessions() ([]models.WritingSession, error) {
 	if _, err := os.Stat(dataFile); os.IsNotExist(err) {
 		// If the file doesn't exist, create it with an empty array
