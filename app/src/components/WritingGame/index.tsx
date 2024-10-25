@@ -395,7 +395,7 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
           {...panResponder.panHandlers}
         >
           <Animated.View
-            className="h-14 bg-green-500"
+            className="h-14 bg-green-500 border-b border-black"
             style={{
               width: animatedValue.interpolate({
                 inputRange: [0, 1],

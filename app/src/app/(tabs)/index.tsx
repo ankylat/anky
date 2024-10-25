@@ -102,6 +102,14 @@ export default function HomeScreen() {
     );
   }
 
+  if (casts?.length === 0) {
+    return (
+      <View className="flex-1 justify-center items-center">
+        <Text>No casts found</Text>
+      </View>
+    );
+  }
+
   return (
     <View className="flex-1">
       <Image
@@ -110,6 +118,7 @@ export default function HomeScreen() {
           position: "absolute",
           width: screenWidth,
           height: screenHeight,
+          opacity: 0.7,
         }}
         resizeMode="cover"
       />
