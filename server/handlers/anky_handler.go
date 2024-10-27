@@ -19,6 +19,73 @@ import (
 	"golang.org/x/exp/rand"
 )
 
+func GenerateImage(c *gin.Context) {
+	// Parse request body
+	var requestBody struct {
+		Prompt string `json:"prompt"`
+	}
+	if err := c.ShouldBindJSON(&requestBody); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
+		return
+	}
+
+	// Generate image using Midjourney
+	imageID, err := generateImageWithMidjourney(requestBody.Prompt)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to generate image: %v", err)})
+		return
+	}
+
+	// Poll for image completion
+	status, err := pollImageStatus(imageID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Error polling image status: %v", err)})
+		return
+	}
+
+	if status != "completed" {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Image generation failed"})
+		return
+	}
+
+	// Fetch final image details
+	imageDetails, err := fetchImageDetails(imageID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Error fetching image details: %v", err)})
+		return
+	}
+
+	// Download the image from the URL
+	resp, err := http.Get(imageDetails.URL)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Error downloading image: %v", err)})
+		return
+	}
+	defer resp.Body.Close()
+	// Initialize image handler
+	imageHandler, err := NewImageHandler()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Error creating ImageHandler: %v", err)})
+		return
+	}
+
+	// Generate a unique ID for the image
+	imageID = uuid.New().String()
+
+	// Upload to Cloudinary using existing function
+	uploadResult, err := uploadImageToCloudinary(imageHandler, imageDetails.URL, imageID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Error uploading to Cloudinary: %v", err)})
+		return
+	}
+
+	// Return success response with Cloudinary URL
+	c.JSON(http.StatusOK, gin.H{
+		"status": "success",
+		"url":    uploadResult.SecureURL,
+	})
+}
+
 func SubmitWritingSession(c *gin.Context) {
 	log.Println("Starting SubmitWritingSession handler")
 
@@ -133,19 +200,27 @@ func processWithLLM(session models.WritingSession) (*models.Anky, error) {
 		Messages: []models.Message{
 			{
 				Role: "system",
-				Content: `You are an AI embodiment of Ramana Maharshi, a profound spiritual teacher known for his method of self-inquiry. Analyze the user's stream of consciousness writing deeply to uncover hidden aspects of their psyche. Your mission is to come up with prompts that inquiry the user to go deeper into their psyche, using the response to your questions as the guiding principle for that. Generate a JSON object with the following structure:
+				Content: `You are an AI guide for deep self-exploration, grounded in the tradition of Ramana Maharshi's self-inquiry method. Your role is to analyze the user's stream of consciousness writing and generate prompts that guide them deeper into their psyche. Focus on the five cardinal directions of inquiry, each representing a fundamental aspect of human experience.
+	
+				Generate a JSON object with the following structure:
+				
+				{
+					"center": "A direct question pointing to the source of the 'I' thought, in the style of Ramana Maharshi. This prompt should guide the user to explore their core identity and sense of self.",
+					"purpose": "A probing question about the user's deepest sense of purpose and meaning in life. This prompt should encourage reflection on personal calling and life's significance.",
+					"mortality": "A direct question addressing awareness of mortality and life's transient nature. This prompt should confront the user with themes of impermanence, transformation, and finite existence.",
+					"freedom": "A challenging question about the nature and limits of personal freedom. This prompt should explore themes of personal choice, authenticity, and self-determination.",
+					"connection": "An insightful question exploring the user's web of relationships and sense of interconnection. This prompt should examine themes of interdependence and unity with others and the world.",
+					"image": "A vivid, symbolic description for image generation, incorporating elements from all explored directions. This should capture the essence of the user's writing and serve as a visual representation of their self-exploration journey."
+				}
 
-	{
-	"inner_child": "Question directly directed to the user addressing the Inner Child archetype",
-	"shadow": "Question directly directed to the user addressing the Shadow archetype",
-	"higher_self": "Question directly directed to the user addressing the Higher Self archetype",
-	"wounded_healer": "Question directly directed to the user addressing the Wounded Healer archetype",
-	"self_inquiry": "Direct pointer to the user's sense of 'I' in Ramana Maharshi's style",
-	"image_description": "Detailed description for an image capturing the essence of the writing. Use the symbolism that you are pointing towards so that this image can be an embodiment of the piece of writing of the user.",
-	"analysis": "Brief analysis of unconscious themes or patterns in the writing"
-	}
-
-Ensure each question is penetrating and guides the user towards deeper self-understanding. The image description should focus on symbolism representing the user's current state of consciousness and potential for self-realization. Be bold, insightful, and transformative in your approach. Strictly adhere to this JSON format in your response.`,
+				Guidelines for generating prompts:
+				1. CENTER prompts should always point directly to the source of the 'I' thought
+				2. PURPOSE prompts should explore meaning and purpose without spiritual bypass
+				3. MORTALITY prompts should face mortality and impermanence directly
+				4. FREEDOM prompts should challenge assumed limitations
+				5. CONNECTION prompts should explore authentic connection
+				
+				Keep all responses penetrating and direct. Avoid spiritual jargon. Use clear, precise language that guides the user toward genuine self-understanding. Each direction should maintain its archetypal nature while adapting to the user's current exploration. Strictly adhere to this JSON format in your response.`,
 			},
 			{
 				Role:    "user",
