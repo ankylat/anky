@@ -29,6 +29,7 @@ import { AnkyverseDay } from "@/src/app/lib/ankyverse";
 import { v4 as uuidv4 } from "uuid";
 import axios from "axios";
 import { WritingSession } from "@/src/types/Anky";
+import TopNavBar from "./TopNavBar";
 
 const { width, height } = Dimensions.get("window");
 
@@ -50,11 +51,9 @@ interface PlaygroundProps {
   onGameOver?: (wordsWritten: number, timeSpent: number) => void;
   onClose?: () => void;
   ankyverseDay?: AnkyverseDay;
-}
-
-interface Writing {
-  text: string;
-  timestamp: string;
+  initialText?: string;
+  writingSession?: WritingSession;
+  setWritingSession?: (writingSession: WritingSession) => void;
 }
 
 const defaultModes = {
@@ -84,14 +83,25 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
     onGameOver,
     onClose,
     ankyverseDay,
+    initialText = "",
+    writingSession,
+    setWritingSession,
   }) => {
     console.log("WritingGame component rendered");
     const { user, isReady, getAccessToken } = usePrivy();
     const [gameOver, setGameOver] = useState<boolean>(false);
-    const [wordsWritten, setWordsWritten] = useState<number>(0);
-    const [timeSpent, setTimeSpent] = useState<number>(0);
+    const [wordsWritten, setWordsWritten] = useState<number>(
+      writingSession?.words_written || 0
+    );
+    const [timeSpent, setTimeSpent] = useState<number>(
+      writingSession?.time_spent || 0
+    );
+    const [isSessionActive, setIsSessionActive] = useState<boolean>(false);
+    const [cameBackToRead, setCameBackToRead] = useState<boolean>(false);
     const [sessionStarted, setSessionStarted] = useState<boolean>(false);
-    const [text, setText] = useState<string>("");
+    const [text, setText] = useState<string>(
+      writingSession?.content || initialText
+    );
     const [targetReached, setTargetReached] = useState<boolean>(false);
     const lastKeystroke = useRef<number>(Date.now());
     const animatedValue = useRef(new Animated.Value(1)).current;
@@ -167,6 +177,7 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
 
     useEffect(() => {
       console.log("Session started:", sessionStarted);
+      setIsSessionActive(sessionStarted);
       if (!sessionStarted || gameOver) return;
 
       console.log("Starting session timer");
@@ -182,6 +193,7 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
           const words = text.trim().split(/\s+/).length;
           console.log("Words written:", words);
           setWordsWritten(words);
+          setIsSessionActive(false);
 
           if (onGameOver) {
             console.log("Calling onGameOver callback");
@@ -204,9 +216,9 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
           });
 
           // Vibrate at last 30% of life
-          if (timeSinceLastKeystroke >= sessionSeconds * 0.7) {
+          if (timeSinceLastKeystroke >= sessionSeconds * 0.88) {
             console.log("Vibrating at last 30% of life");
-            Vibration.vibrate(200);
+            Vibration.vibrate(50);
           }
         }
 
@@ -273,7 +285,7 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
     const sendWritingSessionToBackend = async () => {
       console.log("==========THE TEXT HERE IS==========", text);
       if (text.length < 10) return;
-      const isAnky = true || timeSpent >= 480;
+      const isAnky = timeSpent >= 480;
       const writingSession: WritingSession = {
         session_id: sessionId,
         user_id: user ? user.id : "anonymous",
@@ -320,25 +332,23 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
       }
 
       // If user is logged in and session is long enough, send to backend
-      if (user && isAnky) {
-        try {
-          const accessToken = await getAccessToken();
-          const response = await axios.post(
-            `${process.env.EXPO_PUBLIC_ANKY_API_URL}/submit-writing-session`,
-            writingSession,
-            {
-              headers: {
-                Authorization: `Bearer ${accessToken}`,
-              },
-            }
-          );
+      try {
+        const accessToken = await getAccessToken();
+        const response = await axios.post(
+          `${process.env.EXPO_PUBLIC_ANKY_API_URL}/submit-writing-session`,
+          writingSession,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
 
-          console.log("Anky submitted successfully:", response.data);
-          // Here you can update the landing feed with the new Anky
-          // For example, you could dispatch an action to update your app's state
-        } catch (error) {
-          console.error("Error submitting Anky:", error);
-        }
+        console.log("Anky submitted successfully:", response.data);
+        // Here you can update the landing feed with the new Anky
+        // For example, you could dispatch an action to update your app's state
+      } catch (error) {
+        console.error("Error submitting Anky:", error);
       }
     };
 
@@ -358,23 +368,44 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
 
     console.log("Game over state:", gameOver);
 
-    if (gameOver) {
+    if (!cameBackToRead && gameOver) {
       console.log("Rendering WritingGameSessionEnded component");
       return (
-        <WritingGameSessionEnded
-          sessionId={sessionId}
-          targetDuration={sessionTargetSeconds}
-          sessionDuration={timeSpent}
-          wordsWritten={wordsWritten}
-          targetReached={targetReached}
-          totalTaps={tapCount}
-          initialInquiry={{
-            prompt: modes[currentMode as keyof typeof modes].prompt,
-            color: modes[currentMode as keyof typeof modes].color,
-          }}
-          onClose={handleCancel}
-          onRetry={onRetry}
-        />
+        <View style={{ flex: 1 }}>
+          <View
+            className="absolute w-full h-full"
+            style={{
+              backgroundColor: modes[currentMode as keyof typeof modes].color,
+            }}
+          >
+            <TextInput
+              className="flex-1 text-2xl p-5"
+              style={{
+                color: ankyverseDay?.currentColor.textColor || "white",
+                opacity: 0.3,
+              }}
+              multiline
+              editable={false}
+              value={text}
+            />
+          </View>
+          <WritingGameSessionEnded
+            setCameBackToRead={setCameBackToRead}
+            sessionId={sessionId}
+            targetDuration={sessionTargetSeconds}
+            sessionDuration={timeSpent}
+            wordsWritten={wordsWritten}
+            targetReached={targetReached}
+            totalTaps={tapCount}
+            initialInquiry={{
+              prompt: modes[currentMode as keyof typeof modes].prompt,
+              color: modes[currentMode as keyof typeof modes].color,
+            }}
+            onClose={handleCancel}
+            onRetry={onRetry}
+            setGameOver={setGameOver}
+          />
+        </View>
       );
     }
 
@@ -386,20 +417,34 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         style={{ flex: 1 }}
+        className=""
       >
         <View
-          className="flex-1 w-full"
+          className="flex-1 w-full pt-16"
           style={{
             backgroundColor: modes[currentMode as keyof typeof modes].color,
           }}
           {...panResponder.panHandlers}
         >
           <Animated.View
-            className="h-14 bg-green-500 border-b border-black"
+            className="h-3 border-b border-t border-black"
             style={{
               width: animatedValue.interpolate({
                 inputRange: [0, 1],
                 outputRange: ["0%", "100%"],
+              }),
+              backgroundColor: animatedValue.interpolate({
+                inputRange: [0, 0.143, 0.286, 0.429, 0.571, 0.714, 0.857, 1],
+                outputRange: [
+                  "#ff0000", // Red
+                  "#ffa500", // Orange
+                  "#ffff00", // Yellow
+                  "#00ff00", // Green
+                  "#0000ff", // Blue
+                  "#4b0082", // Indigo
+                  "#8b00ff", // Violet
+                  "#ffffff", // White
+                ],
               }),
             }}
           />
@@ -428,23 +473,36 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
               </Text>
             </View>
           )}
-          <TextInput
-            ref={textInputRef}
-            className="flex-1 text-2xl p-5"
-            style={{
-              color: ankyverseDay?.currentColor.textColor || "white",
-              maxHeight: height - keyboardHeight - 100,
-            }}
-            multiline
-            onChangeText={handleTextChange}
-            defaultValue=""
-            placeholder={modes[currentMode as keyof typeof modes].prompt}
-            placeholderTextColor={`${
-              ankyverseDay?.currentColor.textColor || "white"
-            }`}
-            editable={sessionStarted}
-          />
-          {!sessionStarted && (
+          {writingSession ? (
+            <TextInput
+              className="flex-1 text-2xl p-5"
+              style={{
+                color: ankyverseDay?.currentColor.textColor || "white",
+                maxHeight: height - keyboardHeight - 100,
+              }}
+              multiline
+              value={writingSession.content}
+              editable={false}
+            />
+          ) : (
+            <TextInput
+              ref={textInputRef}
+              className="flex-1 text-2xl p-5"
+              style={{
+                color: ankyverseDay?.currentColor.textColor || "white",
+                maxHeight: height - keyboardHeight - 100,
+              }}
+              multiline
+              onChangeText={handleTextChange}
+              defaultValue=""
+              placeholder={modes[currentMode as keyof typeof modes].prompt}
+              placeholderTextColor={`${
+                ankyverseDay?.currentColor.textColor || "white"
+              }`}
+              editable={sessionStarted}
+            />
+          )}
+          {!sessionStarted && !writingSession && (
             <TouchableWithoutFeedback onPress={startSession}>
               <View
                 style={{

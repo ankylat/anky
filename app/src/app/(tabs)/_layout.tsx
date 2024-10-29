@@ -95,12 +95,13 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="inbox"
+          name="map"
           options={{
-            title: "Inbox",
+            title: "Map",
+            headerShown: false,
             tabBarIcon: ({ color, focused }) => (
               <TabBarIcon
-                name={focused ? "mail" : "mail-outline"}
+                name={focused ? "map" : "map-outline"}
                 color={color}
               />
             ),
