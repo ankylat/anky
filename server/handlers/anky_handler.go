@@ -19,67 +19,91 @@ import (
 	"golang.org/x/exp/rand"
 )
 
-func GenerateImage(c *gin.Context) {
+func GenerateAnkyFromPrompt(c *gin.Context) {
+	log.Println("Starting GenerateAnkyFromPrompt handler")
+
 	// Parse request body
 	var requestBody struct {
 		Prompt string `json:"prompt"`
 	}
 	if err := c.ShouldBindJSON(&requestBody); err != nil {
+		log.Printf("Error binding JSON: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request body"})
 		return
 	}
+	log.Printf("Received prompt: %s", requestBody.Prompt)
 
 	// Generate image using Midjourney
+	log.Println("Generating image with Midjourney")
 	imageID, err := generateImageWithMidjourney(requestBody.Prompt)
 	if err != nil {
+		log.Printf("Failed to generate image: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to generate image: %v", err)})
 		return
 	}
+	log.Printf("Generated image ID: %s", imageID)
 
 	// Poll for image completion
+	log.Println("Polling for image completion")
 	status, err := pollImageStatus(imageID)
 	if err != nil {
+		log.Printf("Error polling image status: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Error polling image status: %v", err)})
 		return
 	}
+	log.Printf("Image status: %s", status)
 
 	if status != "completed" {
+		log.Println("Image generation failed")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Image generation failed"})
 		return
 	}
 
 	// Fetch final image details
+	log.Println("Fetching image details")
 	imageDetails, err := fetchImageDetails(imageID)
 	if err != nil {
+		log.Printf("Error fetching image details: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Error fetching image details: %v", err)})
 		return
 	}
+	log.Printf("Retrieved image URL: %s", imageDetails.URL)
 
 	// Download the image from the URL
+	log.Println("Downloading image")
 	resp, err := http.Get(imageDetails.URL)
 	if err != nil {
+		log.Printf("Error downloading image: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Error downloading image: %v", err)})
 		return
 	}
 	defer resp.Body.Close()
+
 	// Initialize image handler
+	log.Println("Initializing image handler")
 	imageHandler, err := NewImageHandler()
 	if err != nil {
+		log.Printf("Error creating ImageHandler: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Error creating ImageHandler: %v", err)})
 		return
 	}
 
 	// Generate a unique ID for the image
 	imageID = uuid.New().String()
+	log.Printf("Generated new image ID: %s", imageID)
 
 	// Upload to Cloudinary using existing function
+	log.Println("Uploading to Cloudinary")
 	uploadResult, err := uploadImageToCloudinary(imageHandler, imageDetails.URL, imageID)
 	if err != nil {
+		log.Printf("Error uploading to Cloudinary: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Error uploading to Cloudinary: %v", err)})
 		return
 	}
+	log.Printf("Successfully uploaded to Cloudinary. URL: %s", uploadResult.SecureURL)
 
 	// Return success response with Cloudinary URL
+	log.Println("Returning success response")
 	c.JSON(http.StatusOK, gin.H{
 		"status": "success",
 		"url":    uploadResult.SecureURL,
@@ -625,7 +649,7 @@ func publishToFarcaster(session models.WritingSession) (*models.Cast, error) {
 	if len(castText) > 300 {
 		lastPoint := strings.LastIndex(castText[:300], ".")
 		if lastPoint == -1 {
-			lastPoint = 297 // If no period found, truncate at 297 characters
+			lastPoint = 297
 		}
 		castText = castText[:lastPoint] + "..."
 	}
@@ -661,7 +685,7 @@ func publishToFarcaster(session models.WritingSession) (*models.Cast, error) {
 	return castResponse, nil
 }
 
-func HandleGeneratedAnky(c *gin.Context) {
+func HandleRenderAnkyOnFarcasterFrame(c *gin.Context) {
 	sessionId := c.Param("sessionId")
 	htmlContent := fmt.Sprintf(`
 <!DOCTYPE html>
@@ -681,6 +705,26 @@ func HandleGeneratedAnky(c *gin.Context) {
 
 	c.Header("Content-Type", "text/html")
 	c.String(http.StatusOK, htmlContent)
+}
+
+func ServeAnkyPost(c *gin.Context) {
+	log.Println("ServeAnkyPost: Starting function")
+
+	sessionID := c.Param("id")
+	log.Printf("ServeAnkyPost: Looking up session ID: %s", sessionID)
+
+	// Get the writing session from the service
+	session, err := services.GetAnkyFromDatabase(sessionID)
+	if err != nil {
+		log.Printf("ServeAnkyPost: Error getting writing session: %v", err)
+		c.JSON(http.StatusNotFound, gin.H{"error": "Writing session not found"})
+		return
+	}
+
+	// Return the writing session data
+	c.JSON(http.StatusOK, gin.H{
+		"session": session,
+	})
 }
 
 func HandleAnkyFrameImage(c *gin.Context) {

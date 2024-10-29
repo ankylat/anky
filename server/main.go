@@ -26,18 +26,22 @@ func main() {
 	r.Use(middleware.Logger())
 	r.Use(middleware.RateLimiter())
 
+	// Static files should be served from server/static/templates
+	// This is a common Go convention - static assets live under server/static
+	// with subdirectories for different types (templates, images, css etc)
+	r.Static("/static", "./static")
+
 	// Existing routes
 	r.POST("/talk-to-anky", handlers.HandleChat)
 	r.GET("/user-casts/:fid", handlers.HandleUserCastsNeynar)
-	r.GET("/generated-anky/:sessionId", handlers.HandleGeneratedAnky)
+	r.GET("/generated-anky-on-frame/:sessionId", handlers.HandleRenderAnkyOnFarcasterFrame)
 	r.GET("/anky-frame-images/:sessionId", handlers.HandleAnkyFrameImage)
+	r.POST("/generate-anky-from-prompt", handlers.GenerateAnkyFromPrompt)
 
+	r.GET("/post/:id", handlers.ServeAnkyPost)
 	// New route for submitting writing sessions
 	r.POST("/submit-writing-session", middleware.PrivyAuth(appID, appSecret), handlers.SubmitWritingSession)
 	r.GET("/create-new-wallet", handlers.CreateNewWallet)
-
-	// Image generation route
-	r.POST("/generate-image", handlers.GenerateImage)
 
 	// Farcaster routes
 	farcasterGroup := r.Group("/farcaster")

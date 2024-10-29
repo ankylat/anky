@@ -206,7 +206,7 @@ func (s *NeynarService) WriteCast(apiKey, signerUUID, text, channelID, idem, ses
 		"idem":        idem,
 		"embeds": []map[string]string{
 			{
-				"url": fmt.Sprintf("https://poiesis.anky.bot/generated-anky/%s", sessionId),
+				"url": fmt.Sprintf("https://poiesis.anky.bot/generated-anky-on-frame/%s", sessionId),
 			},
 		},
 	}

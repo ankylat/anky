@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS ankys;
+DROP TABLE IF EXISTS writing_sessions;
