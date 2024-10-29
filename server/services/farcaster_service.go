@@ -21,6 +21,86 @@ func NewFarcasterService() *FarcasterService {
 	}
 }
 
+func (s *FarcasterService) GetLandingFeed() (map[string]interface{}, error) {
+	log.Println("GetLandingFeed: Starting")
+	url := "https://api.neynar.com/v2/farcaster/feed/trending"
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		log.Printf("GetLandingFeed: Failed to create request: %v", err)
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	log.Println("GetLandingFeed: Setting request headers")
+	req.Header.Add("accept", "application/json")
+	req.Header.Add("api_key", s.apiKey)
+
+	log.Println("GetLandingFeed: Sending request")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Printf("GetLandingFeed: Failed to send request: %v", err)
+		return nil, fmt.Errorf("failed to send request: %v", err)
+	}
+	defer res.Body.Close()
+
+	log.Println("GetLandingFeed: Reading response body")
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		log.Printf("GetLandingFeed: Failed to read response body: %v", err)
+		return nil, fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	log.Println("GetLandingFeed: Unmarshalling response")
+	var result map[string]interface{}
+	err = json.Unmarshal(body, &result)
+	if err != nil {
+		log.Printf("GetLandingFeed: Failed to unmarshal response: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal response: %v", err)
+	}
+
+	log.Println("GetLandingFeed: Successfully retrieved feed data")
+	return result, nil
+}
+
+func (s *FarcasterService) GetLandingFeedForUser(fid int) (map[string]interface{}, error) {
+	log.Printf("GetLandingFeedForUser: Starting with FID %d", fid)
+	url := fmt.Sprintf("https://api.neynar.com/v2/farcaster/feed/user/%d", fid)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		log.Printf("GetLandingFeedForUser: Failed to create request: %v", err)
+		return nil, fmt.Errorf("failed to create request: %v", err)
+	}
+
+	log.Println("GetLandingFeedForUser: Setting request headers")
+	req.Header.Add("accept", "application/json")
+	req.Header.Add("api_key", s.apiKey)
+
+	log.Println("GetLandingFeedForUser: Sending request")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		log.Printf("GetLandingFeedForUser: Failed to send request: %v", err)
+		return nil, fmt.Errorf("failed to send request: %v", err)
+	}
+	defer res.Body.Close()
+
+	log.Println("GetLandingFeedForUser: Reading response body")
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		log.Printf("GetLandingFeedForUser: Failed to read response body: %v", err)
+		return nil, fmt.Errorf("failed to read response body: %v", err)
+	}
+
+	log.Println("GetLandingFeedForUser: Unmarshalling response")
+	var result map[string]interface{}
+	err = json.Unmarshal(body, &result)
+	if err != nil {
+		log.Printf("GetLandingFeedForUser: Failed to unmarshal response: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal response: %v", err)
+	}
+
+	log.Printf("GetLandingFeedForUser: Successfully retrieved feed data for FID %d", fid)
+	return result, nil
+}
+
 func (s *FarcasterService) GetUserByFid(fid int) (map[string]interface{}, error) {
 	log.Printf("GetUserByFid: Starting with FID %d", fid)
 	url := fmt.Sprintf("https://api.neynar.com/v2/farcaster/user/bulk?fids=%d", fid)

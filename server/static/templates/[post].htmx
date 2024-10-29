@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Anky Post</title>
+    <script src="https://unpkg.com/htmx.org@2.0.3" integrity="sha384-0895/pl2MU10Hqc6jd4RvrthNlDiE9U1tWmX7WRESftEDRosgxNsQG/Ze9YMRzHq" crossorigin="anonymous"></script>
+
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .post-container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .post-image {
+            width: 100%;
+            max-height: 500px;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+        .post-content {
+            white-space: pre-wrap;
+            padding: 20px;
+            background: #f7f7f7;
+            border-radius: 8px;
+        }
+        .loading {
+            text-align: center;
+            padding: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="post-container"
+         hx-get="/api/post/${id}"
+         hx-trigger="load"
+         hx-swap="innerHTML">
+        <div class="loading">Loading post...</div>
+    </div>
+
+    <template id="post-template">
+        <img class="post-image" src="" alt="Post image">
+        <div class="post-content"></div>
+    </template>
+
+    <script>
+        document.body.addEventListener('htmx:afterRequest', function(evt) {
+            if (evt.detail.successful) {
+                const data = JSON.parse(evt.detail.xhr.responseText);
+                const template = document.getElementById('post-template').content.cloneNode(true);
+                
+                template.querySelector('.post-image').src = data.image_url;
+                template.querySelector('.post-content').textContent = data.content;
+                
+                evt.detail.target.innerHTML = '';
+                evt.detail.target.appendChild(template);
+            }
+        });
+    </script>
+</body>
+</html>

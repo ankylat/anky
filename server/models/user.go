@@ -8,13 +8,14 @@ type User struct {
 	ID                    string             `json:"id" bson:"id"` // Privy-issued DID for the user
 	LinkedAccounts        []LinkedAccount    `json:"linked_accounts" bson:"linked_accounts"`
 	WritingSessions       []WritingSession   `json:"writing_sessions" bson:"writing_sessions"`
-	CollectedAnkys        []Anky             `json:"collected_ankys" bson:"collected_ankys"`
+	CollectedSessions     []WritingSession   `json:"collected_sessions" bson:"collected_sessions"`
 	NewenBalance          NewenBalance       `json:"newen_balance" bson:"newen_balance"`
 	NewenTransactions     []NewenTransaction `json:"newen_transactions" bson:"newen_transactions"`
 	ProfilePictureHistory []ProfilePicture   `json:"profile_picture_history" bson:"profile_picture_history"`
 	Settings              UserSettings       `json:"settings" bson:"settings"`
 	CreatedAt             time.Time          `json:"created_at" bson:"created_at"`
 	UpdatedAt             time.Time          `json:"updated_at" bson:"updated_at"`
+	FID                   int                `json:"fid" bson:"fid"`
 }
 
 type LinkedAccount struct {

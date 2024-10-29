@@ -1,11 +1,13 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
 	"os"
 
+	"github.com/ankylat/anky/server/database"
 	"github.com/ankylat/anky/server/models"
 )
 
@@ -40,6 +42,21 @@ func GetUserWritingSessions(userID string) ([]models.WritingSession, error) {
 	}
 
 	return userSessions, nil
+}
+
+func GetAnkyFromDatabase(sessionID string) (*models.WritingSession, error) {
+	db, err := database.NewDatabase()
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	session, err := db.GetWritingSession(context.Background(), sessionID)
+	if err != nil {
+		return nil, err
+	}
+
+	return session, nil
 }
 
 func UpdateWritingSession(updatedSession *models.WritingSession) error {
