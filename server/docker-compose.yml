@@ -2,13 +2,14 @@ version: '3.8'
 
 services:
   postgres:
+    container_name: anky-postgres
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: anky
       POSTGRES_PASSWORD: development
       POSTGRES_DB: anky_db
     ports:
-      - "5555:5555"
+      - "5555:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 

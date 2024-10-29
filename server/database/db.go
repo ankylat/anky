@@ -2,6 +2,7 @@ package database
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -160,4 +161,60 @@ func (db *Database) UpdateWritingSession(ctx context.Context, ws *models.Writing
 	}
 
 	return nil
+}
+
+func (db *Database) GetRecentValidAnkys(ctx context.Context) ([]models.WritingSession, error) {
+	query := `
+		SELECT 
+			session_id, user_id, content, words_written, time_spent, timestamp,
+			is_anky, newen_earned, daily_session_number, prompt, fid,
+			parent_anky_id, anky_response, chosen_self_inquiry_question,
+			token_id, contract_address, image_ipfs_hash, image_url,
+			status, ai_processed_at, nft_minted_at, blockchain_synced_at, last_updated_at,
+			anky
+		FROM writing_sessions 
+		WHERE time_spent >= 480 AND is_anky = true
+		ORDER BY timestamp DESC
+		LIMIT 20
+	`
+
+	rows, err := db.Pool.Query(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query recent valid ankys: %w", err)
+	}
+	defer rows.Close()
+
+	var sessions []models.WritingSession
+	for rows.Next() {
+		var ws models.WritingSession
+		var ankyJSON []byte
+
+		err := rows.Scan(
+			&ws.SessionID, &ws.UserID, &ws.Content, &ws.WordsWritten, &ws.TimeSpent, &ws.Timestamp,
+			&ws.IsAnky, &ws.NewenEarned, &ws.DailySessionNumber, &ws.Prompt, &ws.FID,
+			&ws.ParentAnkyID, &ws.AnkyResponse, &ws.ChosenSelfInquiryQuestion,
+			&ws.TokenID, &ws.ContractAddress, &ws.ImageIPFSHash, &ws.ImageURL,
+			&ws.Status, &ws.AIProcessedAt, &ws.NFTMintedAt, &ws.BlockchainSyncedAt, &ws.LastUpdatedAt,
+			&ankyJSON,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan writing session: %w", err)
+		}
+
+		if ankyJSON != nil {
+			var anky models.Anky
+			if err := json.Unmarshal(ankyJSON, &anky); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal anky data: %w", err)
+			}
+			ws.Anky = &anky
+		}
+
+		sessions = append(sessions, ws)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over rows: %w", err)
+	}
+
+	return sessions, nil
 }

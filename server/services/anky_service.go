@@ -5,120 +5,86 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
-	"os"
 
 	"github.com/ankylat/anky/server/database"
 	"github.com/ankylat/anky/server/models"
 )
 
-const dataFile = "writing_sessions.json"
-
 func SaveWritingSession(session *models.WritingSession) error {
-	sessions, err := readSessions()
+	log.Println("Creating new database connection for SaveWritingSession")
+	db, err := database.NewDatabase()
 	if err != nil {
 		return err
 	}
+	defer db.Close()
 
-	sessions = append(sessions, *session)
+	log.Printf("Attempting to save writing session with ID: %s", session.SessionID)
+	err = db.CreateWritingSession(context.Background(), session)
+	if err != nil {
+		log.Printf("Error creating writing session: %v", err)
+		return err
+	}
+	log.Printf("Successfully saved writing session with ID: %s", session.SessionID)
 
-	return writeSessions(sessions)
+	return nil
 }
 
 func GetUserWritingSessions(userID string) ([]models.WritingSession, error) {
-	sessions, err := readSessions()
-	if err != nil {
-		return nil, err
-	}
-
-	userSessions := []models.WritingSession{}
-	for _, session := range sessions {
-		if session.UserID == userID {
-			userSessions = append(userSessions, session)
-		}
-	}
-
-	if len(userSessions) == 0 {
-		return nil, errors.New("no writing sessions found for user")
-	}
-
-	return userSessions, nil
+	// TODO: Add GetUserWritingSessions query to database package
+	return nil, errors.New("not implemented")
 }
 
 func GetAnkyFromDatabase(sessionID string) (*models.WritingSession, error) {
+	log.Println("Creating new database connection for GetAnkyFromDatabase")
 	db, err := database.NewDatabase()
 	if err != nil {
 		return nil, err
 	}
 	defer db.Close()
 
+	log.Printf("Attempting to fetch writing session with ID: %s", sessionID)
 	session, err := db.GetWritingSession(context.Background(), sessionID)
 	if err != nil {
+		log.Printf("Error fetching writing session: %v", err)
 		return nil, err
+	}
+
+	// Log the retrieved session as JSON
+	sessionJSON, err := json.MarshalIndent(session, "", "  ")
+	if err != nil {
+		log.Printf("Error marshalling session to JSON: %v", err)
+	} else {
+		log.Printf("Retrieved writing session: %s", string(sessionJSON))
 	}
 
 	return session, nil
 }
 
 func UpdateWritingSession(updatedSession *models.WritingSession) error {
-	sessions, err := readSessions()
+	log.Println("Creating new database connection for UpdateWritingSession")
+	db, err := database.NewDatabase()
 	if err != nil {
 		return err
 	}
+	defer db.Close()
 
-	found := false
-	for i, session := range sessions {
-		if session.SessionID == updatedSession.SessionID {
-			sessions[i] = *updatedSession
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		return errors.New("writing session not found")
-	}
-
-	return writeSessions(sessions)
-}
-
-func readSessions() ([]models.WritingSession, error) {
-	if _, err := os.Stat(dataFile); os.IsNotExist(err) {
-		// If the file doesn't exist, create it with an empty array
-		err = writeSessions([]models.WritingSession{})
-		if err != nil {
-			return nil, err
-		}
-		return []models.WritingSession{}, nil
-	}
-
-	file, err := os.ReadFile(dataFile)
+	log.Printf("Attempting to update writing session with ID: %s", updatedSession.SessionID)
+	err = db.UpdateWritingSession(context.Background(), updatedSession)
 	if err != nil {
-		log.Printf("Error reading data file: %v", err)
-		return nil, err
-	}
-
-	var sessions []models.WritingSession
-	err = json.Unmarshal(file, &sessions)
-	if err != nil {
-		log.Printf("Error unmarshaling data: %v", err)
-		return nil, err
-	}
-
-	return sessions, nil
-}
-
-func writeSessions(sessions []models.WritingSession) error {
-	data, err := json.MarshalIndent(sessions, "", "  ")
-	if err != nil {
-		log.Printf("Error marshaling data: %v", err)
+		log.Printf("Error updating writing session: %v", err)
 		return err
 	}
-
-	err = os.WriteFile(dataFile, data, 0644)
-	if err != nil {
-		log.Printf("Error writing data file: %v", err)
-		return err
-	}
+	log.Printf("Successfully updated writing session with ID: %s", updatedSession.SessionID)
 
 	return nil
+}
+
+func GetRecentValidAnkys() ([]models.WritingSession, error) {
+	db, err := database.NewDatabase()
+	if err != nil {
+		return nil, err
+	}
+	defer db.Close()
+
+	return db.GetRecentValidAnkys(context.Background())
 }

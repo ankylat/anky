@@ -1,47 +1,41 @@
 package models
 
 import (
+	"encoding/json"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type User struct {
-	ID                    string             `json:"id" bson:"id"` // Privy-issued DID for the user
-	LinkedAccounts        []LinkedAccount    `json:"linked_accounts" bson:"linked_accounts"`
-	WritingSessions       []WritingSession   `json:"writing_sessions" bson:"writing_sessions"`
-	CollectedSessions     []WritingSession   `json:"collected_sessions" bson:"collected_sessions"`
-	NewenBalance          NewenBalance       `json:"newen_balance" bson:"newen_balance"`
-	NewenTransactions     []NewenTransaction `json:"newen_transactions" bson:"newen_transactions"`
-	ProfilePictureHistory []ProfilePicture   `json:"profile_picture_history" bson:"profile_picture_history"`
-	Settings              UserSettings       `json:"settings" bson:"settings"`
-	CreatedAt             time.Time          `json:"created_at" bson:"created_at"`
-	UpdatedAt             time.Time          `json:"updated_at" bson:"updated_at"`
-	FID                   int                `json:"fid" bson:"fid"`
+	ID        uuid.UUID       `json:"id"`
+	PrivyDID  string          `json:"privy_did"`
+	FID       int             `json:"fid"`
+	Settings  json.RawMessage `json:"settings"`
+	CreatedAt time.Time       `json:"created_at"`
+	UpdatedAt time.Time       `json:"updated_at"`
+}
+
+type PrivyUser struct {
+	ID               string          `json:"id"`
+	CreatedAt        int64           `json:"created_at"`
+	LinkedAccounts   []LinkedAccount `json:"linked_accounts"`
+	HasAcceptedTerms bool            `json:"has_accepted_terms"`
+	IsGuest          bool            `json:"is_guest"`
 }
 
 type LinkedAccount struct {
-	Type    string `json:"type" bson:"type"`
-	Address string `json:"address" bson:"address"`
-}
-
-type ProfilePicture struct {
-	URL       string    `json:"url" bson:"url"`
-	UpdatedAt time.Time `json:"updated_at" bson:"updated_at"`
-}
-
-type UserSettings struct {
-	NotificationPreferences NotificationPreferences `json:"notification_preferences" bson:"notification_preferences"`
-	PrivacySettings         PrivacySettings         `json:"privacy_settings" bson:"privacy_settings"`
-}
-
-type NotificationPreferences struct {
-	EmailNotifications bool `json:"email_notifications" bson:"email_notifications"`
-	SMSNotifications   bool `json:"sms_notifications" bson:"sms_notifications"`
-	PushNotifications  bool `json:"push_notifications" bson:"push_notifications"`
-}
-
-type PrivacySettings struct {
-	ShowEmail          bool `json:"show_email" bson:"show_email"`
-	ShowPhone          bool `json:"show_phone" bson:"show_phone"`
-	ShowWallet         bool `json:"show_wallet" bson:"show_wallet"`
-	ShowProfilePicture bool `json:"show_profile_picture" bson:"show_profile_picture"`
+	Type              string `json:"type"`
+	Address           string `json:"address,omitempty"`
+	ChainType         string `json:"chain_type,omitempty"`
+	FID               int    `json:"fid,omitempty"`
+	OwnerAddress      string `json:"owner_address,omitempty"`
+	Username          string `json:"username,omitempty"`
+	DisplayName       string `json:"display_name,omitempty"`
+	Bio               string `json:"bio,omitempty"`
+	ProfilePicture    string `json:"profile_picture,omitempty"`
+	ProfilePictureURL string `json:"profile_picture_url,omitempty"`
+	VerifiedAt        int64  `json:"verified_at"`
+	FirstVerifiedAt   int64  `json:"first_verified_at"`
+	LatestVerifiedAt  int64  `json:"latest_verified_at"`
 }
