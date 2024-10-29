@@ -12,10 +12,16 @@ import {
   ActivityIndicator,
 } from "react-native";
 import axios from "axios";
+import { Ionicons } from "@expo/vector-icons";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { usePrivy } from "@privy-io/expo";
+import { AdvancedImage } from "cloudinary-react-native";
+import { Cloudinary } from "@cloudinary/url-gen";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+  type?: "text" | "image";
 }
 
 interface PromptOption {
@@ -107,6 +113,12 @@ const promptOptions: PromptOption[] = [
   },
 ];
 
+const cld = new Cloudinary({
+  cloud: {
+    cloudName: process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  },
+});
+
 export default function ChatScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
@@ -117,6 +129,52 @@ export default function ChatScreen() {
   const inputRef = useRef<TextInput>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const fadeAnim = useRef(new Animated.Value(1)).current;
+  const queryClient = useQueryClient();
+
+  const { getAccessToken } = usePrivy();
+
+  const generateAnkyImageMutation = useMutation({
+    mutationFn: async () => {
+      console.log("INIAHUHISAOIC HERE");
+      const accessToken = await getAccessToken();
+      console.log("accessToasd9080asdasken", accessToken);
+      const response = await axios.post(
+        `${process.env.EXPO_PUBLIC_ANKY_API_URL}/generate-anky-from-prompt`,
+        {
+          prompt: inputText,
+        },
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+      console.log("responasi797sa97aasse", response.data);
+      return response.data;
+    },
+    onError: (error) => {
+      if (axios.isAxiosError(error) && error.response?.status === 401) {
+        console.error("User not authorized to generate images");
+      } else {
+        console.error("Error generating image:", error);
+      }
+    },
+    onSuccess: (data) => {
+      console.log("Image generated successfully:", data);
+      setMessages((prev) => [
+        ...prev,
+        {
+          role: "assistant",
+          content: data.imageUrl,
+          type: "image",
+        },
+      ]);
+    },
+  });
+
+  const generateAnkyImage = () => {
+    generateAnkyImageMutation.mutate();
+  };
 
   useEffect(() => {
     setMessages([
@@ -124,6 +182,7 @@ export default function ChatScreen() {
         role: "assistant",
         content:
           "welcome home, dear reader. or writer, if you dare to. your mission is to do it for 8 minutes every day. we will do the rest (or it will happen on its own)",
+        type: "text",
       },
     ]);
 
@@ -140,6 +199,7 @@ export default function ChatScreen() {
     const newMessage: Message = {
       role: "user",
       content: content.trim(),
+      type: "text",
     };
 
     const updatedMessages = [...messages, newMessage];
@@ -161,6 +221,7 @@ export default function ChatScreen() {
       const assistantMessage: Message = {
         role: "assistant",
         content: response.data.response,
+        type: "text",
       };
 
       setMessages([...updatedMessages, assistantMessage]);
@@ -232,7 +293,14 @@ export default function ChatScreen() {
                 maxWidth: "80%",
               }}
             >
-              <Text>{message.content}</Text>
+              {message.type === "text" ? (
+                <Text>{message.content}</Text>
+              ) : (
+                <AdvancedImage
+                  style={{ width: 200, height: 200, borderRadius: 10 }}
+                  cldImg={cld.image(message.content)}
+                />
+              )}
             </View>
           ))}
         </ScrollView>
@@ -327,6 +395,7 @@ export default function ChatScreen() {
               paddingHorizontal: 20,
               height: 40,
               justifyContent: "center",
+              marginRight: 10,
             }}
             onPress={() => {
               console.log("Send button pressed");
@@ -334,6 +403,20 @@ export default function ChatScreen() {
             }}
           >
             <Text style={{ color: "white" }}>Ask Anky</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            className="mt-auto"
+            style={{
+              backgroundColor: "#007AFF",
+              borderRadius: 20,
+              width: 40,
+              height: 40,
+              justifyContent: "center",
+              alignItems: "center",
+            }}
+            onPress={generateAnkyImage}
+          >
+            <Ionicons name="image-outline" size={24} color="white" />
           </TouchableOpacity>
         </View>
         {loading && (

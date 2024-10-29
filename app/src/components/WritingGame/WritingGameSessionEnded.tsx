@@ -26,6 +26,8 @@ interface WritingGameSessionEndedProps {
   targetDuration: number;
   sessionId: string;
   onRetry: () => void;
+  setGameOver: (gameOver: boolean) => void;
+  setCameBackToRead: (cameBackToRead: boolean) => void;
 }
 
 const WritingGameSessionEnded: React.FC<WritingGameSessionEndedProps> = ({
@@ -38,6 +40,8 @@ const WritingGameSessionEnded: React.FC<WritingGameSessionEndedProps> = ({
   targetDuration,
   sessionId,
   onRetry,
+  setGameOver,
+  setCameBackToRead,
 }) => {
   const [step, setStep] = useState(0);
   const { user } = usePrivy();
@@ -74,10 +78,25 @@ const WritingGameSessionEnded: React.FC<WritingGameSessionEndedProps> = ({
               through what happened.
             </Text>
             <TouchableOpacity
+              className="mb-8"
               style={styles.button}
               onPress={() => handleNextPress(1)}
             >
               <Text style={styles.buttonText}>Next</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              className=""
+              style={[
+                styles.button,
+                {
+                  opacity: 0.4,
+                  backgroundColor: initialInquiry.color,
+                  marginTop: 8,
+                },
+              ]}
+              onPress={() => setCameBackToRead(true)}
+            >
+              <Text style={styles.buttonText}>←</Text>
             </TouchableOpacity>
           </View>
         );

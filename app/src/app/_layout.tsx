@@ -31,14 +31,27 @@ import { getCurrentAnkyverseDay } from "./lib/ankyverse";
 import { QuilibriumProvider } from "../context/QuilibriumContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import Ankito from "@/assets/icons/ankito.svg";
+import { Cloudinary } from "@cloudinary/url-gen";
+import { WritingSession } from "../types/Anky";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
+// Global objects
+
 const queryClient = new QueryClient();
+
+const cld = new Cloudinary({
+  cloud: {
+    cloudName: process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  },
+});
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const [writingSession, setWritingSession] = useState<
+    WritingSession | undefined
+  >(undefined);
   const [loaded] = useFonts({
     SpaceMono: require("@/assets/fonts/Righteous-Regular.ttf"),
   });
@@ -116,6 +129,8 @@ export default function RootLayout() {
                               `Processing writing game results: ${wordsWritten} words written in ${timeSpent} seconds`
                             );
                           }}
+                          writingSession={writingSession}
+                          setWritingSession={setWritingSession}
                           sessionSeconds={8}
                           sessionTargetSeconds={480}
                           ankyverseDay={ankyverseDay}
