@@ -7,7 +7,9 @@ import (
 )
 
 type WritingSession struct {
-	SessionID          string    `json:"session_id" bson:"session_id"`
+	SessionID           string `json:"session_id" bson:"session_id"`
+	SessionIndexForUser int    `json:"session_index_for_user" bson:"session_index_for_user"`
+
 	UserID             string    `json:"user_id" bson:"user_id"`
 	Content            string    `json:"content" bson:"content"`
 	WordsWritten       int       `json:"words_written" bson:"words_written"`
@@ -46,6 +48,7 @@ type WritingSession struct {
 
 type Anky struct {
 	ID               string    `json:"id" bson:"id"`
+	AnkyIndexForUser int       `json:"anky_index_for_user" bson:"anky_index_for_user"`
 	WritingSessionID string    `json:"writing_session_id" bson:"writing_session_id"`
 	Reflection       string    `json:"reflection" bson:"reflection"`
 	ImagePrompt      string    `json:"image_prompt" bson:"image_prompt"`

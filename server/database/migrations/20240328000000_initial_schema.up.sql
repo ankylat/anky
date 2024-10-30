@@ -1,60 +1,108 @@
--- 20240328000000_initial_schema.up.sql
--- Users table - Core user information
+-- Users table
 CREATE TABLE users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    privy_did VARCHAR(255) UNIQUE,              -- Privy-issued DID
-    fid INTEGER UNIQUE,                         -- Farcaster ID
-    settings JSONB DEFAULT '{}',                -- All user settings in one JSONB field
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-);
-
--- Linked accounts for users
-CREATE TABLE user_linked_accounts (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id),
-    account_type VARCHAR(50) NOT NULL,          -- 'ethereum', 'farcaster', etc
-    address VARCHAR(255) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    UNIQUE(user_id, account_type, address)
+    id UUID PRIMARY KEY,
+    privy_did VARCHAR(255) NOT NULL,
+    fid INTEGER,
+    settings JSONB,
+    created_at TIMESTAMPTZ NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL,
+    seed_phrase TEXT
 );
 
 -- Writing sessions table
 CREATE TABLE writing_sessions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id UUID NOT NULL REFERENCES users(id),
-    parent_session_id UUID REFERENCES writing_sessions(id),
-    content TEXT NOT NULL,
-    words_written INTEGER NOT NULL DEFAULT 0,
-    time_spent INTEGER NOT NULL DEFAULT 0,
-    prompt TEXT,
-    is_anky BOOLEAN NOT NULL DEFAULT FALSE,
-    status VARCHAR(50) NOT NULL DEFAULT 'pending',
-    metadata JSONB DEFAULT '{}',                -- For flexible additional data
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    id VARCHAR(255) PRIMARY KEY,                -- SessionID
+    user_id VARCHAR(255) NOT NULL,              -- UserID
+    session_index_for_user INTEGER NOT NULL,    -- SessionIndexForUser
+    content TEXT NOT NULL,                      -- Content
+    words_written INTEGER NOT NULL,             -- WordsWritten
+    time_spent INTEGER NOT NULL,                -- TimeSpent
+    timestamp TIMESTAMPTZ NOT NULL,             -- Timestamp
+    is_anky BOOLEAN NOT NULL,                   -- IsAnky
+    newen_earned DECIMAL,                       -- NewenEarned
+    daily_session_number INTEGER,               -- DailySessionNumber
+    prompt TEXT,                                -- Prompt
+    fid INTEGER,                                -- FID
+    parent_anky_id VARCHAR(255),                -- ParentAnkyID
+    anky_response TEXT,                         -- AnkyResponse
+    chosen_self_inquiry_question TEXT,          -- ChosenSelfInquiryQuestion
+    token_id VARCHAR(255),                      -- TokenID
+    contract_address VARCHAR(255),              -- ContractAddress
+    image_ipfs_hash VARCHAR(255),               -- ImageIPFSHash
+    image_url TEXT,                             -- ImageURL
+    status VARCHAR(50) NOT NULL,                -- Status
+    ai_processed_at TIMESTAMPTZ,                -- AIProcessedAt
+    nft_minted_at TIMESTAMPTZ,                  -- NFTMintedAt
+    blockchain_synced_at TIMESTAMPTZ,           -- BlockchainSyncedAt
+    last_updated_at TIMESTAMPTZ NOT NULL        -- LastUpdatedAt
 );
 
--- Anky generations table
-CREATE TABLE anky_generations (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    session_id UUID NOT NULL REFERENCES writing_sessions(id),
-    reflection TEXT,
-    image_prompt TEXT,
-    follow_up_prompts TEXT[],
-    image_url TEXT,
-    cast_hash VARCHAR(255),
-    nft_token_id VARCHAR(255),
-    nft_contract_address VARCHAR(255),
-    ipfs_hash VARCHAR(255),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+-- Ankys table
+CREATE TABLE ankys (
+    id VARCHAR(255) PRIMARY KEY,                -- ID
+    anky_index_for_user INTEGER NOT NULL,       -- AnkyIndexForUser
+    writing_session_id VARCHAR(255) NOT NULL REFERENCES writing_sessions(id),
+    reflection TEXT,                            -- Reflection
+    image_prompt TEXT,                          -- ImagePrompt
+    follow_up_prompts TEXT[],                   -- FollowUpPrompts
+    image_url TEXT,                             -- ImageURL
+    cast_hash VARCHAR(255),                     -- CastHash
+    created_at TIMESTAMPTZ NOT NULL,            -- CreatedAt
+    last_updated_at TIMESTAMPTZ NOT NULL,       -- LastUpdatedAt
+    parent_session_id VARCHAR(255)              -- ParentSessionID
 );
 
--- Indexes for BLAZINGLY FAST queries
+-- Newen transactions table
+CREATE TABLE newen_transactions (
+    id VARCHAR(255) PRIMARY KEY,
+    from_user_id VARCHAR(255) NOT NULL,
+    to_user_id VARCHAR(255) NOT NULL,
+    amount BIGINT NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    description TEXT,
+    timestamp TIMESTAMPTZ NOT NULL
+);
+
+-- Newen balances table
+CREATE TABLE newen_balances (
+    user_id VARCHAR(255) PRIMARY KEY,
+    total BIGINT NOT NULL,
+    aether BIGINT NOT NULL,
+    lumina BIGINT NOT NULL,
+    terra BIGINT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+
+-- System accounts table
+CREATE TABLE system_accounts (
+    id VARCHAR(255) PRIMARY KEY,
+    balance BIGINT NOT NULL
+);
+
+-- Casts table
+CREATE TABLE casts (
+    hash VARCHAR(255) PRIMARY KEY,
+    thread_hash VARCHAR(255),
+    parent_hash VARCHAR(255),
+    parent_url TEXT,
+    root_parent_url TEXT,
+    author_fid INTEGER NOT NULL,
+    text TEXT NOT NULL,
+    timestamp TIMESTAMPTZ NOT NULL,
+    channel_id VARCHAR(255),
+    reactions_likes_count INTEGER DEFAULT 0,
+    reactions_recasts_count INTEGER DEFAULT 0
+);
+
+-- Indexes for performance
+CREATE INDEX idx_writing_sessions_user_id ON writing_sessions(user_id);
+CREATE INDEX idx_writing_sessions_parent_anky_id ON writing_sessions(parent_anky_id);
+CREATE INDEX idx_writing_sessions_timestamp ON writing_sessions(timestamp);
+CREATE INDEX idx_ankys_writing_session_id ON ankys(writing_session_id);
+CREATE INDEX idx_ankys_parent_session_id ON ankys(parent_session_id);
+CREATE INDEX idx_newen_transactions_from_user ON newen_transactions(from_user_id);
+CREATE INDEX idx_newen_transactions_to_user ON newen_transactions(to_user_id);
+CREATE INDEX idx_casts_author_fid ON casts(author_fid);
+CREATE INDEX idx_casts_thread_hash ON casts(thread_hash);
 CREATE INDEX idx_users_privy_did ON users(privy_did);
 CREATE INDEX idx_users_fid ON users(fid);
-CREATE INDEX idx_linked_accounts_user_id ON user_linked_accounts(user_id);
-CREATE INDEX idx_writing_sessions_user_id ON writing_sessions(user_id);
-CREATE INDEX idx_writing_sessions_parent_id ON writing_sessions(parent_session_id);
-CREATE INDEX idx_anky_generations_session_id ON anky_generations(session_id);

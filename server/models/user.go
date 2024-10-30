@@ -8,12 +8,15 @@ import (
 )
 
 type User struct {
-	ID        uuid.UUID       `json:"id"`
-	PrivyDID  string          `json:"privy_did"`
-	FID       int             `json:"fid"`
-	Settings  json.RawMessage `json:"settings"`
-	CreatedAt time.Time       `json:"created_at"`
-	UpdatedAt time.Time       `json:"updated_at"`
+	ID              uuid.UUID        `json:"id"`
+	PrivyDID        string           `json:"privy_did"`
+	FID             int              `json:"fid"`
+	Settings        json.RawMessage  `json:"settings"`
+	CreatedAt       time.Time        `json:"created_at"`
+	UpdatedAt       time.Time        `json:"updated_at"`
+	Ankys           []Anky           `json:"ankys"`
+	WritingSessions []WritingSession `json:"writing_sessions"`
+	SeedPhrase      string           `json:"seed_phrase"`
 }
 
 type PrivyUser struct {

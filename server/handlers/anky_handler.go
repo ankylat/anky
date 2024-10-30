@@ -49,7 +49,7 @@ func GenerateAnkyFromPrompt(c *gin.Context) {
 
 	// Generate image using Midjourney
 	log.Println("Generating image with Midjourney")
-	imageID, err := generateImageWithMidjourney(requestBody.Prompt)
+	imageID, err := generateImageWithMidjourney("https://s.mj.run/YLJMlMJbo70 " + requestBody.Prompt)
 	if err != nil {
 		log.Printf("Failed to generate image: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to generate image: %v", err)})

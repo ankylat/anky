@@ -38,15 +38,16 @@ func (db *Database) Close() {
 func (db *Database) CreateWritingSession(ctx context.Context, ws *models.WritingSession) error {
 	query := `
         INSERT INTO writing_sessions (
-            session_id, user_id, content, words_written, time_spent,
-            timestamp, is_anky, newen_earned, daily_session_number,
+            id, user_id, session_index_for_user, content, words_written, 
+            time_spent, timestamp, is_anky, newen_earned, daily_session_number,
             prompt, fid, parent_anky_id, status
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
     `
 
 	_, err := db.Pool.Exec(ctx, query,
 		ws.SessionID,
 		ws.UserID,
+		ws.SessionIndexForUser,
 		ws.Content,
 		ws.WordsWritten,
 		ws.TimeSpent,
@@ -78,15 +79,15 @@ func (db *Database) GetWritingSession(ctx context.Context, sessionID string) (*m
             a.last_updated_at as anky_updated_at,
             a.parent_session_id
         FROM writing_sessions ws
-        LEFT JOIN ankys a ON ws.session_id = a.writing_session_id
-        WHERE ws.session_id = $1
+        LEFT JOIN ankys a ON ws.id = a.writing_session_id
+        WHERE ws.id = $1
     `
 
 	var ws models.WritingSession
 	var anky models.Anky
 
 	err := db.Pool.QueryRow(ctx, query, sessionID).Scan(
-		&ws.SessionID, &ws.UserID, &ws.Content, &ws.WordsWritten,
+		&ws.SessionID, &ws.UserID, &ws.SessionIndexForUser, &ws.Content, &ws.WordsWritten,
 		&ws.TimeSpent, &ws.Timestamp, &ws.IsAnky, &ws.NewenEarned,
 		&ws.DailySessionNumber, &ws.Prompt, &ws.FID, &ws.ParentAnkyID,
 		&ws.AnkyResponse, &ws.ChosenSelfInquiryQuestion, &ws.TokenID,
@@ -130,8 +131,9 @@ func (db *Database) UpdateWritingSession(ctx context.Context, ws *models.Writing
             ai_processed_at = $15,
             nft_minted_at = $16,
             blockchain_synced_at = $17,
-            last_updated_at = $18
-        WHERE session_id = $19
+            last_updated_at = $18,
+            session_index_for_user = $19
+        WHERE id = $20
     `
 
 	_, err := db.Pool.Exec(ctx, query,
@@ -153,6 +155,7 @@ func (db *Database) UpdateWritingSession(ctx context.Context, ws *models.Writing
 		ws.NFTMintedAt,
 		ws.BlockchainSyncedAt,
 		ws.LastUpdatedAt,
+		ws.SessionIndexForUser,
 		ws.SessionID,
 	)
 
@@ -166,7 +169,7 @@ func (db *Database) UpdateWritingSession(ctx context.Context, ws *models.Writing
 func (db *Database) GetRecentValidAnkys(ctx context.Context) ([]models.WritingSession, error) {
 	query := `
 		SELECT 
-			session_id, user_id, content, words_written, time_spent, timestamp,
+			id, user_id, session_index_for_user, content, words_written, time_spent, timestamp,
 			is_anky, newen_earned, daily_session_number, prompt, fid,
 			parent_anky_id, anky_response, chosen_self_inquiry_question,
 			token_id, contract_address, image_ipfs_hash, image_url,
@@ -190,7 +193,7 @@ func (db *Database) GetRecentValidAnkys(ctx context.Context) ([]models.WritingSe
 		var ankyJSON []byte
 
 		err := rows.Scan(
-			&ws.SessionID, &ws.UserID, &ws.Content, &ws.WordsWritten, &ws.TimeSpent, &ws.Timestamp,
+			&ws.SessionID, &ws.UserID, &ws.SessionIndexForUser, &ws.Content, &ws.WordsWritten, &ws.TimeSpent, &ws.Timestamp,
 			&ws.IsAnky, &ws.NewenEarned, &ws.DailySessionNumber, &ws.Prompt, &ws.FID,
 			&ws.ParentAnkyID, &ws.AnkyResponse, &ws.ChosenSelfInquiryQuestion,
 			&ws.TokenID, &ws.ContractAddress, &ws.ImageIPFSHash, &ws.ImageURL,
