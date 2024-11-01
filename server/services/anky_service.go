@@ -18,13 +18,13 @@ func SaveWritingSession(session *models.WritingSession) error {
 	}
 	defer db.Close()
 
-	log.Printf("Attempting to save writing session with ID: %s", session.SessionID)
+	log.Printf("Attempting to save writing session with ID: %s", session.ID)
 	err = db.CreateWritingSession(context.Background(), session)
 	if err != nil {
 		log.Printf("Error creating writing session: %v", err)
 		return err
 	}
-	log.Printf("Successfully saved writing session with ID: %s", session.SessionID)
+	log.Printf("Successfully saved writing session with ID: %s", session.ID)
 
 	return nil
 }
@@ -68,13 +68,13 @@ func UpdateWritingSession(updatedSession *models.WritingSession) error {
 	}
 	defer db.Close()
 
-	log.Printf("Attempting to update writing session with ID: %s", updatedSession.SessionID)
+	log.Printf("Attempting to update writing session with ID: %s", updatedSession.ID)
 	err = db.UpdateWritingSession(context.Background(), updatedSession)
 	if err != nil {
 		log.Printf("Error updating writing session: %v", err)
 		return err
 	}
-	log.Printf("Successfully updated writing session with ID: %s", updatedSession.SessionID)
+	log.Printf("Successfully updated writing session with ID: %s", updatedSession.ID)
 
 	return nil
 }

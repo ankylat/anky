@@ -158,7 +158,7 @@ func SubmitWritingSession(c *gin.Context) {
 
 	log.Printf("Authenticated user ID: %s", user.ID)
 
-	session.UserID = user.ID
+	session.UserID = uuid.MustParse(user.ID)
 	log.Printf("Processing session for user: %s", session.UserID)
 
 	// Save initial writing session to the PostgreSQL database
@@ -170,7 +170,7 @@ func SubmitWritingSession(c *gin.Context) {
 		return
 	}
 
-	log.Printf("Writing session saved successfully. Session ID: %s", session.SessionID)
+	log.Printf("Writing session saved successfully. Session ID: %s", session.ID)
 
 	// Call LLM processing
 	anky, err := processWithLLM(session)
@@ -213,14 +213,14 @@ func SubmitWritingSession(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message":    "Writing session submitted successfully",
-		"session_id": session.SessionID,
+		"session_id": session.ID,
 		"status":     session.Status,
 	})
 	log.Println("SubmitWritingSession handler completed")
 }
 
 func processWithLLM(session models.WritingSession) (*models.Anky, error) {
-	log.Printf("Starting LLM processing for session ID: %s", session.SessionID)
+	log.Printf("Starting LLM processing for session ID: %s", session.ID)
 
 	llmService := services.NewLLMService()
 
@@ -253,7 +253,7 @@ func processWithLLM(session models.WritingSession) (*models.Anky, error) {
 			},
 			{
 				Role:    "user",
-				Content: session.Content,
+				Content: session.Writing,
 			},
 		},
 	}
@@ -331,7 +331,7 @@ func processWithLLM(session models.WritingSession) (*models.Anky, error) {
 		return nil, err
 	}
 
-	uploadResult, err := uploadImageToCloudinary(imageHandler, chosenImageURL, session.SessionID)
+	uploadResult, err := uploadImageToCloudinary(imageHandler, chosenImageURL, session.ID)
 	if err != nil {
 		log.Printf("Error uploading image to Cloudinary: %v", err)
 		return nil, err
@@ -341,8 +341,8 @@ func processWithLLM(session models.WritingSession) (*models.Anky, error) {
 
 	// Create and return the Anky struct
 	anky := &models.Anky{
-		ID:               uuid.New().String(),
-		WritingSessionID: session.SessionID,
+		ID:               uuid.New(),
+		WritingSessionID: session.ID,
 		ImagePrompt:      llmOutput.ImagePrompt,
 		FollowUpPrompts: []string{
 			llmOutput.Center,
@@ -356,7 +356,7 @@ func processWithLLM(session models.WritingSession) (*models.Anky, error) {
 		LastUpdatedAt: time.Now(),
 	}
 
-	log.Printf("LLM processing completed for session ID: %s", session.SessionID)
+	log.Printf("LLM processing completed for session ID: %s", session.ID)
 	return anky, nil
 }
 
@@ -641,14 +641,14 @@ func pollImageStatus(id string) (string, error) {
 }
 
 func publishToFarcaster(session models.WritingSession) (*models.Cast, error) {
-	log.Printf("Publishing to Farcaster for session ID: %s", session.SessionID)
-	fmt.Println("Publishing to Farcaster for session ID:", session.SessionID)
+	log.Printf("Publishing to Farcaster for session ID: %s", session.ID)
+	fmt.Println("Publishing to Farcaster for session ID:", session.ID)
 
 	neynarService := services.NewNeynarService()
 	fmt.Println("NeynarService initialized:", neynarService)
 
 	// Prepare the cast text
-	castText := session.Content
+	castText := session.Writing
 	if len(castText) > 300 {
 		lastPoint := strings.LastIndex(castText[:300], ".")
 		if lastPoint == -1 {
@@ -660,8 +660,8 @@ func publishToFarcaster(session models.WritingSession) (*models.Cast, error) {
 
 	apiKey := os.Getenv("NEYNAR_API_KEY")
 	signerUUID := os.Getenv("ANKY_SIGNER_UUID")
-	channelID := "anky"       // Replace with your actual channel ID
-	idem := session.SessionID // Using SessionID as a unique identifier for this cast
+	channelID := "anky" // Replace with your actual channel ID
+	idem := session.ID  // Using SessionID as a unique identifier for this cast
 
 	log.Printf("API Key: %s", apiKey)
 	log.Printf("Signer UUID: %s", signerUUID)
@@ -675,15 +675,15 @@ func publishToFarcaster(session models.WritingSession) (*models.Cast, error) {
 	fmt.Println("Idem:", idem)
 	fmt.Println("Cast Text:", castText)
 
-	castResponse, err := neynarService.WriteCast(apiKey, signerUUID, castText, channelID, idem, session.SessionID)
+	castResponse, err := neynarService.WriteCast(apiKey, signerUUID, castText, channelID, idem, session.ID)
 	if err != nil {
 		log.Printf("Error publishing to Farcaster: %v", err)
 		fmt.Println("Error publishing to Farcaster:", err)
 		return nil, err
 	}
 
-	log.Printf("Farcaster publishing completed for session ID: %s", session.SessionID)
-	fmt.Println("Farcaster publishing completed for session ID:", session.SessionID)
+	log.Printf("Farcaster publishing completed for session ID: %s", session.ID)
+	fmt.Println("Farcaster publishing completed for session ID:", session.ID)
 
 	return castResponse, nil
 }

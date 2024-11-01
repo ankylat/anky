@@ -45,13 +45,13 @@ func (db *Database) CreateWritingSession(ctx context.Context, ws *models.Writing
     `
 
 	_, err := db.Pool.Exec(ctx, query,
-		ws.SessionID,
+		ws.ID,
 		ws.UserID,
 		ws.SessionIndexForUser,
-		ws.Content,
+		ws.Writing,
 		ws.WordsWritten,
 		ws.TimeSpent,
-		ws.Timestamp,
+		ws.StartingTimestamp,
 		ws.IsAnky,
 		ws.NewenEarned,
 		ws.DailySessionNumber,
