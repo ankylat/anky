@@ -32,8 +32,13 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CollectedGrid from "@/src/components/Profile/CollectedGrid";
 import { WritingSession } from "@/src/types/Anky";
+import UserWithoutProfile from "@/src/components/Profile/UserWithoutProfile";
 
-const ProfileScreen = () => {
+const ProfileScreen = ({
+  setShowWritingGame,
+}: {
+  setShowWritingGame: (show: boolean) => void;
+}) => {
   const [viewMode, setViewMode] = useState<"ankys" | "drafts" | "collected">(
     "ankys"
   );
@@ -43,6 +48,7 @@ const ProfileScreen = () => {
   const unlinkFarcaster = useUnlinkFarcaster();
   const wallet = useEmbeddedWallet();
   const [drafts, setDrafts] = useState<WritingSession[]>([]);
+  const [doesUserHaveProfile, setDoesUserHaveProfile] = useState(false);
 
   const { casts, userMintedAnkys } = useUser();
   const screenWidth = Dimensions.get("window").width;
@@ -69,6 +75,10 @@ const ProfileScreen = () => {
 
   if (!user) {
     return <NotLoggedInUserView />;
+  }
+
+  if (!doesUserHaveProfile) {
+    return <UserWithoutProfile setShowWritingGame={setShowWritingGame} />;
   }
 
   const farcasterAccount = user.linked_accounts.find(
@@ -105,6 +115,11 @@ const ProfileScreen = () => {
                         Alert.alert("Error", "Failed to delete drafts");
                       }
                     },
+                    style: "destructive",
+                  },
+                  {
+                    text: "LOGOUT",
+                    onPress: logout,
                     style: "destructive",
                   },
                   {

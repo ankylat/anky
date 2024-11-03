@@ -1,5 +1,7 @@
 import React, { createContext, useContext, useState } from "react";
 import axios from "axios";
+import { getCurrentAnkyverseDay } from "../app/lib/ankyverse";
+import { WritingGameProps } from "../types/WritingGame";
 
 interface AnkyContextType {
   sendWritingToAnky: (writing: string) => Promise<void>;
@@ -7,10 +9,12 @@ interface AnkyContextType {
   checkAnkyStatus: () => Promise<boolean>;
   loading: boolean;
   error: string | null;
-  isWriteModalVisible: boolean;
-  setIsWriteModalVisible: React.Dispatch<React.SetStateAction<boolean>>;
+  isWritingGameVisible: boolean;
+  setIsWritingGameVisible: React.Dispatch<React.SetStateAction<boolean>>;
   isUserWriting: boolean;
   setIsUserWriting: React.Dispatch<React.SetStateAction<boolean>>;
+  writingGameProps: WritingGameProps;
+  setWritingGameProps: React.Dispatch<React.SetStateAction<WritingGameProps>>;
 }
 
 const AnkyContext = createContext<AnkyContextType | undefined>(undefined);
@@ -28,8 +32,44 @@ export const AnkyProvider: React.FC<{ children: React.ReactNode }> = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isWriteModalVisible, setIsWriteModalVisible] = useState(true);
+  const [isWritingGameVisible, setIsWritingGameVisible] = useState(true);
   const [isUserWriting, setIsUserWriting] = useState(false);
+  const ankyverseDay = getCurrentAnkyverseDay();
+  const [writingGameProps, setWritingGameProps] = useState<WritingGameProps>({
+    targetDuration: 480,
+    directions: {
+      center: {
+        direction: "center",
+        prompt: "tell us who you are",
+        color: ankyverseDay.currentColor.main,
+        textColor: ankyverseDay.currentColor.textColor,
+      },
+      up: {
+        direction: "up",
+        prompt: "hello world",
+        color: "#000000",
+        textColor: "#FFFFFF",
+      },
+      right: {
+        direction: "right",
+        prompt: "what's your biggest dream?",
+        color: "#1a237e",
+        textColor: "#FFFFFF",
+      },
+      down: {
+        direction: "down",
+        prompt: "describe your perfect day",
+        color: "#004d40",
+        textColor: "#FFFFFF",
+      },
+      left: {
+        direction: "left",
+        prompt: "what's your greatest fear?",
+        color: "#b71c1c",
+        textColor: "#FFFFFF",
+      },
+    },
+  });
 
   const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;
 
@@ -89,10 +129,12 @@ export const AnkyProvider: React.FC<{ children: React.ReactNode }> = ({
     checkAnkyStatus,
     loading,
     error,
-    isWriteModalVisible,
-    setIsWriteModalVisible,
+    isWritingGameVisible,
+    setIsWritingGameVisible,
     isUserWriting,
     setIsUserWriting,
+    writingGameProps,
+    setWritingGameProps,
   };
 
   return <AnkyContext.Provider value={value}>{children}</AnkyContext.Provider>;
