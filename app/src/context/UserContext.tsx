@@ -53,7 +53,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
       }
 
       // Fetch user casts
-      console.log("Fetching user casts...");
+      console.log("Fetching user casts...", API_URL);
       const castsResponse = await axios.get(
         `${API_URL}/user-casts/${userFid}`,
         {

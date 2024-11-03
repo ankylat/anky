@@ -8,7 +8,7 @@ import {
   StyleSheet,
   Vibration,
 } from "react-native";
-import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as Notifications from "expo-notifications";
 import { usePrivy } from "@privy-io/expo";
@@ -17,10 +17,6 @@ interface WritingGameSessionEndedProps {
   sessionDuration: number;
   wordsWritten: number;
   totalTaps: number;
-  initialInquiry: {
-    prompt: string;
-    color: string;
-  };
   onClose: () => void;
   targetReached: boolean;
   targetDuration: number;
@@ -34,7 +30,6 @@ const WritingGameSessionEnded: React.FC<WritingGameSessionEndedProps> = ({
   sessionDuration,
   wordsWritten,
   totalTaps,
-  initialInquiry,
   onClose,
   targetReached,
   targetDuration,
@@ -72,37 +67,6 @@ const WritingGameSessionEnded: React.FC<WritingGameSessionEndedProps> = ({
       case 0:
         return (
           <View style={styles.stepContainer}>
-            <Text style={styles.title}>Welcome to Anky</Text>
-            <Text style={styles.description}>
-              You've just completed your first writing session. Let's walk
-              through what happened.
-            </Text>
-            <TouchableOpacity
-              className="mb-8"
-              style={styles.button}
-              onPress={() => handleNextPress(1)}
-            >
-              <Text style={styles.buttonText}>Next</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              className=""
-              style={[
-                styles.button,
-                {
-                  opacity: 0.4,
-                  backgroundColor: initialInquiry.color,
-                  marginTop: 8,
-                },
-              ]}
-              onPress={() => setCameBackToRead(true)}
-            >
-              <Text style={styles.buttonText}>←</Text>
-            </TouchableOpacity>
-          </View>
-        );
-      case 1:
-        return (
-          <View style={styles.stepContainer}>
             <Text style={styles.title}>Your Writing Stats</Text>
             <View style={styles.statsContainer}>
               <View style={styles.statItem}>
@@ -116,67 +80,73 @@ const WritingGameSessionEnded: React.FC<WritingGameSessionEndedProps> = ({
                 <Text style={styles.statLabel}>words</Text>
               </View>
             </View>
-            <TouchableOpacity
-              style={styles.button}
-              onPress={() => handleNextPress(2)}
-            >
-              <Text style={styles.buttonText}>Next</Text>
-            </TouchableOpacity>
+            <View className="flex-row justify-between w-1/2">
+              <TouchableOpacity
+                style={styles.button}
+                className="opacity-40"
+                onPress={() => setGameOver(false)}
+              >
+                <Text style={styles.buttonText}>
+                  <Ionicons name="arrow-back" size={24} color="black" />
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.button}
+                onPress={() => handleNextPress(1)}
+              >
+                <Text style={styles.buttonText}>
+                  <Ionicons name="arrow-forward" size={24} color="black" />
+                </Text>
+              </TouchableOpacity>
+            </View>
           </View>
         );
-      case 2:
+
+      case 1:
         return (
-          <View style={styles.stepContainer}>
-            <Text style={styles.description}>
-              your mission is to write for 480 seconds. that's 8 minutes. just
-              write anything
-            </Text>
-            <Text style={styles.description}>
-              if you stop writing for more than 8 seconds, your session ends.
-            </Text>
-            <TouchableOpacity
-              style={styles.button}
-              onPress={() => {
-                if (targetReached) {
-                  handleNextPress(3);
-                } else {
-                  console.log("Retrying the writing session");
-                  Vibration.vibrate(50);
-                  onRetry();
-                }
+          <View className="items-center">
+            <View
+              className="bg-orange-500 rounded-full overflow-hidden w-96 h-96 mb-12 shadow-2xl"
+              style={{
+                shadowColor: "#ff9800",
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: 0.8,
+                shadowRadius: 20,
+                elevation: 10,
               }}
             >
-              <Text style={styles.buttonText}>
-                {targetReached ? "Next" : "Try Again"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        );
-      case 3:
-        return (
-          <View style={styles.stepContainer}>
-            <Text style={styles.title}>Anky Creation</Text>
-            <Text style={styles.description}>
-              your 480 seconds writing session will be used to create a unique
-              Anky. We'll notify you when it's ready!
-            </Text>
+              <Image
+                source={require("@/assets/images/anky_seed.png")}
+                className="w-full h-full"
+                style={{
+                  borderWidth: 3,
+                  borderColor: "#ffa726",
+                  borderRadius: 999,
+                }}
+              />
+            </View>
+
             <TouchableOpacity
-              style={[
-                styles.button,
-                notificationsPermission && styles.disabledButton,
-              ]}
+              className={`bg-orange-500 py-3 px-6 rounded-full mt-5 ${
+                notificationsPermission ? "opacity-50" : ""
+              }`}
               onPress={requestNotificationPermissions}
               disabled={notificationsPermission}
             >
-              <Text style={styles.buttonText}>
+              <Text className="text-black text-base font-bold">
                 {notificationsPermission
                   ? "Notifications Enabled"
                   : "Enable Notifications"}
               </Text>
             </TouchableOpacity>
             {!user && (
-              <TouchableOpacity style={styles.button} onPress={onClose}>
-                <Text style={styles.buttonText}>Save Locally & Finish</Text>
+              <TouchableOpacity
+                className="bg-orange-500 py-3 px-6 rounded-full mt-5"
+                onPress={onClose}
+              >
+                <Text className="text-black text-base font-bold">
+                  Save Locally & Finish
+                </Text>
               </TouchableOpacity>
             )}
           </View>

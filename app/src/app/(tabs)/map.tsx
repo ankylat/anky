@@ -54,11 +54,6 @@ interface ProgressIndicatorProps {
   completed: number;
 }
 
-interface GameMapProps {
-  scrollPosition: number;
-  onScrollPositionChange: (position: number) => void;
-}
-
 const { width, height } = Dimensions.get("window");
 
 // Preload sounds
@@ -67,10 +62,7 @@ const buttonSound = new Sound("button_click.mp3", Sound.MAIN_BUNDLE);
 const starSound = new Sound("star_earned.mp3", Sound.MAIN_BUNDLE);
 const completionSound = new Sound("level_complete.mp3", Sound.MAIN_BUNDLE);
 
-const GameMap: React.FC<GameMapProps> = ({
-  scrollPosition,
-  onScrollPositionChange,
-}) => {
+const GameMap: React.FC = () => {
   // State management
   const [levels, setLevels] = useState<Level[]>(
     Array(96)
@@ -187,11 +179,7 @@ const GameMap: React.FC<GameMapProps> = ({
     <ScrollView
       style={styles.scrollContainer}
       contentContainerStyle={styles.scrollContent}
-      onScroll={(event) => {
-        onScrollPositionChange(event.nativeEvent.contentOffset.y);
-      }}
       scrollEventThrottle={16}
-      contentOffset={{ x: 0, y: scrollPosition }}
     >
       <View style={[styles.container, { height: height * 3 }]}>
         {/* Animated background particles */}

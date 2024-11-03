@@ -1,6 +1,12 @@
 import { Tabs } from "expo-router";
 import React, { useState } from "react";
-import { StyleSheet, View } from "react-native";
+import {
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  Vibration,
+  View,
+} from "react-native";
 
 import { TabBarIcon } from "@/src/components/navigation/TabBarIcon";
 import { Colors } from "@/src/constants/Colors";
@@ -10,6 +16,9 @@ import { useAnky } from "@/src/context/AnkyContext";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Header } from "@react-navigation/elements";
 import { useLoginWithFarcaster, usePrivy } from "@privy-io/expo";
+import { WritingSession } from "@/src/types/Anky";
+import { getCurrentAnkyverseDay } from "../lib/ankyverse";
+import ProfileScreen from "./profile";
 
 export default function TabLayout() {
   const { user } = usePrivy();
@@ -23,10 +32,13 @@ export default function TabLayout() {
       console.log("Error logging in with farcaster:", error);
     },
   });
-  console.log("state", state);
   const colorScheme = useColorScheme();
-  const { isWriteModalVisible, setIsWriteModalVisible } = useAnky();
-  const [showWritingGame, setShowWritingGame] = useState(false);
+  const { isWritingGameVisible, setIsWritingGameVisible } = useAnky();
+  const [writingSession, setWritingSession] = useState<
+    WritingSession | undefined
+  >(undefined);
+
+  const ankyverseDay = getCurrentAnkyverseDay();
 
   const handleProfilePress = () => {
     console.log("user", user);
@@ -37,7 +49,7 @@ export default function TabLayout() {
   };
 
   return (
-    <>
+    <View className="flex-1 w-full bg-white relative">
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
@@ -89,8 +101,7 @@ export default function TabLayout() {
           listeners={{
             tabPress: (e) => {
               e.preventDefault();
-              setIsWriteModalVisible(true);
-              setShowWritingGame(true);
+              setIsWritingGameVisible(true);
             },
           }}
         />
@@ -135,16 +146,75 @@ export default function TabLayout() {
           }}
         />
       </Tabs>
-      {showWritingGame && isWriteModalVisible && (
-        <View style={{ ...StyleSheet.absoluteFillObject, zIndex: 1000 }}>
+
+      {isWritingGameVisible && (
+        <View
+          style={{
+            position: "absolute",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 10,
+          }}
+        >
           <WritingGame
-            onClose={() => {
-              setShowWritingGame(false);
-              setIsWriteModalVisible(false);
+            onGameOver={(wordsWritten, timeSpent) => {
+              console.log(
+                `Words written: ${wordsWritten}, Time spent: ${timeSpent}`
+              );
+              console.log(
+                `Processing writing game results: ${wordsWritten} words written in ${timeSpent} seconds`
+              );
             }}
+            writingSession={writingSession}
+            setWritingSession={setWritingSession}
+            secondsBetweenKeystrokes={8}
+            ankyverseDay={ankyverseDay}
           />
         </View>
       )}
-    </>
+
+      <View
+        style={{
+          position: "absolute",
+          bottom: 33,
+          left: 0,
+          right: 0,
+          alignItems: "center",
+          justifyContent: "center",
+          pointerEvents: "box-none",
+          zIndex: 1000,
+        }}
+      >
+        <TouchableOpacity
+          style={{
+            backgroundColor: ankyverseDay.currentColor.secondary,
+            borderRadius: 9999,
+            padding: 16,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 2 },
+            shadowOpacity: 0.25,
+            shadowRadius: 3.84,
+            elevation: 5,
+          }}
+          onPress={() => {
+            Vibration.vibrate(5);
+            setIsWritingGameVisible((x) => !x);
+          }}
+          activeOpacity={0.9}
+        >
+          <Text
+            style={{
+              fontSize: 24,
+              color: "white",
+              textAlign: "center",
+            }}
+          >
+            👽
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }

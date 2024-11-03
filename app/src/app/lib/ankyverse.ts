@@ -29,7 +29,7 @@ function getCurrentAnkyverseDay(): AnkyverseDay {
 }
 
 function getAnkyverseDay(date: Date): AnkyverseDay {
-  const ankyverseStart = new Date("2023-08-10T05:00:00-04:00");
+  const ankyverseStart = new Date("2023-08-30T05:00:00-04:00");
   const daysInSojourn = 96;
   const daysInSlumber = 21;
   const cycleLength = daysInSojourn + daysInSlumber; // 117 days

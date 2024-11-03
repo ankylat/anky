@@ -16,6 +16,7 @@ export const getLandingFeed = async (fid: number = 18350): Promise<Cast[]> => {
         "User-Agent": `anky-mobile-app-${process.env.ENVIRONMENT}`,
       },
     });
+    console.log("IN HERE THE RESPONSE IS: ", response);
 
     if (response.status !== 200) {
       throw new Error("Failed to fetch feed");

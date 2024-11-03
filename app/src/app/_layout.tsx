@@ -49,9 +49,7 @@ const cld = new Cloudinary({
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
-  const [writingSession, setWritingSession] = useState<
-    WritingSession | undefined
-  >(undefined);
+
   const [loaded] = useFonts({
     SpaceMono: require("@/assets/fonts/Righteous-Regular.ttf"),
   });
@@ -65,6 +63,9 @@ export default function RootLayout() {
   const [showWritingGame, setShowWritingGame] = useState(true);
   const [buttonRotation] = useState(new Animated.Value(0));
   const [buttonScale] = useState(new Animated.Value(1));
+  const [writingSession, setWritingSession] = useState<
+    WritingSession | undefined
+  >(undefined);
 
   const ankyverseDay = getCurrentAnkyverseDay();
   console.log("IN HERE, the ankyverse day is", ankyverseDay);
@@ -93,9 +94,14 @@ export default function RootLayout() {
                   <View style={{ flex: 1 }}>
                     <Stack>
                       <Stack.Screen
+                        name="index"
+                        options={{ headerShown: false }}
+                      />
+                      <Stack.Screen
                         name="(tabs)"
                         options={{ headerShown: false }}
                       />
+
                       <Stack.Screen
                         name="cast/[hash]"
                         options={{
@@ -108,95 +114,6 @@ export default function RootLayout() {
                       />
                       <Stack.Screen name="+not-found" />
                     </Stack>
-
-                    {showWritingGame && (
-                      <View
-                        style={{
-                          position: "absolute",
-                          top: 0,
-                          left: 0,
-                          right: 0,
-                          bottom: 0,
-                          zIndex: 10,
-                        }}
-                      >
-                        <WritingGame
-                          onGameOver={(wordsWritten, timeSpent) => {
-                            console.log(
-                              `Words written: ${wordsWritten}, Time spent: ${timeSpent}`
-                            );
-                            console.log(
-                              `Processing writing game results: ${wordsWritten} words written in ${timeSpent} seconds`
-                            );
-                          }}
-                          writingSession={writingSession}
-                          setWritingSession={setWritingSession}
-                          sessionSeconds={8}
-                          sessionTargetSeconds={480}
-                          ankyverseDay={ankyverseDay}
-                          modes={{
-                            up: {
-                              prompt: "What's on your mind right now?",
-                              color: ankyverseDay.currentColor.secondary,
-                            },
-                            right: {
-                              prompt:
-                                "Describe a recent challenge you overcame",
-                              color: "#1a237e",
-                            },
-                            down: {
-                              prompt: "What are you grateful for today?",
-                              color: "#004d40",
-                            },
-                            left: {
-                              prompt: "Write about a goal you want to achieve",
-                              color: "#b71c1c",
-                            },
-                          }}
-                        />
-                      </View>
-                    )}
-
-                    <View
-                      style={{
-                        position: "absolute",
-                        bottom: 33,
-                        left: 0,
-                        right: 0,
-                        alignItems: "center",
-                        justifyContent: "center",
-                        pointerEvents: "box-none",
-                        zIndex: 100,
-                      }}
-                    >
-                      <TouchableOpacity
-                        style={{
-                          backgroundColor: ankyverseDay.currentColor.secondary,
-                          borderRadius: 9999,
-                          padding: 16,
-                          shadowColor: "#000",
-                          shadowOffset: { width: 0, height: 2 },
-                          shadowOpacity: 0.25,
-                          shadowRadius: 3.84,
-                          elevation: 5,
-                        }}
-                        onPress={() => {
-                          Vibration.vibrate(5);
-                          setShowWritingGame((x) => !x);
-                        }}
-                        activeOpacity={0.9}
-                      >
-                        <Text
-                          style={{
-                            fontSize: 24,
-                            color: "white",
-                            textAlign: "center",
-                          }}
-                        >
-                          👽
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
                   </View>
                 </ThemeProvider>
               </UserProvider>
