@@ -41,7 +41,7 @@ func main() {
 	r.GET("/post/:id", handlers.ServeAnkyPost)
 	// New route for submitting writing sessions
 	r.POST("/submit-writing-session", middleware.PrivyAuth(appID, appSecret), handlers.SubmitWritingSession)
-	r.GET("/create-new-wallet", handlers.CreateNewWallet)
+	r.GET("/recent-ankys", handlers.GetRecentAnkys)
 
 	// Farcaster routes
 	farcasterGroup := r.Group("/farcaster")

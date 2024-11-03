@@ -1,53 +1,51 @@
-CREATE TABLE writing_sessions (
-    session_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    user_id VARCHAR(255) NOT NULL,
-    content TEXT NOT NULL,
-    words_written INTEGER NOT NULL,
-    time_spent INTEGER NOT NULL,
-    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    is_anky BOOLEAN NOT NULL DEFAULT FALSE,
-    newen_earned DECIMAL(10,2) NOT NULL DEFAULT 0,
-    daily_session_number INTEGER NOT NULL,
-    prompt TEXT,
+-- Users table
+CREATE TABLE users (
+    id UUID PRIMARY KEY,
+    privy_did TEXT NOT NULL,
     fid INTEGER,
-    
-    -- Threading component
+    seed_phrase TEXT NOT NULL,
+    wallet_address TEXT NOT NULL, 
+    jwt TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Writing sessions table
+CREATE TABLE writing_sessions (
+    id VARCHAR(255) PRIMARY KEY,
+    user_id UUID NOT NULL,
+    session_index_for_user INTEGER NOT NULL,
+    writing TEXT,
+    words_written INTEGER,
+    time_spent INTEGER,
+    starting_timestamp TIMESTAMP,
+    ending_timestamp TIMESTAMP,
+    is_anky BOOLEAN,
+    newen_earned INTEGER,
+    prompt TEXT,
     parent_anky_id VARCHAR(255),
     anky_response TEXT,
-    
-    chosen_self_inquiry_question TEXT,
-    
-    -- NFT-related fields
-    token_id VARCHAR(255),
-    contract_address VARCHAR(255),
-    image_ipfs_hash VARCHAR(255),
-    image_url TEXT,
-    
-    -- Status handling
-    status VARCHAR(50) NOT NULL DEFAULT 'pending',
-    
-    -- Metadata timestamps
-    ai_processed_at TIMESTAMPTZ,
-    nft_minted_at TIMESTAMPTZ,
-    blockchain_synced_at TIMESTAMPTZ,
-    last_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    status VARCHAR(50) NOT NULL
 );
 
+-- Ankys table
 CREATE TABLE ankys (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    writing_session_id UUID NOT NULL REFERENCES writing_sessions(session_id),
-    reflection TEXT,
+    id VARCHAR(255) PRIMARY KEY,
+    writing_session_id VARCHAR(255) NOT NULL REFERENCES writing_sessions(id),
+    chosen_prompt TEXT,
+    anky_reflection TEXT,
     image_prompt TEXT,
-    follow_up_prompts TEXT[],  -- PostgreSQL array type for string array
+    follow_up_prompts TEXT[],
     image_url TEXT,
+    image_ipfs_hash TEXT,
     cast_hash VARCHAR(255),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    last_updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    parent_session_id VARCHAR(255)
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    last_updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    previous_anky_id VARCHAR(255)
 );
 
--- Add some BLAZINGLY FAST indexes
+-- Indexes for performance
 CREATE INDEX idx_writing_sessions_user_id ON writing_sessions(user_id);
-CREATE INDEX idx_writing_sessions_fid ON writing_sessions(fid);
-CREATE INDEX idx_writing_sessions_status ON writing_sessions(status);
 CREATE INDEX idx_ankys_writing_session_id ON ankys(writing_session_id);
+CREATE INDEX idx_users_privy_did ON users(privy_did);
+CREATE INDEX idx_users_fid ON users(fid);

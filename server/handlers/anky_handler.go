@@ -19,6 +19,20 @@ import (
 	"golang.org/x/exp/rand"
 )
 
+func GetRecentAnkys(c *gin.Context) {
+	log.Println("Starting GetRecentAnkys handler")
+	ankys, err := services.GetRecentValidAnkys()
+	if err != nil {
+		log.Printf("Error getting recent ankys: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get recent ankys"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"ankys": ankys,
+	})
+}
+
 func GenerateAnkyFromPrompt(c *gin.Context) {
 	log.Println("Starting GenerateAnkyFromPrompt handler")
 
@@ -35,7 +49,7 @@ func GenerateAnkyFromPrompt(c *gin.Context) {
 
 	// Generate image using Midjourney
 	log.Println("Generating image with Midjourney")
-	imageID, err := generateImageWithMidjourney(requestBody.Prompt)
+	imageID, err := generateImageWithMidjourney("https://s.mj.run/YLJMlMJbo70 " + requestBody.Prompt)
 	if err != nil {
 		log.Printf("Failed to generate image: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to generate image: %v", err)})
@@ -135,27 +149,7 @@ func SubmitWritingSession(c *gin.Context) {
 	}
 
 	// Type assert and extract user ID
-	user, ok := privyUser.(struct {
-		ID             string `json:"id"`
-		CreatedAt      int64  `json:"created_at"`
-		LinkedAccounts []struct {
-			Type              string `json:"type"`
-			Address           string `json:"address,omitempty"`
-			ChainType         string `json:"chain_type,omitempty"`
-			FID               int    `json:"fid,omitempty"`
-			OwnerAddress      string `json:"owner_address,omitempty"`
-			Username          string `json:"username,omitempty"`
-			DisplayName       string `json:"display_name,omitempty"`
-			Bio               string `json:"bio,omitempty"`
-			ProfilePicture    string `json:"profile_picture,omitempty"`
-			ProfilePictureURL string `json:"profile_picture_url,omitempty"`
-			VerifiedAt        int64  `json:"verified_at"`
-			FirstVerifiedAt   int64  `json:"first_verified_at"`
-			LatestVerifiedAt  int64  `json:"latest_verified_at"`
-		} `json:"linked_accounts"`
-		HasAcceptedTerms bool `json:"has_accepted_terms"`
-		IsGuest          bool `json:"is_guest"`
-	})
+	user, ok := privyUser.(models.PrivyUser)
 	if !ok {
 		log.Println("Failed to parse user information")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to parse user information"})
@@ -164,11 +158,11 @@ func SubmitWritingSession(c *gin.Context) {
 
 	log.Printf("Authenticated user ID: %s", user.ID)
 
-	session.UserID = user.ID
+	session.UserID = uuid.MustParse(user.ID)
 	log.Printf("Processing session for user: %s", session.UserID)
 
-	// Save the writing session to the PostgreSQL database
-	log.Println("Attempting to save writing session to database")
+	// Save initial writing session to the PostgreSQL database
+	log.Println("Attempting to save initial writing session to database")
 	err = services.SaveWritingSession(&session)
 	if err != nil {
 		log.Printf("Failed to save writing session: %v", err)
@@ -176,46 +170,57 @@ func SubmitWritingSession(c *gin.Context) {
 		return
 	}
 
-	log.Printf("Writing session saved successfully. Session ID: %s", session.SessionID)
+	log.Printf("Writing session saved successfully. Session ID: %s", session.ID)
 
 	// Call LLM processing
 	anky, err := processWithLLM(session)
 	if err != nil {
 		log.Printf("Error processing with LLM: %v", err)
-		// Handle the error as needed
+		session.Status = "llm_processing_failed"
 	} else {
 		session.Anky = anky
+		session.Status = "llm_processed"
 		log.Printf("LLM processing completed successfully")
+
+		// Update session after LLM processing
+		err = services.UpdateWritingSession(&session)
+		if err != nil {
+			log.Printf("Error updating session after LLM processing: %v", err)
+		}
 	}
 
 	// Publish to Farcaster
 	castResponse, err := publishToFarcaster(session)
 	if err != nil {
 		log.Printf("Error publishing to Farcaster: %v", err)
-		// Handle the error as needed
+		session.Status = "farcaster_publish_failed"
 	} else {
 		log.Printf("Successfully published to Farcaster. Cast hash: %s", castResponse.Hash)
-		session.Anky.CastHash = castResponse.Hash
-	}
+		session.Status = "farcaster_published"
+		// Add nil check before accessing session.Anky
+		if session.Anky != nil {
+			session.Anky.CastHash = castResponse.Hash
+		} else {
+			log.Printf("Warning: session.Anky is nil, cannot set CastHash")
+		}
 
-	// Update the writing session in the database
-	err = services.UpdateWritingSession(&session)
-	if err != nil {
-		log.Printf("Error updating writing session: %v", err)
-		// Handle the error as needed
-	} else {
-		log.Printf("Writing session updated successfully")
+		// Update session after Farcaster publishing
+		err = services.UpdateWritingSession(&session)
+		if err != nil {
+			log.Printf("Error updating session after Farcaster publishing: %v", err)
+		}
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"message":    "Writing session submitted, processed, and updated successfully",
-		"session_id": session.SessionID,
+		"message":    "Writing session submitted successfully",
+		"session_id": session.ID,
+		"status":     session.Status,
 	})
-	log.Println("SubmitWritingSession handler completed successfully")
+	log.Println("SubmitWritingSession handler completed")
 }
 
 func processWithLLM(session models.WritingSession) (*models.Anky, error) {
-	log.Printf("Starting LLM processing for session ID: %s", session.SessionID)
+	log.Printf("Starting LLM processing for session ID: %s", session.ID)
 
 	llmService := services.NewLLMService()
 
@@ -234,7 +239,7 @@ func processWithLLM(session models.WritingSession) (*models.Anky, error) {
 					"mortality": "A direct question addressing awareness of mortality and life's transient nature. This prompt should confront the user with themes of impermanence, transformation, and finite existence.",
 					"freedom": "A challenging question about the nature and limits of personal freedom. This prompt should explore themes of personal choice, authenticity, and self-determination.",
 					"connection": "An insightful question exploring the user's web of relationships and sense of interconnection. This prompt should examine themes of interdependence and unity with others and the world.",
-					"image": "A vivid, symbolic description for image generation, incorporating elements from all explored directions. This should capture the essence of the user's writing and serve as a visual representation of their self-exploration journey."
+					"imageprompt": "A vivid, symbolic description for image generation, incorporating elements from all explored directions. This should capture the essence of the user's writing and serve as a visual representation of their self-exploration journey."
 				}
 
 				Guidelines for generating prompts:
@@ -248,7 +253,7 @@ func processWithLLM(session models.WritingSession) (*models.Anky, error) {
 			},
 			{
 				Role:    "user",
-				Content: session.Content,
+				Content: session.Writing,
 			},
 		},
 	}
@@ -272,13 +277,12 @@ func processWithLLM(session models.WritingSession) (*models.Anky, error) {
 	// Parse the JSON response
 	log.Printf("Parsing JSON response from LLM")
 	var llmOutput struct {
-		InnerChild       string `json:"inner_child"`
-		Shadow           string `json:"shadow"`
-		HigherSelf       string `json:"higher_self"`
-		WoundedHealer    string `json:"wounded_healer"`
-		SelfInquiry      string `json:"self_inquiry"`
-		ImageDescription string `json:"image_description"`
-		Analysis         string `json:"analysis"`
+		Center      string `json:"center"`
+		Purpose     string `json:"purpose"`
+		Mortality   string `json:"mortality"`
+		Freedom     string `json:"freedom"`
+		Connection  string `json:"connection"`
+		ImagePrompt string `json:"imageprompt"`
 	}
 	err = json.Unmarshal([]byte(fullResponse), &llmOutput)
 	if err != nil {
@@ -288,8 +292,8 @@ func processWithLLM(session models.WritingSession) (*models.Anky, error) {
 	log.Printf("Parsed LLM output: %+v", llmOutput)
 
 	// Generate the image using the image description
-	log.Printf("Generating image with Midjourney using description: %s", llmOutput.ImageDescription)
-	imageResponse, err := generateImageWithMidjourney("https://s.mj.run/YLJMlMJbo70 " + llmOutput.ImageDescription)
+	log.Printf("Generating image with Midjourney using description: %s", llmOutput.ImagePrompt)
+	imageResponse, err := generateImageWithMidjourney("https://s.mj.run/YLJMlMJbo70 " + llmOutput.ImagePrompt)
 	if err != nil {
 		log.Printf("Error generating image: %v", err)
 		return nil, err
@@ -327,7 +331,7 @@ func processWithLLM(session models.WritingSession) (*models.Anky, error) {
 		return nil, err
 	}
 
-	uploadResult, err := uploadImageToCloudinary(imageHandler, chosenImageURL, session.SessionID)
+	uploadResult, err := uploadImageToCloudinary(imageHandler, chosenImageURL, session.ID)
 	if err != nil {
 		log.Printf("Error uploading image to Cloudinary: %v", err)
 		return nil, err
@@ -337,23 +341,22 @@ func processWithLLM(session models.WritingSession) (*models.Anky, error) {
 
 	// Create and return the Anky struct
 	anky := &models.Anky{
-		ID:               uuid.New().String(),
-		WritingSessionID: session.SessionID,
-		Reflection:       llmOutput.Analysis,
-		ImagePrompt:      llmOutput.ImageDescription,
+		ID:               uuid.New(),
+		WritingSessionID: session.ID,
+		ImagePrompt:      llmOutput.ImagePrompt,
 		FollowUpPrompts: []string{
-			llmOutput.InnerChild,
-			llmOutput.Shadow,
-			llmOutput.HigherSelf,
-			llmOutput.WoundedHealer,
-			llmOutput.SelfInquiry,
+			llmOutput.Center,
+			llmOutput.Purpose,
+			llmOutput.Mortality,
+			llmOutput.Freedom,
+			llmOutput.Connection,
 		},
 		ImageURL:      uploadResult.SecureURL,
 		CreatedAt:     time.Now(),
 		LastUpdatedAt: time.Now(),
 	}
 
-	log.Printf("LLM processing completed for session ID: %s", session.SessionID)
+	log.Printf("LLM processing completed for session ID: %s", session.ID)
 	return anky, nil
 }
 
@@ -638,14 +641,14 @@ func pollImageStatus(id string) (string, error) {
 }
 
 func publishToFarcaster(session models.WritingSession) (*models.Cast, error) {
-	log.Printf("Publishing to Farcaster for session ID: %s", session.SessionID)
-	fmt.Println("Publishing to Farcaster for session ID:", session.SessionID)
+	log.Printf("Publishing to Farcaster for session ID: %s", session.ID)
+	fmt.Println("Publishing to Farcaster for session ID:", session.ID)
 
 	neynarService := services.NewNeynarService()
 	fmt.Println("NeynarService initialized:", neynarService)
 
 	// Prepare the cast text
-	castText := session.Content
+	castText := session.Writing
 	if len(castText) > 300 {
 		lastPoint := strings.LastIndex(castText[:300], ".")
 		if lastPoint == -1 {
@@ -657,8 +660,8 @@ func publishToFarcaster(session models.WritingSession) (*models.Cast, error) {
 
 	apiKey := os.Getenv("NEYNAR_API_KEY")
 	signerUUID := os.Getenv("ANKY_SIGNER_UUID")
-	channelID := "anky"       // Replace with your actual channel ID
-	idem := session.SessionID // Using SessionID as a unique identifier for this cast
+	channelID := "anky" // Replace with your actual channel ID
+	idem := session.ID  // Using SessionID as a unique identifier for this cast
 
 	log.Printf("API Key: %s", apiKey)
 	log.Printf("Signer UUID: %s", signerUUID)
@@ -672,15 +675,15 @@ func publishToFarcaster(session models.WritingSession) (*models.Cast, error) {
 	fmt.Println("Idem:", idem)
 	fmt.Println("Cast Text:", castText)
 
-	castResponse, err := neynarService.WriteCast(apiKey, signerUUID, castText, channelID, idem, session.SessionID)
+	castResponse, err := neynarService.WriteCast(apiKey, signerUUID, castText, channelID, idem, session.ID)
 	if err != nil {
 		log.Printf("Error publishing to Farcaster: %v", err)
 		fmt.Println("Error publishing to Farcaster:", err)
 		return nil, err
 	}
 
-	log.Printf("Farcaster publishing completed for session ID: %s", session.SessionID)
-	fmt.Println("Farcaster publishing completed for session ID:", session.SessionID)
+	log.Printf("Farcaster publishing completed for session ID: %s", session.ID)
+	fmt.Println("Farcaster publishing completed for session ID:", session.ID)
 
 	return castResponse, nil
 }
