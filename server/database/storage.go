@@ -37,7 +37,7 @@ func NewPostgresStore() (*PostgresStore, error) {
 	db, err := sql.Open("postgres", connStr)
 
 	if err != nil {
-		return nil, fmt.Errorf("Error opening database: %v", err)
+		return nil, fmt.Errorf("error opening database: %v", err)
 	}
 
 	return &PostgresStore{
@@ -81,14 +81,20 @@ func (s *PostgresStore) CreateUser(user *models.User) error {
 }
 
 func (s *PostgresStore) CreateWritingSession(writingSession *models.WritingSession) error {
-	query := `INSERT INTO writing_session (id, session_index_for_user, user_id, starting_timestamp, prompt, status) VALUES ($1, $2, $3, $4, $5, $6)`
+	query := `INSERT INTO writing_sessions (id, session_index_for_user, user_id, starting_timestamp, prompt, status) VALUES ($1, $2, $3, $4, $5, $6)`
 	_, err := s.db.Query(query, writingSession.ID, writingSession.SessionIndexForUser, writingSession.UserID, writingSession.StartingTimestamp, writingSession.Prompt, writingSession.Status)
 	return err
 }
 
-func (s *PostgresStore) CreateAnky(anky *models.CreateAnkyRequest) error {
-	query := `INSERT INTO anky (id, writing_session_id, chosen_prompt, created_at) VALUES ($1, $2, $3, $4)`
-	_, err := s.db.Query(query, anky.ID, anky.WritingSessionID, anky.ChosenPrompt, anky.CreatedAt)
+func (s *PostgresStore) UpdateWritingSession(writingSession *models.WritingSession) error {
+	query := `UPDATE writing_sessions SET ending_timestamp = $1, words_written = $2, newen_earned = $3, time_spent = $4, is_anky = $5, parent_anky_id = $6, anky_response = $7, status = $8, writing = $9 WHERE id = $10`
+	_, err := s.db.Exec(query, writingSession.EndingTimestamp, writingSession.WordsWritten, writingSession.NewenEarned, writingSession.TimeSpent, writingSession.IsAnky, writingSession.ParentAnkyID, writingSession.AnkyResponse, writingSession.Status, writingSession.Writing, writingSession.ID)
+	return err
+}
+
+func (s *PostgresStore) CreateAnky(anky *models.Anky) error {
+	query := `INSERT INTO ankys (id, writing_session_id, chosen_prompt, anky_reflection, image_prompt, follow_up_prompts, created_at) VALUES ($1, $2, $3, $4, $5, $6, $7)`
+	_, err := s.db.Query(query, anky.ID, anky.WritingSessionID, anky.ChosenPrompt, anky.AnkyReflection, anky.ImagePrompt, anky.FollowUpPrompts, anky.CreatedAt)
 	return err
 }
 
@@ -139,8 +145,8 @@ func (s *PostgresStore) GetUsers() ([]*models.User, error) {
 	return users, nil
 }
 
-func (s *PostgresStore) GetRecentAnkys() ([]*models.Anky, error) {
-	query := `SELECT * FROM anky ORDER BY created_at DESC LIMIT 20`
+func (s *PostgresStore) GetRecentValidAnkys() ([]*models.Anky, error) {
+	query := `SELECT * FROM ankys ORDER BY created_at DESC LIMIT 20`
 	rows, err := s.db.Query(query)
 	if err != nil {
 		return nil, err
@@ -159,7 +165,7 @@ func (s *PostgresStore) GetRecentAnkys() ([]*models.Anky, error) {
 }
 
 func (s *PostgresStore) GetUserWritingSessions(userID uuid.UUID) ([]*models.WritingSession, error) {
-	query := `SELECT * FROM writing_session WHERE user_id = $1`
+	query := `SELECT * FROM writing_sessions WHERE user_id = $1`
 	rows, err := s.db.Query(query, userID)
 	if err != nil {
 		return nil, err
@@ -178,7 +184,7 @@ func (s *PostgresStore) GetUserWritingSessions(userID uuid.UUID) ([]*models.Writ
 }
 
 func (s *PostgresStore) GetWritingSessionById(sessionID string) (*models.WritingSession, error) {
-	query := `SELECT * FROM writing_session WHERE id = $1`
+	query := `SELECT * FROM writing_sessions WHERE id = $1`
 	rows, err := s.db.Query(query, sessionID)
 	if err != nil {
 		return nil, err
@@ -194,27 +200,21 @@ func (s *PostgresStore) GetWritingSessionById(sessionID string) (*models.Writing
 // ************************** FUNCTIONS THAT UPDATE ANKY **************************
 
 func (s *PostgresStore) UpdateAnkyStatus(anky *models.Anky) error {
-	query := `UPDATE anky SET status = $1 WHERE id = $2`
+	query := `UPDATE ankys SET status = $1 WHERE id = $2`
 	_, err := s.db.Exec(query, anky.Status, anky.ID)
 	return err
 }
 
 func (s *PostgresStore) UpdateAnky(anky *models.Anky) error {
-	query := `UPDATE anky SET image_url = $1, image_ipfs_hash = $2, cast_hash = $3 WHERE id = $4`
+	query := `UPDATE ankys SET image_url = $1, image_ipfs_hash = $2, cast_hash = $3, last_updated_at = CURRENT_TIMESTAMP WHERE id = $4`
 	_, err := s.db.Exec(query, anky.ImageURL, anky.ImageIPFSHash, anky.CastHash, anky.ID)
 	return err
 }
 
 // ************************** FUNCTIONS THAT UPDATE ANKY **************************
 
-func (s *PostgresStore) UpdateWritingSession(writingSession *models.WritingSession) error {
-	query := `UPDATE writing_session SET ending_timestamp = $1, words_written = $2, newen_earned = $3, time_spent = $4, is_anky = $5, parent_anky_id = $6, anky_response = $7, status = $8 WHERE id = $9`
-	_, err := s.db.Exec(query, writingSession.EndingTimestamp, writingSession.WordsWritten, writingSession.NewenEarned, writingSession.TimeSpent, writingSession.IsAnky, writingSession.ParentAnkyID, writingSession.AnkyResponse, writingSession.Status, writingSession.ID)
-	return err
-}
-
 func (s *PostgresStore) GetUserAnkys(userID uuid.UUID) ([]*models.Anky, error) {
-	query := `SELECT * FROM anky WHERE user_id = $1`
+	query := `SELECT * FROM ankys WHERE user_id = $1`
 	rows, err := s.db.Query(query, userID)
 	if err != nil {
 		return nil, err
@@ -271,18 +271,19 @@ func scanIntoWritingSession(rows *sql.Rows) (*models.WritingSession, error) {
 	writingSession := new(models.WritingSession)
 	err := rows.Scan(
 		&writingSession.ID,
-		&writingSession.SessionIndexForUser,
 		&writingSession.UserID,
-		&writingSession.StartingTimestamp,
-		&writingSession.Prompt,
-		&writingSession.Status,
-		&writingSession.EndingTimestamp,
+		&writingSession.SessionIndexForUser,
+		&writingSession.Writing,
 		&writingSession.WordsWritten,
-		&writingSession.NewenEarned,
 		&writingSession.TimeSpent,
+		&writingSession.StartingTimestamp,
+		&writingSession.EndingTimestamp,
 		&writingSession.IsAnky,
+		&writingSession.NewenEarned,
+		&writingSession.Prompt,
 		&writingSession.ParentAnkyID,
 		&writingSession.AnkyResponse,
+		&writingSession.Status,
 	)
 	return writingSession, err
 }

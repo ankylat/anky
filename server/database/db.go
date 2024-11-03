@@ -38,10 +38,10 @@ func (db *Database) Close() {
 func (db *Database) CreateWritingSession(ctx context.Context, ws *models.WritingSession) error {
 	query := `
         INSERT INTO writing_sessions (
-            id, user_id, session_index_for_user, content, words_written, 
-            time_spent, timestamp, is_anky, newen_earned, daily_session_number,
-            prompt, fid, parent_anky_id, status
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+            id, user_id, session_index_for_user, writing, words_written, 
+            time_spent, starting_timestamp, is_anky, newen_earned,
+            prompt, parent_anky_id, status
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     `
 
 	_, err := db.Pool.Exec(ctx, query,
@@ -54,9 +54,7 @@ func (db *Database) CreateWritingSession(ctx context.Context, ws *models.Writing
 		ws.StartingTimestamp,
 		ws.IsAnky,
 		ws.NewenEarned,
-		ws.DailySessionNumber,
 		ws.Prompt,
-		ws.FID,
 		ws.ParentAnkyID,
 		ws.Status,
 	)
@@ -70,14 +68,14 @@ func (db *Database) GetWritingSession(ctx context.Context, sessionID string) (*m
         SELECT 
             ws.*,
             a.id as anky_id,
-            a.reflection,
+            a.anky_reflection,
             a.image_prompt,
             a.follow_up_prompts,
-            a.image_url as anky_image_url,
+            a.image_url,
             a.cast_hash,
             a.created_at as anky_created_at,
             a.last_updated_at as anky_updated_at,
-            a.parent_session_id
+            a.previous_anky_id
         FROM writing_sessions ws
         LEFT JOIN ankys a ON ws.id = a.writing_session_id
         WHERE ws.id = $1
@@ -87,24 +85,16 @@ func (db *Database) GetWritingSession(ctx context.Context, sessionID string) (*m
 	var anky models.Anky
 
 	err := db.Pool.QueryRow(ctx, query, sessionID).Scan(
-		&ws.SessionID, &ws.UserID, &ws.SessionIndexForUser, &ws.Content, &ws.WordsWritten,
-		&ws.TimeSpent, &ws.Timestamp, &ws.IsAnky, &ws.NewenEarned,
-		&ws.DailySessionNumber, &ws.Prompt, &ws.FID, &ws.ParentAnkyID,
-		&ws.AnkyResponse, &ws.ChosenSelfInquiryQuestion, &ws.TokenID,
-		&ws.ContractAddress, &ws.ImageIPFSHash, &ws.ImageURL,
-		&ws.Status, &ws.AIProcessedAt, &ws.NFTMintedAt,
-		&ws.BlockchainSyncedAt, &ws.LastUpdatedAt,
-		&anky.ID, &anky.Reflection, &anky.ImagePrompt,
+		&ws.ID, &ws.UserID, &ws.SessionIndexForUser, &ws.Writing, &ws.WordsWritten,
+		&ws.TimeSpent, &ws.StartingTimestamp, &ws.EndingTimestamp, &ws.IsAnky, &ws.NewenEarned,
+		&ws.Prompt, &ws.ParentAnkyID, &ws.AnkyResponse, &ws.Status,
+		&anky.ID, &anky.AnkyReflection, &anky.ImagePrompt,
 		&anky.FollowUpPrompts, &anky.ImageURL, &anky.CastHash,
-		&anky.CreatedAt, &anky.LastUpdatedAt, &anky.ParentSessionID,
+		&anky.CreatedAt, &anky.LastUpdatedAt, &anky.PreviousAnkyID,
 	)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to get writing session: %w", err)
-	}
-
-	if anky.ID != "" {
-		ws.Anky = &anky
 	}
 
 	return &ws, nil
@@ -114,7 +104,7 @@ func (db *Database) GetWritingSession(ctx context.Context, sessionID string) (*m
 func (db *Database) UpdateWritingSession(ctx context.Context, ws *models.WritingSession) error {
 	query := `
         UPDATE writing_sessions SET
-            content = $1,
+            writing = $1,
             words_written = $2,
             time_spent = $3,
             is_anky = $4,
@@ -122,22 +112,14 @@ func (db *Database) UpdateWritingSession(ctx context.Context, ws *models.Writing
             prompt = $6,
             parent_anky_id = $7,
             anky_response = $8,
-            chosen_self_inquiry_question = $9,
-            token_id = $10,
-            contract_address = $11,
-            image_ipfs_hash = $12,
-            image_url = $13,
-            status = $14,
-            ai_processed_at = $15,
-            nft_minted_at = $16,
-            blockchain_synced_at = $17,
-            last_updated_at = $18,
-            session_index_for_user = $19
-        WHERE id = $20
+            status = $9,
+            ending_timestamp = $10,
+            session_index_for_user = $11
+        WHERE id = $12
     `
 
 	_, err := db.Pool.Exec(ctx, query,
-		ws.Content,
+		ws.Writing,
 		ws.WordsWritten,
 		ws.TimeSpent,
 		ws.IsAnky,
@@ -145,18 +127,10 @@ func (db *Database) UpdateWritingSession(ctx context.Context, ws *models.Writing
 		ws.Prompt,
 		ws.ParentAnkyID,
 		ws.AnkyResponse,
-		ws.ChosenSelfInquiryQuestion,
-		ws.TokenID,
-		ws.ContractAddress,
-		ws.ImageIPFSHash,
-		ws.ImageURL,
 		ws.Status,
-		ws.AIProcessedAt,
-		ws.NFTMintedAt,
-		ws.BlockchainSyncedAt,
-		ws.LastUpdatedAt,
+		ws.EndingTimestamp,
 		ws.SessionIndexForUser,
-		ws.SessionID,
+		ws.ID,
 	)
 
 	if err != nil {
@@ -169,15 +143,13 @@ func (db *Database) UpdateWritingSession(ctx context.Context, ws *models.Writing
 func (db *Database) GetRecentValidAnkys(ctx context.Context) ([]models.WritingSession, error) {
 	query := `
 		SELECT 
-			id, user_id, session_index_for_user, content, words_written, time_spent, timestamp,
-			is_anky, newen_earned, daily_session_number, prompt, fid,
-			parent_anky_id, anky_response, chosen_self_inquiry_question,
-			token_id, contract_address, image_ipfs_hash, image_url,
-			status, ai_processed_at, nft_minted_at, blockchain_synced_at, last_updated_at,
+			id, user_id, session_index_for_user, writing, words_written, time_spent, 
+			starting_timestamp, ending_timestamp, is_anky, newen_earned, prompt,
+			parent_anky_id, anky_response, status,
 			anky
 		FROM writing_sessions 
 		WHERE time_spent >= 480 AND is_anky = true
-		ORDER BY timestamp DESC
+		ORDER BY starting_timestamp DESC
 		LIMIT 20
 	`
 
@@ -193,11 +165,9 @@ func (db *Database) GetRecentValidAnkys(ctx context.Context) ([]models.WritingSe
 		var ankyJSON []byte
 
 		err := rows.Scan(
-			&ws.SessionID, &ws.UserID, &ws.SessionIndexForUser, &ws.Content, &ws.WordsWritten, &ws.TimeSpent, &ws.Timestamp,
-			&ws.IsAnky, &ws.NewenEarned, &ws.DailySessionNumber, &ws.Prompt, &ws.FID,
-			&ws.ParentAnkyID, &ws.AnkyResponse, &ws.ChosenSelfInquiryQuestion,
-			&ws.TokenID, &ws.ContractAddress, &ws.ImageIPFSHash, &ws.ImageURL,
-			&ws.Status, &ws.AIProcessedAt, &ws.NFTMintedAt, &ws.BlockchainSyncedAt, &ws.LastUpdatedAt,
+			&ws.ID, &ws.UserID, &ws.SessionIndexForUser, &ws.Writing, &ws.WordsWritten, &ws.TimeSpent,
+			&ws.StartingTimestamp, &ws.EndingTimestamp, &ws.IsAnky, &ws.NewenEarned, &ws.Prompt,
+			&ws.ParentAnkyID, &ws.AnkyResponse, &ws.Status,
 			&ankyJSON,
 		)
 		if err != nil {
