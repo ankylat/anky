@@ -24,3 +24,12 @@ export interface Profile {
 export interface Bio {
   text: string;
 }
+
+export interface AnkyUser {
+  id: string;
+  privy_did?: string;
+  fid?: number | null;
+  settings: any;
+  walletAddress: string;
+  createdAt: string;
+}
