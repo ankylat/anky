@@ -14,8 +14,8 @@ import (
 )
 
 type ImageHandler struct {
-	cld *cloudinary.Cloudinary
-	ctx context.Context
+	Cld *cloudinary.Cloudinary
+	Ctx context.Context
 }
 
 func NewImageHandler() (*ImageHandler, error) {
@@ -25,7 +25,7 @@ func NewImageHandler() (*ImageHandler, error) {
 	}
 	cld.Config.URL.Secure = true
 	ctx := context.Background()
-	return &ImageHandler{cld: cld, ctx: ctx}, nil
+	return &ImageHandler{Cld: cld, Ctx: ctx}, nil
 }
 
 func (h *ImageHandler) UploadImage(c *gin.Context) {
@@ -45,7 +45,7 @@ func (h *ImageHandler) UploadImage(c *gin.Context) {
 		UploadPreset:   "anky_mobile",
 	}
 
-	resp, err := h.cld.Upload.Upload(h.ctx, file, uploadParams)
+	resp, err := h.Cld.Upload.Upload(h.Ctx, file, uploadParams)
 	if err != nil {
 		log.Printf("Error uploading file: %v", err)
 		fmt.Println("Error uploading file:", err)
@@ -71,7 +71,7 @@ func (h *ImageHandler) DeleteImage(c *gin.Context) {
 		return
 	}
 
-	_, err := h.cld.Upload.Destroy(h.ctx, uploader.DestroyParams{PublicID: publicID})
+	_, err := h.Cld.Upload.Destroy(h.Ctx, uploader.DestroyParams{PublicID: publicID})
 	if err != nil {
 		log.Printf("Error deleting image: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete image"})
@@ -88,7 +88,7 @@ func (h *ImageHandler) GetImage(c *gin.Context) {
 		return
 	}
 
-	asset, err := h.cld.Image(publicID)
+	asset, err := h.Cld.Image(publicID)
 	if err != nil {
 		log.Printf("Error getting image URL: %v", err)
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to get image URL"})

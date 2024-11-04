@@ -383,7 +383,7 @@ func uploadImageToCloudinary(imageHandler *ImageHandler, imageURL, sessionID str
 		return nil, fmt.Errorf("error rewinding temporary file: %v", err)
 	}
 
-	uploadResult, err := imageHandler.cld.Upload.Upload(imageHandler.ctx, tempFile, uploader.UploadParams{
+	uploadResult, err := imageHandler.Cld.Upload.Upload(imageHandler.Ctx, tempFile, uploader.UploadParams{
 		PublicID:     sessionID,
 		UploadPreset: "anky_mobile",
 	})

@@ -1,6 +1,5 @@
-
 # Declare all targets as PHONY (not actual files)
-.PHONY: dev test db-reset db-nuke db-migrate help
+.PHONY: dev test db-reset db-nuke db-migrate help build run
 
 # Colors and formatting
 BOLD := $(shell tput bold)
@@ -9,7 +8,7 @@ GREEN := $(shell tput setaf 2)
 YELLOW := $(shell tput setaf 3)
 RESET := $(shell tput sgr0)
 
-# Default target (just typing 'make' runs this)
+# Default target
 .DEFAULT_GOAL := help
 
 # Help command that lists all available commands
@@ -20,6 +19,8 @@ help:
 	@echo "$(YELLOW)make db-reset$(RESET)   - Reset database completely"
 	@echo "$(YELLOW)make db-nuke$(RESET)    - Drop all tables"
 	@echo "$(YELLOW)make db-migrate$(RESET) - Run database migrations"
+	@echo "$(YELLOW)make build$(RESET)      - Build the application"
+	@echo "$(YELLOW)make run$(RESET)        - Build and run the application"
 
 # Development environment
 dev:
@@ -28,10 +29,10 @@ dev:
 	@echo "$(GREEN)Starting server...$(RESET)"
 	go run main.go
 
-# Test command
+# Test command (single definition)
 test:
 	@echo "$(GREEN)Running tests...$(RESET)"
-	go test ./... -v
+	@go test -v ./...
 
 # Database commands
 db-reset:
@@ -56,10 +57,14 @@ db-migrate:
 	@echo "$(GREEN)✅ Migrations complete!$(RESET)"
 
 build:
-	@go build -o bin/gobank
+	@echo "$(GREEN)Building application...$(RESET)"
+	@go build -o bin/server
 
 run: build
-	@./bin/gobank
+	@echo "$(GREEN)Running server...$(RESET)"
+	@./bin/server
 
-test:
-	@go test -v ./...
+db-check:
+	@echo "$(YELLOW)Checking database connection...$(RESET)"
+	@docker exec -it anky-postgres pg_isready -U anky -d anky_db || (echo "$(RED)Database is not ready!$(RESET)" && exit 1)
+	@echo "$(GREEN)Database is connected!$(RESET)"

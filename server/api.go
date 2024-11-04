@@ -41,19 +41,19 @@ func makeHTTPHandleFunc(f apiFunc) http.HandlerFunc {
 	}
 }
 
-type ApiServer struct {
+type APIServer struct {
 	listenAddr string
 	store      database.Storage
 }
 
-func NewApiServer(listenAddr string, store database.Storage) *ApiServer {
-	return &ApiServer{
+func NewAPIServer(listenAddr string, store database.Storage) (*APIServer, error) {
+	return &APIServer{
 		listenAddr: listenAddr,
 		store:      store,
-	}
+	}, nil
 }
 
-func (s *ApiServer) Run() {
+func (s *APIServer) Run() {
 	router := mux.NewRouter()
 
 	router.HandleFunc("/", makeHTTPHandleFunc(s.handleHelloWorld))
@@ -65,11 +65,11 @@ func (s *ApiServer) Run() {
 	http.ListenAndServe(s.listenAddr, router)
 }
 
-func (s *ApiServer) handleHelloWorld(w http.ResponseWriter, r *http.Request) error {
+func (s *APIServer) handleHelloWorld(w http.ResponseWriter, r *http.Request) error {
 	return WriteJSON(w, http.StatusOK, map[string]string{"message": "Hello, World!"})
 }
 
-func (s *ApiServer) handleUser(w http.ResponseWriter, r *http.Request) error {
+func (s *APIServer) handleUser(w http.ResponseWriter, r *http.Request) error {
 	if r.Method == "GET" {
 		return s.handleGetUser(w, r)
 	}
@@ -80,7 +80,7 @@ func (s *ApiServer) handleUser(w http.ResponseWriter, r *http.Request) error {
 }
 
 // GET /user
-func (s *ApiServer) handleGetUser(w http.ResponseWriter, r *http.Request) error {
+func (s *APIServer) handleGetUser(w http.ResponseWriter, r *http.Request) error {
 	accounts, err := s.store.GetUsers()
 	if err != nil {
 		return err
@@ -89,7 +89,7 @@ func (s *ApiServer) handleGetUser(w http.ResponseWriter, r *http.Request) error 
 }
 
 // POST /user
-func (s *ApiServer) handleCreateUser(w http.ResponseWriter, r *http.Request) error {
+func (s *APIServer) handleCreateUser(w http.ResponseWriter, r *http.Request) error {
 	createUserRequest := new(models.CreateUserRequest)
 	if err := json.NewDecoder(r.Body).Decode(createUserRequest); err != nil {
 		return err
@@ -121,7 +121,7 @@ func createJWT(user *models.User) (string, error) {
 }
 
 // POST /writing-session-started
-func (s *ApiServer) handleWritingSessionStarted(w http.ResponseWriter, r *http.Request) error {
+func (s *APIServer) handleWritingSessionStarted(w http.ResponseWriter, r *http.Request) error {
 	newWritingSessionRequest := new(models.CreateWritingSessionRequest)
 	if err := json.NewDecoder(r.Body).Decode(newWritingSessionRequest); err != nil {
 		return err
@@ -146,7 +146,7 @@ func (s *ApiServer) handleWritingSessionStarted(w http.ResponseWriter, r *http.R
 }
 
 // POST /writing-session-ended
-func (s *ApiServer) handleWritingSessionEnded(w http.ResponseWriter, r *http.Request) error {
+func (s *APIServer) handleWritingSessionEnded(w http.ResponseWriter, r *http.Request) error {
 	fmt.Println("Handling writing session ended request...")
 
 	newWritingSessionEndRequest := new(models.CreateWritingSessionEndRequest)
@@ -201,7 +201,7 @@ func (s *ApiServer) handleWritingSessionEnded(w http.ResponseWriter, r *http.Req
 	return WriteJSON(w, http.StatusOK, writingSession)
 }
 
-func (s *ApiServer) handleGetWritingSession(w http.ResponseWriter, r *http.Request) error {
+func (s *APIServer) handleGetWritingSession(w http.ResponseWriter, r *http.Request) error {
 	sessionID, err := getSessionID(r)
 	if err != nil {
 		return err
@@ -223,7 +223,7 @@ func getSessionID(r *http.Request) (string, error) {
 	return sessionID, nil
 }
 
-func (s *ApiServer) processAnkyCreation(anky *models.Anky, writingSession *models.WritingSession) error {
+func (s *APIServer) processAnkyCreation(anky *models.Anky, writingSession *models.WritingSession) error {
 	// Update status to show we're starting
 	anky.Status = "starting_processing"
 	s.store.UpdateAnkyStatus(anky)
@@ -332,7 +332,7 @@ func (s *ApiServer) processAnkyCreation(anky *models.Anky, writingSession *model
 	return nil
 }
 
-func (s *ApiServer) generateAnkyReflection(session *models.WritingSession) (map[string]string, error) {
+func (s *APIServer) generateAnkyReflection(session *models.WritingSession) (map[string]string, error) {
 	log.Printf("Starting LLM processing for session ID: %s", session.ID)
 
 	llmService := services.NewLLMService()
@@ -567,7 +567,7 @@ func uploadImageToCloudinary(imageHandler *handlers.ImageHandler, imageURL, sess
 		return nil, fmt.Errorf("error rewinding temporary file: %v", err)
 	}
 
-	uploadResult, err := imageHandler.cld.Upload.Upload(imageHandler.ctx, tempFile, uploader.UploadParams{
+	uploadResult, err := imageHandler.Cld.Upload.Upload(imageHandler.Ctx, tempFile, uploader.UploadParams{
 		PublicID:     sessionID,
 		UploadPreset: "anky_mobile",
 	})
