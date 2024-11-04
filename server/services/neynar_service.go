@@ -9,7 +9,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/ankylat/anky/server/models"
+	"github.com/ankylat/anky/server/types"
 	"github.com/joho/godotenv"
 )
 
@@ -193,7 +193,7 @@ func (s *NeynarService) FetchUserCasts(fid int) ([]Cast, error) {
 	return neynarResponse.Casts, nil
 }
 
-func (s *NeynarService) WriteCast(apiKey, signerUUID, text, channelID, idem, sessionId string) (*models.Cast, error) {
+func (s *NeynarService) WriteCast(apiKey, signerUUID, text, channelID, idem, sessionId string) (*types.Cast, error) {
 	log.Println("Starting WriteCast function")
 
 	url := "https://api.neynar.com/v2/farcaster/cast"
@@ -251,7 +251,7 @@ func (s *NeynarService) WriteCast(apiKey, signerUUID, text, channelID, idem, ses
 	}
 
 	var response struct {
-		Cast *models.Cast `json:"cast"`
+		Cast *types.Cast `json:"cast"`
 	}
 	if err := json.Unmarshal(body, &response); err != nil {
 		log.Printf("Error unmarshaling response: %v", err)

@@ -8,6 +8,9 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
+
+	"github.com/ankylat/anky/server/types"
 )
 
 type FarcasterService struct {
@@ -246,4 +249,52 @@ func (s *FarcasterService) makeRequest(method, url string, payload interface{}) 
 
 	log.Println("makeRequest: Successfully completed request")
 	return result, nil
+}
+
+func publishToFarcaster(session *types.WritingSession) (*types.Cast, error) {
+	log.Printf("Publishing to Farcaster for session ID: %s", session.ID)
+	fmt.Println("Publishing to Farcaster for session ID:", session.ID)
+
+	neynarService := NewNeynarService()
+	fmt.Println("NeynarService initialized:", neynarService)
+
+	// Prepare the cast text
+	castText := session.Writing
+	if len(castText) > 300 {
+		lastPoint := strings.LastIndex(castText[:300], ".")
+		if lastPoint == -1 {
+			lastPoint = 297
+		}
+		castText = castText[:lastPoint] + "..."
+	}
+	fmt.Println("Cast Text prepared:", castText)
+
+	apiKey := os.Getenv("NEYNAR_API_KEY")
+	signerUUID := os.Getenv("ANKY_SIGNER_UUID")
+	channelID := "anky" // Replace with your actual channel ID
+	idem := session.ID  // Using SessionID as a unique identifier for this cast
+
+	log.Printf("API Key: %s", apiKey)
+	log.Printf("Signer UUID: %s", signerUUID)
+	log.Printf("Channel ID: %s", channelID)
+	log.Printf("Idem: %s", idem)
+	log.Printf("Cast Text: %s", castText)
+
+	fmt.Println("API Key:", apiKey)
+	fmt.Println("Signer UUID:", signerUUID)
+	fmt.Println("Channel ID:", channelID)
+	fmt.Println("Idem:", idem)
+	fmt.Println("Cast Text:", castText)
+
+	castResponse, err := neynarService.WriteCast(apiKey, signerUUID, castText, channelID, idem.String(), session.ID.String())
+	if err != nil {
+		log.Printf("Error publishing to Farcaster: %v", err)
+		fmt.Println("Error publishing to Farcaster:", err)
+		return nil, err
+	}
+
+	log.Printf("Farcaster publishing completed for session ID: %s", session.ID)
+	fmt.Println("Farcaster publishing completed for session ID:", session.ID)
+
+	return castResponse, nil
 }

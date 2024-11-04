@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/ankylat/anky/server/models"
+	"github.com/ankylat/anky/server/types"
 )
 
 type LLMService struct {
@@ -15,16 +15,15 @@ type LLMService struct {
 }
 
 func NewLLMService() *LLMService {
-	fmt.Println("Creating new LLMService")
 	return &LLMService{
 		client: &http.Client{},
 	}
 }
 
-func (s *LLMService) SendChatRequest(chatRequest models.ChatRequest, jsonFormatting bool) (<-chan string, error) {
+func (s *LLMService) SendChatRequest(chatRequest types.ChatRequest, jsonFormatting bool) (<-chan string, error) {
 	fmt.Println("SendChatRequest called with:", chatRequest)
 
-	llmRequest := models.LLMRequest{
+	llmRequest := types.LLMRequest{
 		Model:    "llama3.1",
 		Messages: chatRequest.Messages,
 		Stream:   false,
@@ -68,7 +67,7 @@ func (s *LLMService) SendChatRequest(chatRequest models.ChatRequest, jsonFormatt
 		scanner := bufio.NewScanner(resp.Body)
 		for scanner.Scan() {
 			fmt.Println("Scanned new line from response body")
-			var streamResponse models.StreamResponse
+			var streamResponse types.StreamResponse
 			if err := json.Unmarshal(scanner.Bytes(), &streamResponse); err != nil {
 				fmt.Println("Error unmarshaling stream response:", err)
 				continue
