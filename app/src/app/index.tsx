@@ -55,9 +55,6 @@ export default function Index() {
     }
   };
 
-  if (hasCompletedInitialPrompt === null) return null;
-  if (hasCompletedInitialPrompt) return null;
-
   return (
     <View style={{ flex: 1 }}>
       <WritingGame

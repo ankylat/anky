@@ -3,8 +3,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { Cast } from "../types/Cast";
 import { User } from "../types/User";
-import { WritingSession } from "../types/Anky"; // Assuming you have a Draft type defined
+import { WritingSession } from "../types/Anky";
 import { useQuilibrium } from "./QuilibriumContext";
+import { v4 as uuidv4 } from "uuid";
 
 interface UserContextType {
   casts: Cast[];
@@ -13,6 +14,7 @@ interface UserContextType {
   error: string | null;
   refreshUserData: () => Promise<void>;
   userMintedAnkys: WritingSession[];
+  anonymousId: string | null;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -33,45 +35,69 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
   const [userMintedAnkys, setUserMintedAnkys] = useState<WritingSession[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const { user } = useQuilibrium();
-  const farcasterAccount = user?.linked_accounts.find(
-    (account) => account.type === "farcaster"
-  );
+  const [anonymousId, setAnonymousId] = useState<string | null>(null);
+  const { user, isReady } = useQuilibrium();
 
   const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;
 
-  const userFid = farcasterAccount?.fid || 1; // TODO: Replace with actual user FID retrieval
+  const initializeAnonymousUser = async () => {
+    try {
+      // Check if we already have an anonymous ID
+      const storedAnonymousId = await AsyncStorage.getItem("anonymousId");
+
+      if (!storedAnonymousId) {
+        // Generate new anonymous ID if none exists
+        const newAnonymousId = uuidv4();
+
+        // Create initial session data
+        const initialSession: WritingSession = {
+          session_id: uuidv4(),
+          session_index_for_user: 1,
+          user_id: newAnonymousId,
+          starting_timestamp: new Date(),
+          ending_timestamp: null,
+          prompt: "Welcome to Anky",
+          writing: null,
+          words_written: 0,
+          is_anky: false,
+          status: "initialized",
+          parent_anky_id: null,
+        };
+
+        // Register anonymous user with backend
+        const response = await axios.post(
+          `${API_URL}/users/anonymous-register`,
+          {
+            anonymousId: newAnonymousId,
+            initialSession,
+          }
+        );
+
+        if (response.status === 200) {
+          await AsyncStorage.setItem("anonymousId", newAnonymousId);
+          setAnonymousId(newAnonymousId);
+          console.log("Anonymous user registered successfully");
+        }
+      } else {
+        setAnonymousId(storedAnonymousId);
+        console.log("Retrieved existing anonymous ID");
+      }
+    } catch (err) {
+      console.error("Error initializing anonymous user:", err);
+      setError("Failed to initialize anonymous user");
+    }
+  };
 
   const fetchUserData = async () => {
-    console.log("Fetching user data...");
+    if (!isReady) return;
     setIsLoading(true);
     setError(null);
     try {
-      const token = "hello world"; // TODO: Replace with actual token retrieval
-      if (!token) {
-        throw new Error("No authentication token found");
+      // Initialize anonymous user if no authenticated user
+      if (!user) {
+        await initializeAnonymousUser();
       }
 
-      // Fetch user casts
-      console.log("Fetching user casts...", API_URL);
-      const castsResponse = await axios.get(
-        `${API_URL}/user-casts/${userFid}`,
-        {
-          headers: { Authorization: `Bearer ${token}` },
-        }
-      );
-      console.log(
-        "The user casts are: ",
-        JSON.stringify(castsResponse.data, null, 2)
-      );
-      setCasts(castsResponse.data);
-      await AsyncStorage.setItem(
-        "userCasts",
-        JSON.stringify(castsResponse.data)
-      );
-
-      // Fetch user drafts from local storage
-      console.log("Fetching user drafts from local storage...");
       const storedDrafts = await AsyncStorage.getItem("writingSessions");
       if (storedDrafts) {
         const parsedDrafts = JSON.parse(storedDrafts);
@@ -91,41 +117,14 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   };
 
+  useEffect(() => {
+    fetchUserData();
+  }, [isReady, user]);
+
   const refreshUserData = async () => {
     console.log("Refreshing user data...");
     await fetchUserData();
   };
-
-  const fetchUserMintedAnkys = async () => {
-    console.log("Fetching user minted ankys...");
-    const mintedAnkysResponse = await axios.get(
-      `${API_URL}/user-minted-ankys/${userFid}`
-    );
-    setUserMintedAnkys(mintedAnkysResponse.data);
-  };
-
-  useEffect(() => {
-    const loadInitialData = async () => {
-      console.log("Loading initial data...");
-      const storedCasts = await AsyncStorage.getItem("userCasts");
-      const storedDrafts = await AsyncStorage.getItem("userDrafts");
-      const storedCollectedAnkys = await AsyncStorage.getItem(
-        "userMintedAnkys"
-      );
-      if (storedCasts) {
-        setCasts(JSON.parse(storedCasts));
-      }
-      if (storedDrafts) {
-        setDrafts(JSON.parse(storedDrafts));
-      }
-      if (storedCollectedAnkys) {
-        setUserMintedAnkys(JSON.parse(storedCollectedAnkys));
-      }
-      await fetchUserData();
-    };
-
-    loadInitialData();
-  }, []);
 
   const value = {
     casts,
@@ -134,6 +133,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
     isLoading,
     error,
     refreshUserData,
+    anonymousId,
   };
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;

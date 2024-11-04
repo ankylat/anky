@@ -2,8 +2,10 @@ import React, { createContext, useContext, useState } from "react";
 import axios from "axios";
 import { getCurrentAnkyverseDay } from "../app/lib/ankyverse";
 import { WritingGameProps } from "../types/WritingGame";
+import { AnkyUser } from "../types/User";
 
 interface AnkyContextType {
+  ankyUser: AnkyUser | null;
   sendWritingToAnky: (writing: string) => Promise<void>;
   fetchFromAnky: () => Promise<string>;
   checkAnkyStatus: () => Promise<boolean>;
@@ -30,6 +32,7 @@ export const useAnky = () => {
 export const AnkyProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
+  const [ankyUser, setAnkyUser] = useState<AnkyUser | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isWritingGameVisible, setIsWritingGameVisible] = useState(true);
@@ -124,6 +127,7 @@ export const AnkyProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const value = {
+    ankyUser,
     sendWritingToAnky,
     fetchFromAnky,
     checkAnkyStatus,

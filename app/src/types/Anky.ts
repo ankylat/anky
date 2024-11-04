@@ -1,39 +1,39 @@
+import { Cast } from "./Cast";
+
 export interface WritingSession {
   session_id: string;
-  user_id: string;
-  content: string;
-  words_written: number;
-  time_spent: number; // Duration in seconds
-  timestamp: Date;
-  is_anky: boolean;
-  newen_earned: number;
-  daily_session_number: number;
+  session_index_for_user: number | null;
+  user_id: string | null;
+  starting_timestamp: Date;
+  ending_timestamp: Date | null;
   prompt: string;
-  fid: number;
+  writing: string | null;
+  words_written: number | 0;
+  newen_earned?: number | 0;
+  time_spent?: number | null; // duration in seconds
+  is_anky: boolean;
 
-  // Threading component
-  parent_anky_id: string;
-  anky_response: string;
+  parent_anky_id?: string | null;
 
-  // AI-generated content
-  image_prompt: string;
-  self_inquiry_question: string;
+  status: string | null;
 
-  // NFT-related fields
-  token_id: string;
-  contract_address: string;
-  image_ipfs_hash: string;
-  image_url: string;
+  anky_id?: string | null;
+  anky?: Anky | null;
+}
 
-  // Farcaster-related field
-  cast_hash: string;
+export interface Anky {
+  id: string;
+  user_id: string;
+  writing_session_id: string;
+  prompt: string;
+  anky_reflection: string | null;
+  image_url: string | null;
+  image_ipfs_hash: string | null;
+  status: string | null;
+  cast_hash: string | null;
+  created_at: Date;
+  updated_at: Date;
+  previous_anky_id: string | null;
 
-  // Status handling
-  status: string;
-
-  // Metadata
-  ai_processed_at: Date | null;
-  nft_minted_at: Date | null;
-  blockchain_synced_at: Date | null;
-  last_updated_at: Date;
+  cast: Cast | null;
 }

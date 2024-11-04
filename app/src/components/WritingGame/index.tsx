@@ -23,16 +23,14 @@ import {
 } from "react-native";
 import { useAnky } from "@/src/context/AnkyContext";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { processWritingSession } from "../../app/lib/writingGame";
 import { usePrivy } from "@privy-io/expo";
 import WritingGameSessionEnded from "./WritingGameSessionEnded";
 import { AnkyverseDay } from "@/src/app/lib/ankyverse";
 import { v4 as uuidv4 } from "uuid";
-import axios from "axios";
 import { WritingSession } from "@/src/types/Anky";
-import TopNavBar from "./TopNavBar";
-import { useLocalSearchParams } from "expo-router";
 import { WritingGameProps } from "@/src/types/WritingGame";
+import axios from "axios";
+import { endWritingSession, startWritingSession } from "@/src/api/game";
 
 const { width, height } = Dimensions.get("window");
 
@@ -55,211 +53,145 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
     ankyverseDay,
     initialText = "",
     writingSession,
-    setWritingSession,
-    propsModes = {
-      targetDuration: 480,
-      directions: {
-        center: {
-          direction: "center",
-          prompt: "tell us who you are",
-          color: "#000000",
-          textColor: "#FFFFFF",
-        },
-        up: {
-          direction: "up",
-          prompt: "tell us who you are",
-          color: "#9C27B0",
-          textColor: "#FFFFFF",
-        },
-        left: {
-          direction: "left",
-          prompt: "tell us who you are",
-          color: "#2196F3",
-          textColor: "#FFFFFF",
-        },
-        down: {
-          direction: "down",
-          prompt: "tell us who you are",
-          color: "#4CAF50",
-          textColor: "#FFFFFF",
-        },
-        right: {
-          direction: "right",
-          prompt: "tell us who you are",
-          color: "#FF9800",
-          textColor: "#000000",
-        },
-      },
-    },
+    propsModes = undefined,
   }) => {
     console.log("WritingGame component rendered");
     const {
-      sendWritingToAnky,
+      ankyUser,
       setIsWritingGameVisible,
-      isUserWriting,
       setIsUserWriting,
       writingGameProps,
-      setWritingGameProps,
     } = useAnky();
-    console.log("the writing game props are: ", writingGameProps);
-    const { user, isReady, getAccessToken } = usePrivy();
-    const [gameOver, setGameOver] = useState<boolean>(false);
-    const [wordsWritten, setWordsWritten] = useState<number>(
-      writingSession?.words_written || 0
-    );
-    const [timeSpent, setTimeSpent] = useState<number>(
-      writingSession?.time_spent || 0
-    );
-    const [isSessionActive, setIsSessionActive] = useState<boolean>(false);
-    const [cameBackToRead, setCameBackToRead] = useState<boolean>(false);
-    const [sessionStarted, setSessionStarted] = useState<boolean>(false);
-    const [text, setText] = useState<string>(
-      writingSession?.content || initialText
-    );
-    const [targetReached, setTargetReached] = useState<boolean>(false);
-    const [displaySeconds, setDisplaySeconds] = useState<boolean>(true);
-    const lastKeystroke = useRef<number>(Date.now());
+    const { user, getAccessToken } = usePrivy();
 
+    const lastKeystroke = useRef<number>(Date.now());
+    const textInputRef = useRef<TextInput>(null);
     const animatedValue = useRef(new Animated.Value(1)).current;
 
-    const textInputRef = useRef<TextInput>(null);
+    const [gameState, setGameState] = useState({
+      sessionId: writingSession?.session_id || uuidv4(),
+      gameOver: false,
+      wordsWritten: writingSession?.words_written || 0,
+      timeSpent: writingSession?.time_spent || 0,
+      isSessionActive: false,
+      cameBackToRead: false,
+      sessionStarted: false,
+      targetReached: false,
+      displaySeconds: true,
+      currentMode: "center",
+      keyboardHeight: 0,
+      tapCount: 0,
+    });
 
-    const [currentMode, setCurrentMode] = useState<string>("center");
-
-    const modes = propsModes || writingGameProps;
-
-    const [keyboardHeight, setKeyboardHeight] = useState<number>(0);
-    const [tapCount, setTapCount] = useState<number>(0);
-    const [sessionId, setSessionId] = useState<string>("");
-
-    const swipeThreshold = 50;
-
-    const panResponder = useMemo(
-      () =>
-        PanResponder.create({
-          onStartShouldSetPanResponder: () => true,
-          onMoveShouldSetPanResponder: () => true,
-          onPanResponderMove: (_, gestureState) => {
-            const { dx, dy } = gestureState;
-            if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > swipeThreshold) {
-              if (dx > 0) {
-                setCurrentMode("right");
-              } else {
-                setCurrentMode("left");
-              }
-            } else if (
-              Math.abs(dy) > Math.abs(dx) &&
-              Math.abs(dy) > swipeThreshold
-            ) {
-              if (dy > 0) {
-                setCurrentMode("down");
-              } else {
-                setCurrentMode("up");
-              }
-            }
-          },
-          onPanResponderRelease: () => {
-            // Reset any state if needed after the swipe
-          },
-        }),
-      []
+    const [text, setText] = useState<string>(
+      writingSession?.writing || initialText
     );
 
+    const modes = useMemo(
+      () => propsModes || writingGameProps,
+      [propsModes, writingGameProps]
+    );
+
+    const panResponder = useMemo(() => {
+      const swipeThreshold = 50;
+      return PanResponder.create({
+        onStartShouldSetPanResponder: () => true,
+        onMoveShouldSetPanResponder: () => true,
+        onPanResponderMove: (_, { dx, dy }) => {
+          if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > swipeThreshold) {
+            setGameState((prev) => ({
+              ...prev,
+              currentMode: dx > 0 ? "right" : "left",
+            }));
+          } else if (
+            Math.abs(dy) > Math.abs(dx) &&
+            Math.abs(dy) > swipeThreshold
+          ) {
+            setGameState((prev) => ({
+              ...prev,
+              currentMode: dy > 0 ? "down" : "up",
+            }));
+          }
+        },
+        onPanResponderRelease: () => {},
+      });
+    }, []);
+
+    // Memoized keyboard event handlers
     useEffect(() => {
-      console.log("Setting up keyboard listeners");
-      const keyboardDidShowListener = Keyboard.addListener(
-        "keyboardDidShow",
-        (e) => {
-          console.log("Keyboard shown, height:", e.endCoordinates.height);
-          setKeyboardHeight(e.endCoordinates.height);
-        }
-      );
-      const keyboardDidHideListener = Keyboard.addListener(
-        "keyboardDidHide",
-        () => {
-          console.log("Keyboard hidden");
-          setKeyboardHeight(0);
-        }
-      );
+      const keyboardDidShow = Keyboard.addListener("keyboardDidShow", (e) => {
+        setGameState((prev) => ({
+          ...prev,
+          keyboardHeight: e.endCoordinates.height,
+        }));
+      });
+
+      const keyboardDidHide = Keyboard.addListener("keyboardDidHide", () => {
+        setGameState((prev) => ({
+          ...prev,
+          keyboardHeight: 0,
+        }));
+      });
 
       return () => {
-        console.log("Cleaning up keyboard listeners");
-        keyboardDidHideListener.remove();
-        keyboardDidShowListener.remove();
+        keyboardDidShow.remove();
+        keyboardDidHide.remove();
       };
     }, []);
 
     useEffect(() => {
-      console.log("Session started:", sessionStarted);
-      setIsSessionActive(sessionStarted);
-      if (!sessionStarted || gameOver) return;
+      if (!gameState.sessionStarted || gameState.gameOver) return;
 
-      console.log("Starting session timer");
       const interval = setInterval(() => {
         const now = Date.now();
         const timeSinceLastKeystroke = (now - lastKeystroke.current) / 1000;
-        console.log("Time since last keystroke:", timeSinceLastKeystroke);
 
         if (timeSinceLastKeystroke >= secondsBetweenKeystrokes) {
           clearInterval(interval);
-          setGameOver(true);
-
+          setGameState((prev) => ({
+            ...prev,
+            gameOver: true,
+            isSessionActive: false,
+          }));
           const words = text.trim().split(/\s+/).length;
-          console.log("Words written:", words);
-          setWordsWritten(words);
-          setIsSessionActive(false);
-
-          if (onGameOver) {
-            console.log("Calling onGameOver callback");
-            onGameOver(words, Math.floor(timeSpent));
-          }
-
-          // Send writing session to backend
-          console.log("sending the writing session to the backend");
+          onGameOver?.(words, Math.floor(gameState.timeSpent));
           sendWritingSessionToBackend();
         } else {
-          setTimeSpent((prev) => {
-            const newTimeSpent = prev + 0.1;
-            console.log("Time spent:", newTimeSpent);
-            if (newTimeSpent >= propsModes.targetDuration && !targetReached) {
-              console.log("Target reached!");
-              setTargetReached(true);
-              // You can add more UI feedback here
-            }
-            return newTimeSpent;
+          setGameState((prev) => {
+            const newTimeSpent = prev.timeSpent + 0.1;
+            return {
+              ...prev,
+              timeSpent: newTimeSpent,
+              targetReached:
+                newTimeSpent >= (propsModes?.targetDuration ?? 0)
+                  ? true
+                  : prev.targetReached,
+            };
           });
 
-          // Vibrate at last 30% of life
           if (timeSinceLastKeystroke >= secondsBetweenKeystrokes * 0.88) {
-            console.log("Vibrating at last 30% of life");
             Vibration.vibrate(50);
           }
-        }
 
-        Animated.timing(animatedValue, {
-          toValue: 1 - timeSinceLastKeystroke / secondsBetweenKeystrokes,
-          duration: 100,
-          useNativeDriver: false,
-        }).start();
+          Animated.timing(animatedValue, {
+            toValue: 1 - timeSinceLastKeystroke / secondsBetweenKeystrokes,
+            duration: 100,
+            useNativeDriver: false,
+          }).start();
+        }
       }, 100);
 
-      return () => {
-        console.log("Cleaning up session timer");
-        clearInterval(interval);
-      };
+      return () => clearInterval(interval);
     }, [
-      sessionStarted,
+      gameState.sessionStarted,
+      gameState.gameOver,
       secondsBetweenKeystrokes,
-      propsModes.targetDuration,
-      onGameOver,
       text,
-      timeSpent,
-      gameOver,
+      onGameOver,
     ]);
 
     const handleTextChange = useCallback(
-      (newText: string): void => {
-        console.log("Text changed, length:", newText.length);
+      (newText: string) => {
         setText(newText);
         lastKeystroke.current = Date.now();
         Animated.timing(animatedValue, {
@@ -272,68 +204,71 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
     );
 
     const handleCancel = useCallback(() => {
-      console.log("Cancel button pressed");
       setIsWritingGameVisible(false);
-      setGameOver(true);
-      if (onClose) {
-        onClose();
-      }
+      setGameState((prev) => ({ ...prev, gameOver: true }));
+      onClose?.();
     }, [onClose, setIsWritingGameVisible]);
 
-    const startSession = useCallback(() => {
-      console.log("Starting writing session");
-      const newSessionId = uuidv4();
-      setSessionId(newSessionId);
-      setSessionStarted(true);
+    const startSession = useCallback(async () => {
+      const writingSession: WritingSession = {
+        session_id: gameState.sessionId,
+        session_index_for_user: null,
+        user_id: ankyUser?.id || "anonymous",
+        starting_timestamp: new Date(),
+        ending_timestamp: null,
+        prompt:
+          modes.directions[
+            gameState.currentMode as keyof typeof modes.directions
+          ].prompt,
+        writing: null,
+        words_written: 0,
+        is_anky: false,
+        parent_anky_id: null,
+        status: "starting",
+      };
+      console.log("starting the writing session with ", writingSession);
+
+      setGameState((prev) => ({ ...prev, sessionStarted: true }));
       setIsUserWriting(true);
       lastKeystroke.current = Date.now();
-      textInputRef.current?.focus();
+      const accessToken = user ? (await getAccessToken()) || "" : "";
+      const res = await startWritingSession(writingSession, accessToken);
+      console.log("the res is: ", res);
+
       if (Platform.OS === "ios" || Platform.OS === "android") {
         Keyboard.dismiss();
         setTimeout(() => {
           textInputRef.current?.focus();
         }, 100);
+      } else {
+        textInputRef.current?.focus();
       }
     }, [setIsUserWriting]);
 
     const sendWritingSessionToBackend = async () => {
-      console.log("==========THE TEXT HERE IS==========", text);
       if (text.length < 10) return;
-      const isAnky = timeSpent >= 480;
-      const writingSession: WritingSession = {
-        session_id: sessionId,
-        user_id: user ? user.id : "anonymous",
-        content: text,
-        words_written: text.split(" ").length,
-        time_spent: Math.floor(timeSpent),
-        timestamp: new Date(),
-        is_anky: isAnky,
-        newen_earned: 0, // This should be calculated based on your logic
-        daily_session_number: 0, // This should be determined based on user's sessions for the day
-        prompt:
-          modes.directions[currentMode as keyof typeof modes.directions].prompt,
-        fid:
-          user?.linked_accounts.find((account) => account.type === "farcaster")
-            ?.fid || 18350,
-        parent_anky_id: "", // This should be set if it's a response to another Anky
-        anky_response: "", // This should be set if it's a response from an Anky
-        image_prompt: "",
-        self_inquiry_question:
-          modes.directions[currentMode as keyof typeof modes.directions].prompt,
 
-        token_id: "",
-        contract_address: "",
-        image_ipfs_hash: "",
-        image_url: "",
-        cast_hash: "",
-        status: timeSpent >= 480 ? "completed" : "draft",
-        ai_processed_at: null,
-        nft_minted_at: null,
-        blockchain_synced_at: null,
-        last_updated_at: new Date(),
+      const writingSession: WritingSession = {
+        session_id: gameState.sessionId,
+        session_index_for_user: null,
+        user_id: user?.id || "anonymous",
+        starting_timestamp: new Date(),
+        ending_timestamp: null,
+        prompt:
+          modes.directions[
+            gameState.currentMode as keyof typeof modes.directions
+          ].prompt,
+        writing: text,
+        words_written: text.split(" ").length,
+        newen_earned: 0,
+        time_spent: Math.floor(gameState.timeSpent),
+        is_anky: gameState.timeSpent >= 480,
+        parent_anky_id: null,
+        status: gameState.timeSpent >= 480 ? "completed" : "draft",
+        anky_id: null,
+        anky: null,
       };
 
-      // Save session locally
       try {
         const sessions = await AsyncStorage.getItem("writingSessions");
         const updatedSessions = sessions
@@ -343,49 +278,37 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
           "writingSessions",
           JSON.stringify(updatedSessions)
         );
-        console.log("Writing session saved locally");
-      } catch (error) {
-        console.error("Error saving writing session locally:", error);
-      }
+        let accessToken = "";
+        if (user) {
+          const token = await getAccessToken();
+          accessToken = token || "";
+        }
 
-      // If user is logged in and session is long enough, send to backend
-      try {
-        const accessToken = await getAccessToken();
-        const response = await axios.post(
-          `${process.env.EXPO_PUBLIC_ANKY_API_URL}/submit-writing-session`,
-          writingSession,
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          }
-        );
-
-        console.log("Anky submitted successfully:", response.data);
-        // Here you can update the landing feed with the new Anky
-        // For example, you could dispatch an action to update your app's state
+        const res = await endWritingSession(writingSession, accessToken);
+        console.log("The res from endind the writing session is", res);
       } catch (error) {
-        console.error("Error submitting Anky:", error);
+        console.error("Error handling writing session:", error);
       }
     };
 
     const onRetry = useCallback(() => {
-      setGameOver(false);
-      setSessionStarted(false);
-      setWordsWritten(0);
-      setTimeSpent(0);
-      setTargetReached(false);
-      setText("");
-      setTapCount(0);
-      setSessionId(uuidv4());
+      setGameState((prevState) => ({
+        ...prevState,
+        gameOver: false,
+        sessionStarted: false,
+        wordsWritten: 0,
+        timeSpent: 0,
+        targetReached: false,
+        text: "",
+        tapCount: 0,
+        sessionId: uuidv4(),
+      }));
       lastKeystroke.current = Date.now();
       animatedValue.setValue(1);
       // startSession();
-    }, [startSession]);
+    }, []);
 
-    console.log("Game over state:", gameOver);
-
-    if (!cameBackToRead && gameOver) {
+    if (!gameState.cameBackToRead && gameState.gameOver) {
       console.log("Rendering WritingGameSessionEnded component");
       return (
         <View style={{ flex: 1 }}>
@@ -393,8 +316,9 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
             className="absolute w-full h-full"
             style={{
               backgroundColor:
-                modes.directions[currentMode as keyof typeof modes.directions]
-                  .color,
+                modes.directions[
+                  gameState.currentMode as keyof typeof modes.directions
+                ].color,
             }}
           >
             <TextInput
@@ -409,22 +333,38 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
             />
           </View>
           <WritingGameSessionEnded
-            setCameBackToRead={setCameBackToRead}
-            sessionId={sessionId}
-            targetDuration={propsModes.targetDuration}
-            sessionDuration={timeSpent}
-            wordsWritten={wordsWritten}
-            targetReached={targetReached}
-            totalTaps={tapCount}
+            setCameBackToRead={(value) =>
+              setGameState((prev) => ({ ...prev, cameBackToRead: value }))
+            }
+            sessionId={gameState.sessionId}
+            targetDuration={propsModes?.targetDuration || 480}
+            sessionDuration={gameState.timeSpent}
+            wordsWritten={gameState.wordsWritten}
+            targetReached={gameState.targetReached}
+            totalTaps={gameState.tapCount}
             onClose={handleCancel}
-            onRetry={onRetry}
-            setGameOver={setGameOver}
+            onRetry={() => {
+              setGameState({
+                ...gameState,
+                gameOver: false,
+                sessionStarted: false,
+                wordsWritten: 0,
+                timeSpent: 0,
+                targetReached: false,
+                tapCount: 0,
+              });
+              setText("");
+              lastKeystroke.current = Date.now();
+              animatedValue.setValue(1);
+            }}
+            setGameOver={(value) =>
+              setGameState((prev) => ({ ...prev, gameOver: value }))
+            }
           />
         </View>
       );
     }
 
-    console.log("Rendering main WritingGame component");
     return (
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
@@ -435,30 +375,41 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
           className="flex-1 w-full pt-16"
           style={{
             backgroundColor:
-              modes.directions[currentMode as keyof typeof modes.directions]
-                .color,
+              modes.directions[
+                gameState.currentMode as keyof typeof modes.directions
+              ].color,
           }}
           {...panResponder.panHandlers}
         >
-          {displaySeconds && (
-            <View
-              style={{
-                position: "absolute",
-                top: 20,
-                left: 0,
-                right: 0,
-                alignItems: "center",
-                zIndex: 1,
-              }}
+          {gameState.displaySeconds && (
+            <Pressable
+              onPress={() =>
+                setGameState((prev) => ({
+                  ...prev,
+                  displaySeconds: !prev.displaySeconds,
+                }))
+              }
+              className="absolute top-8 right-4"
             >
-              <Pressable
-                onPress={() => setDisplaySeconds((x) => !x)}
-                className="absolute top-4 right-4"
-              >
-                <Text style={{ color: "black" }}>{Math.floor(timeSpent)}</Text>
-              </Pressable>
-            </View>
+              <Text style={{ color: "black" }}>
+                {Math.floor(gameState.timeSpent)}
+              </Text>
+            </Pressable>
           )}
+          <View
+            style={{
+              position: "absolute",
+              top: 20,
+              left: 0,
+              right: 0,
+              alignItems: "center",
+              zIndex: 1000,
+            }}
+          >
+            <Text className="absolute top-4 left-4">
+              target: {modes.targetDuration} | {secondsBetweenKeystrokes}
+            </Text>
+          </View>
 
           <Animated.View
             className="h-3 border-b border-t border-black"
@@ -482,27 +433,9 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
               }),
             }}
           />
-          {targetReached && (
-            <View
-              style={{
-                position: "absolute",
-                top: 20,
-                left: 0,
-                right: 0,
-                alignItems: "center",
-                zIndex: 1,
-              }}
-            >
-              <Text
-                style={{
-                  color: "white",
-                  fontSize: 24,
-                  fontWeight: "bold",
-                  backgroundColor: "rgba(0,0,0,0.5)",
-                  padding: 10,
-                  borderRadius: 5,
-                }}
-              >
+          {gameState.targetReached && (
+            <View className="absolute top-20 left-0 right-0 items-center z-10">
+              <Text className="text-white text-2xl font-bold bg-black/50 px-6 py-3 rounded-lg">
                 Your anky is ready.
               </Text>
             </View>
@@ -512,37 +445,40 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
               className="flex-1 text-2xl p-5"
               style={{
                 color: ankyverseDay?.currentColor.textColor,
-                maxHeight: height - keyboardHeight - 100,
+                maxHeight: height - gameState.keyboardHeight - 100,
               }}
               multiline
-              value={writingSession.content}
+              value={writingSession.writing || ""}
               editable={false}
             />
           ) : (
             <TextInput
               ref={textInputRef}
-              className="flex-1 text-2xl p-5"
+              className="flex-1 text-2xl px-2"
               style={{
                 color:
-                  modes.directions[currentMode as keyof typeof modes.directions]
-                    .textColor,
-                maxHeight: height - keyboardHeight - 100,
+                  modes.directions[
+                    gameState.currentMode as keyof typeof modes.directions
+                  ].textColor,
+                maxHeight: height - gameState.keyboardHeight - 100,
               }}
               multiline
               onChangeText={handleTextChange}
-              defaultValue=""
+              value={text}
               placeholder={
-                modes.directions[currentMode as keyof typeof modes.directions]
-                  .prompt
+                modes.directions[
+                  gameState.currentMode as keyof typeof modes.directions
+                ].prompt
               }
               placeholderTextColor={
-                modes.directions[currentMode as keyof typeof modes.directions]
-                  .textColor
+                modes.directions[
+                  gameState.currentMode as keyof typeof modes.directions
+                ].textColor
               }
-              editable={sessionStarted}
+              editable={gameState.sessionStarted}
             />
           )}
-          {!sessionStarted && !writingSession && (
+          {!gameState.sessionStarted && !writingSession && (
             <TouchableWithoutFeedback onPress={startSession}>
               <View
                 style={{
@@ -551,7 +487,7 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
                   justifyContent: "center",
                   alignItems: "center",
                 }}
-              ></View>
+              />
             </TouchableWithoutFeedback>
           )}
         </View>
@@ -560,4 +496,4 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
   }
 );
 
-export default React.memo(WritingGame);
+export default WritingGame;

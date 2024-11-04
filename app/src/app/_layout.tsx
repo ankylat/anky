@@ -67,9 +67,6 @@ export default function RootLayout() {
     WritingSession | undefined
   >(undefined);
 
-  const ankyverseDay = getCurrentAnkyverseDay();
-  console.log("IN HERE, the ankyverse day is", ankyverseDay);
-
   if (!loaded) {
     return null;
   }
