@@ -36,9 +36,12 @@
         {
           "icon": "./assets/images/icon.png",
           "color": "#ffffff",
-          "sounds": ["./assets/sounds/bell.mp3"]
+          "sounds": [
+            "./assets/sounds/bell.mp3"
+          ]
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "experiments": {
       "typedRoutes": true

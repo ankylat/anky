@@ -1,8 +1,9 @@
 import axios from "axios";
-import { User } from "../../types/User";
-import { Cast } from "../../types/Cast";
+import { User } from "../types/User";
+import { Cast } from "../types/Cast";
 import { User as PrivyUser } from "@privy-io/expo";
 import { WritingSession } from "@/src/types/Anky";
+import { prettyLog } from "../app/lib/user";
 
 const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;
 const POIESIS_API_KEY = process.env.POIESIS_API_KEY;
@@ -11,9 +12,7 @@ export const startWritingSession = async (
   writingSession: WritingSession,
   accessToken: string
 ): Promise<{ writingSession: WritingSession }> => {
-  console.log(
-    `Adding new writing session to the database and sending to backend`
-  );
+  prettyLog(writingSession, "STARTING A NEW WRITING SESSION");
   try {
     let endpoint = `${API_URL}/writing-session-started`;
     console.log(`Endpoint constructed: ${endpoint}`);

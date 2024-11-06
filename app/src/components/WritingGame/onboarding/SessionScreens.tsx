@@ -31,7 +31,7 @@ interface SessionData {
 
 interface SessionScreenProps {
   sessionData: SessionData;
-  onRetry: () => void;
+  onNextStep: () => void;
 }
 
 // Common animated timer component
@@ -107,160 +107,57 @@ const WritingProgressBar = ({
   );
 };
 
-// Short Session Screen (< 30s)
-export const ShortSessionScreen: React.FC<SessionScreenProps> = ({
-  sessionData,
-  onRetry,
-}) => {
-  const translateY = useSharedValue(height);
-  const opacity = useSharedValue(0);
-
-  useEffect(() => {
-    translateY.value = withSpring(0);
-    opacity.value = withDelay(500, withSpring(1));
-  }, []);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: translateY.value }],
-  }));
-
-  const fadeInStyle = useAnimatedStyle(() => ({
-    opacity: opacity.value,
-  }));
-
+// Screen for incomplete sessions (< 8 minutes)
+export const IncompleteSessionScreen: React.FC<{
+  sessionData: SessionData;
+  onRetry: () => void;
+  messageFromAnky: string;
+}> = ({ sessionData, onRetry, messageFromAnky }) => {
   return (
-    <Animated.View style={[styles.container, animatedStyle]}>
-      <Text style={styles.emoji}>🌱</Text>
-      <Text style={styles.title}>A Seed is Planted!</Text>
-      <Animated.View style={[styles.messageContainer, fadeInStyle]}>
+    <View style={[styles.container, { backgroundColor: "#ff0000" }]}>
+      <Text style={styles.title}>Session Incomplete</Text>
+      <View style={styles.messageContainer}>
         <Text style={styles.message}>
-          Every journey begins with a single word.{"\n"}
-          You wrote for {Math.round(sessionData.totalDuration / 1000)} seconds.
+          {messageFromAnky || "Let's try again and reach the 8 minute mark!"}
+          {"\n\n"}
+          You wrote for {Math.round(sessionData.totalDuration / 1000)} seconds
           {"\n"}
-          Try staying with your thoughts a bit longer.{"\n"}
+          Expressing {sessionData.wordCount} words
+          {"\n"}
+          At {sessionData.averageWPM} words per minute
+          {"\n\n"}
           The magic happens after 8 minutes!
         </Text>
-      </Animated.View>
+      </View>
       <TouchableOpacity style={styles.button} onPress={onRetry}>
-        <Text style={styles.buttonText}>Plant Another Seed</Text>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-};
-
-// Medium Session Screen (30s - 480s)
-export const MediumSessionScreen: React.FC<SessionScreenProps> = ({
-  sessionData,
-  onRetry,
-}) => {
-  const progress = useSharedValue(0);
-  const scale = useSharedValue(0.5);
-  const wordOpacity = useSharedValue(0);
-
-  useEffect(() => {
-    progress.value = withTiming(sessionData.totalDuration / 480000, {
-      duration: 1500,
-    });
-    scale.value = withSpring(1);
-    wordOpacity.value = withDelay(1000, withSpring(1));
-  }, []);
-
-  const progressStyle = useAnimatedStyle(() => ({
-    width: `${progress.value * 100}%`,
-    backgroundColor: interpolateColor(
-      progress.value,
-      [0, 1],
-      ["#4b0082", "#00ff00"]
-    ),
-  }));
-
-  const scaleStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  const wordStyle = useAnimatedStyle(() => ({
-    opacity: wordOpacity.value,
-  }));
-
-  return (
-    <View style={styles.container}>
-      <Text style={styles.emoji}>🌿</Text>
-      <Animated.View style={[styles.growthContainer, scaleStyle]}>
-        <Text style={styles.title}>Growing Stronger!</Text>
-        <View style={styles.progressContainer}>
-          <Animated.View style={[styles.progressBar, progressStyle]} />
-        </View>
-        <Animated.View style={wordStyle}>
-          <Text style={styles.stats}>
-            {sessionData.wordCount} words flowed through you{"\n"}
-            at {sessionData.averageWPM} words per minute
-          </Text>
-        </Animated.View>
-      </Animated.View>
-      <Text style={styles.message}>
-        You're building momentum!{"\n"}
-        Just {480 - Math.round(sessionData.totalDuration / 1000)} seconds more
-        to reach flow state
-      </Text>
-      <TouchableOpacity style={styles.button} onPress={onRetry}>
-        <Text style={styles.buttonText}>Keep Growing</Text>
+        <Text style={styles.buttonText}>Try Again</Text>
       </TouchableOpacity>
     </View>
   );
 };
 
-// Long Session Screen (> 480s)
-export const LongSessionScreen: React.FC<SessionScreenProps> = ({
+// Screen for completed sessions (>= 8 minutes)
+export const CompleteSessionScreen: React.FC<SessionScreenProps> = ({
   sessionData,
-  onRetry,
+  onNextStep,
 }) => {
-  const scale = useSharedValue(0);
-  const rotate = useSharedValue(0);
-  const statsOpacity = useSharedValue(0);
-
-  useEffect(() => {
-    scale.value = withSpring(1, {
-      damping: 10,
-      stiffness: 80,
-    });
-    rotate.value = withSequence(
-      withTiming(360, { duration: 1000 }),
-      withSpring(0)
-    );
-    statsOpacity.value = withDelay(1200, withSpring(1));
-  }, []);
-
-  const celebrationStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }, { rotate: `${rotate.value}deg` }],
-  }));
-
-  const statsStyle = useAnimatedStyle(() => ({
-    opacity: statsOpacity.value,
-    transform: [
-      { translateY: interpolateColor(statsOpacity.value, [0, 1], [20, 0]) },
-    ],
-  }));
-
   return (
-    <View style={styles.container}>
-      <Animated.View style={[styles.celebrationContainer, celebrationStyle]}>
-        <Text style={styles.emoji}>🌳</Text>
-        <Text style={styles.title}>Flow State Achieved!</Text>
-      </Animated.View>
-      <Animated.View style={[styles.statsContainer, statsStyle]}>
-        <Text style={styles.flowMessage}>
-          You stayed present for {Math.round(sessionData.totalDuration / 1000)}{" "}
-          seconds{"\n"}
-          Expressing {sessionData.wordCount} words of pure consciousness{"\n"}
-          Flowing at {sessionData.averageWPM} words per minute
-        </Text>
+    <View style={[styles.container, { backgroundColor: "#00ff00" }]}>
+      <Text style={styles.title}>Session Complete!</Text>
+      <View style={styles.statsContainer}>
         <Text style={styles.message}>
-          This is the state where magic happens.{"\n"}
-          Your mind and heart are in perfect harmony.
+          You stayed present for {Math.round(sessionData.totalDuration / 1000)}{" "}
+          seconds
+          {"\n"}
+          Expressing {sessionData.wordCount} words
+          {"\n"}
+          At {sessionData.averageWPM} words per minute
+          {"\n\n"}
+          Great job completing your session!
         </Text>
-      </Animated.View>
-      <TouchableOpacity style={styles.button} onPress={onRetry}>
-        <Text style={styles.buttonText}>Flow Again</Text>
+      </View>
+      <TouchableOpacity style={styles.button} onPress={onNextStep}>
+        <Text style={styles.buttonText}>Next Steps</Text>
       </TouchableOpacity>
     </View>
   );

@@ -1,6 +1,6 @@
 import axios from "axios";
-import { User } from "../../types/User";
-import { Cast } from "../../types/Cast";
+import { User } from "@/src/types/User";
+import { Cast } from "@/src/types/Cast";
 import { User as PrivyUser } from "@privy-io/expo";
 
 const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;

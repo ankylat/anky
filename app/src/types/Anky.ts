@@ -4,7 +4,7 @@ export interface WritingSession {
   session_id: string | null;
   session_index_for_user?: number | null;
   user_id?: string | null;
-  starting_timestamp?: Date | null;
+  starting_timestamp: Date;
   ending_timestamp?: Date | null;
   prompt?: string;
   writing?: string | null;
@@ -16,6 +16,7 @@ export interface WritingSession {
   parent_anky_id?: string | null;
   writing_patterns?: WritingPatterns;
   keystroke_data?: KeystrokeEvent[];
+  is_onboarding?: boolean | null;
 
   status?: string | null;
 

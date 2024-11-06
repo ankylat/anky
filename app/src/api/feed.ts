@@ -1,5 +1,5 @@
 import axios from "axios";
-import { Cast } from "../../types/Cast";
+import { Cast } from "@/src/types/Cast";
 
 const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;
 const POIESIS_API_KEY = process.env.POIESIS_API_KEY;
