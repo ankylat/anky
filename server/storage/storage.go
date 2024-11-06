@@ -181,8 +181,8 @@ func (s *PostgresStore) CreateWritingSession(ctx context.Context, ws *types.Writ
         INSERT INTO writing_sessions (
             id, user_id, session_index_for_user, starting_timestamp,
             prompt, status, writing, words_written, newen_earned,
-            time_spent, is_anky, parent_anky_id, anky_response
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+            time_spent, is_anky, parent_anky_id, anky_response, is_onboarding
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
     `
 
 	// Handle potentially nil UUID fields
@@ -208,6 +208,7 @@ func (s *PostgresStore) CreateWritingSession(ctx context.Context, ws *types.Writ
 		ws.IsAnky,
 		parentAnkyID, // Use the nullable UUID
 		ws.AnkyResponse,
+		ws.IsOnboarding,
 	)
 	return err
 }
@@ -262,8 +263,9 @@ func (s *PostgresStore) UpdateWritingSession(ctx context.Context, ws *types.Writ
 			newen_earned = $7,
 			parent_anky_id = $8,
 			anky_response = $9,
-			anky_id = $10
-		WHERE id = $11
+			is_onboarding = $10,
+			anky_id = $11
+		WHERE id = $12
 	`
 	_, err := s.db.Exec(ctx, query,
 		ws.Status,
@@ -275,6 +277,7 @@ func (s *PostgresStore) UpdateWritingSession(ctx context.Context, ws *types.Writ
 		ws.NewenEarned,
 		ws.ParentAnkyID,
 		ws.AnkyResponse,
+		ws.IsOnboarding,
 		ws.AnkyID,
 		ws.ID,
 	)
@@ -418,19 +421,21 @@ func scanIntoWritingSession(row pgx.Row) (*types.WritingSession, error) {
 	ws := new(types.WritingSession)
 	err := row.Scan(
 		&ws.ID,
-		&ws.UserID,
 		&ws.SessionIndexForUser,
-		&ws.Writing,
-		&ws.WordsWritten,
-		&ws.TimeSpent,
+		&ws.UserID,
 		&ws.StartingTimestamp,
 		&ws.EndingTimestamp,
-		&ws.IsAnky,
-		&ws.NewenEarned,
 		&ws.Prompt,
+		&ws.Writing,
+		&ws.WordsWritten,
+		&ws.NewenEarned,
+		&ws.TimeSpent,
+		&ws.IsAnky,
 		&ws.ParentAnkyID,
 		&ws.AnkyResponse,
 		&ws.Status,
+		&ws.AnkyID,
+		&ws.IsOnboarding,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan writing session: %w", err)

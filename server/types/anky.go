@@ -1,20 +1,26 @@
 package types
 
 import (
+	"crypto/aes"
+	"crypto/cipher"
 	"crypto/ecdsa"
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
+	"log"
+	"os"
 	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/google/uuid"
 	"github.com/tyler-smith/go-bip39"
-	"golang.org/x/crypto/bcrypt"
 )
 
-type CreateUserRequest struct {
-	Settings *UserSettings `json:"settings"`
-	User     *User         `json:"user"`
+type CreateNewUserRequest struct {
+	ID           uuid.UUID     `json:"id"`
+	IsAnonymous  bool          `json:"is_anonymous"`
+	UserMetadata *UserMetadata `json:"user_metadata"`
 }
 
 type UpdateUserRequest struct {
@@ -35,6 +41,7 @@ type CreateWritingSessionRequest struct {
 	StartingTimestamp   time.Time `json:"starting_timestamp"`
 	Prompt              string    `json:"prompt"`
 	Status              string    `json:"status"`
+	IsOnboarding        bool      `json:"is_onboarding"`
 }
 
 type CreateWritingSessionEndRequest struct {
@@ -48,6 +55,7 @@ type CreateWritingSessionEndRequest struct {
 	ParentAnkyID    string    `json:"parent_anky_id"`
 	AnkyResponse    string    `json:"anky_response"`
 	Status          string    `json:"status"`
+	IsOnboarding    bool      `json:"is_onboarding"`
 }
 
 type CreateAnkyRequest struct {
@@ -59,8 +67,10 @@ type CreateAnkyRequest struct {
 
 type User struct {
 	ID              uuid.UUID        `json:"id"`
+	IsAnonymous     bool             `json:"is_anonymous"`
 	PrivyDID        string           `json:"privy_did"`
 	PrivyUser       *PrivyUser       `json:"privy_user"`
+	FarcasterUser   *FarcasterUser   `json:"farcaster_user"`
 	FID             int              `json:"fid"`
 	Settings        *UserSettings    `json:"settings"`
 	SeedPhrase      string           `json:"seed_phrase"`
@@ -71,6 +81,35 @@ type User struct {
 	WritingSessions []WritingSession `json:"writing_sessions"`
 	Ankys           []Anky           `json:"ankys"`
 	Badges          []Badge          `json:"badges"`
+	Languages       []string         `json:"languages"`
+	UserMetadata    *UserMetadata    `json:"user_metadata"`
+}
+
+type FarcasterUser struct {
+	FID            int    `json:"fid"`
+	Username       string `json:"username"`
+	DisplayName    string `json:"display_name"`
+	ProfilePicture string `json:"pfp_url"`
+	CustodyAddress string `json:"custody_address"`
+	Bio            string `json:"bio"`
+	FollowerCount  int    `json:"follower_count"`
+	FollowingCount int    `json:"following_count"`
+}
+
+type UserMetadata struct {
+	DeviceID           string    `json:"device_id"`
+	Platform           string    `json:"platform"`
+	DeviceModel        string    `json:"device_model"`
+	OSVersion          string    `json:"os_version"`
+	AppVersion         string    `json:"app_version"`
+	ScreenWidth        int       `json:"screen_width"`
+	ScreenHeight       int       `json:"screen_height"`
+	Locale             string    `json:"locale"`
+	Timezone           string    `json:"timezone"`
+	CreatedAt          time.Time `json:"created_at"`
+	LastActive         time.Time `json:"last_active"`
+	UserAgent          string    `json:"user_agent"`
+	InstallationSource string    `json:"installation_source"`
 }
 
 type Session struct {
@@ -137,6 +176,7 @@ type WritingSession struct {
 	Writing             string    `json:"writing" bson:"writing"`
 	WordsWritten        int       `json:"words_written" bson:"words_written"`
 	NewenEarned         float64   `json:"newen_earned" bson:"newen_earned"`
+	IsOnboarding        bool      `json:"is_onboarding" bson:"is_onboarding"`
 
 	TimeSpent int  `json:"time_spent" bson:"time_spent"`
 	IsAnky    bool `json:"is_anky" bson:"is_anky"`
@@ -193,28 +233,42 @@ func (ws *WritingSession) SetAnkyStatus() {
 	}
 }
 
-func NewUser() *User {
+func NewUser(id uuid.UUID, isAnonymous bool, createdAt time.Time, userMetadata *UserMetadata) *User {
+	log.Printf("Creating new user with ID: %s", id)
+
 	walletService := NewWalletService()
+	log.Println("Created new wallet service")
+
 	mnemonic, address, err := walletService.CreateNewWallet()
 	if err != nil {
+		log.Printf("Error creating new wallet: %v", err)
 		return nil
 	}
+	log.Printf("Generated new wallet with address: %s", address)
 
-	encryptedSeedPhrase, err := bcrypt.GenerateFromPassword([]byte(mnemonic), bcrypt.DefaultCost)
+	encryptedMnemonic, err := EncryptString(mnemonic)
 	if err != nil {
+		log.Printf("Error encrypting seed phrase: %v", err)
 		return nil
 	}
+	log.Println("Successfully encrypted seed phrase")
 
-	return &User{
-		ID:            uuid.New(),
-		SeedPhrase:    string(encryptedSeedPhrase),
+	user := &User{
+		ID:            id,
+		SeedPhrase:    string(encryptedMnemonic),
 		WalletAddress: address,
-		CreatedAt:     time.Now().UTC(),
-		UpdatedAt:     time.Now().UTC(),
+		IsAnonymous:   isAnonymous,
+		UserMetadata:  userMetadata,
+		CreatedAt:     createdAt,
+		UpdatedAt:     createdAt,
+		Languages:     []string{userMetadata.Locale},
 	}
+	log.Printf("Created new user object with wallet address: %s", user.WalletAddress)
+
+	return user
 }
 
-func NewWritingSession(sessionId uuid.UUID, userId uuid.UUID, prompt string, sessionIndex int) *WritingSession {
+func NewWritingSession(sessionId uuid.UUID, userId uuid.UUID, prompt string, sessionIndex int, isOnboarding bool) *WritingSession {
 	return &WritingSession{
 		ID:                  sessionId,
 		SessionIndexForUser: sessionIndex,
@@ -222,6 +276,7 @@ func NewWritingSession(sessionId uuid.UUID, userId uuid.UUID, prompt string, ses
 		StartingTimestamp:   time.Now().UTC(),
 		Prompt:              prompt,
 		Status:              "in_progress",
+		IsOnboarding:        isOnboarding,
 	}
 }
 
@@ -243,17 +298,23 @@ func NewWalletService() *WalletService {
 }
 
 func (s *WalletService) CreateNewWallet() (string, string, error) {
+	log.Println("Creating new wallet")
+
 	// Generate entropy for mnemonic
 	entropy, err := bip39.NewEntropy(128) // 128 bits = 12 words
 	if err != nil {
+		log.Printf("Error generating entropy: %v", err)
 		return "", "", fmt.Errorf("failed to generate entropy: %v", err)
 	}
+	log.Println("Successfully generated entropy")
 
 	// Generate mnemonic
 	mnemonic, err := bip39.NewMnemonic(entropy)
 	if err != nil {
+		log.Printf("Error generating mnemonic: %v", err)
 		return "", "", fmt.Errorf("failed to generate mnemonic: %v", err)
 	}
+	log.Println("Successfully generated mnemonic")
 
 	// Create seed from mnemonic
 	seed := bip39.NewSeed(mnemonic, "")
@@ -261,12 +322,14 @@ func (s *WalletService) CreateNewWallet() (string, string, error) {
 	// Generate private key from seed
 	privateKey, err := crypto.ToECDSA(seed[:32])
 	if err != nil {
+		log.Printf("Error generating private key: %v", err)
 		return "", "", fmt.Errorf("failed to generate private key: %v", err)
 	}
+	log.Println("Successfully generated private key")
 
 	// Generate Ethereum address from private key
 	address := crypto.PubkeyToAddress(privateKey.PublicKey)
-
+	log.Printf("Successfully generated Ethereum address: %s", address.Hex())
 	return mnemonic, address.Hex(), nil
 }
 
@@ -417,4 +480,94 @@ type Channel struct {
 type ChannelContext struct {
 	Role      string `json:"role"`
 	Following bool   `json:"following"`
+}
+
+func EncryptString(plaintext string) (string, error) {
+	// Get encryption key from environment
+	key, err := getEncryptionKey()
+	if err != nil {
+		return "", err
+	}
+
+	// Create cipher block
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+
+	// Create GCM cipher mode
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+
+	// Create nonce
+	nonce := make([]byte, gcm.NonceSize())
+	if _, err := rand.Read(nonce); err != nil {
+		return "", err
+	}
+
+	// Encrypt and combine nonce + ciphertext
+	ciphertext := gcm.Seal(nonce, nonce, []byte(plaintext), nil)
+
+	// Encode as base64 for storage
+	return base64.StdEncoding.EncodeToString(ciphertext), nil
+}
+
+func DecryptString(encryptedString string) (string, error) {
+	// Get encryption key from environment
+	key, err := getEncryptionKey()
+	if err != nil {
+		return "", err
+	}
+
+	// Decode from base64
+	ciphertext, err := base64.StdEncoding.DecodeString(encryptedString)
+	if err != nil {
+		return "", err
+	}
+
+	// Create cipher block
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return "", err
+	}
+
+	// Create GCM cipher mode
+	gcm, err := cipher.NewGCM(block)
+	if err != nil {
+		return "", err
+	}
+
+	// Extract nonce from ciphertext
+	if len(ciphertext) < gcm.NonceSize() {
+		return "", fmt.Errorf("ciphertext too short")
+	}
+	nonce, ciphertext := ciphertext[:gcm.NonceSize()], ciphertext[gcm.NonceSize():]
+
+	// Decrypt
+	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return "", err
+	}
+
+	return string(plaintext), nil
+}
+
+func getEncryptionKey() ([]byte, error) {
+	encodedKey := os.Getenv("ENCRYPTION_KEY")
+	if encodedKey == "" {
+		return nil, fmt.Errorf("ENCRYPTION_KEY environment variable not set")
+	}
+
+	key, err := base64.StdEncoding.DecodeString(encodedKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode encryption key: %v", err)
+	}
+
+	if len(key) != 32 {
+		return nil, fmt.Errorf("decoded encryption key must be 32 bytes, got %d", len(key))
+	}
+
+	return key, nil
 }
