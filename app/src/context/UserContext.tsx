@@ -49,27 +49,11 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
         // Generate new anonymous ID if none exists
         const newAnonymousId = uuidv4();
 
-        // Create initial session data
-        const initialSession: WritingSession = {
-          session_id: uuidv4(),
-          session_index_for_user: 1,
-          user_id: newAnonymousId,
-          starting_timestamp: new Date(),
-          ending_timestamp: null,
-          prompt: "Welcome to Anky",
-          writing: null,
-          words_written: 0,
-          is_anky: false,
-          status: "initialized",
-          parent_anky_id: null,
-        };
-
         // Register anonymous user with backend
         const response = await axios.post(
           `${API_URL}/users/anonymous-register`,
           {
             anonymousId: newAnonymousId,
-            initialSession,
           }
         );
 

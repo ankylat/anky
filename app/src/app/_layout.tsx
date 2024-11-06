@@ -15,24 +15,16 @@ import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useState } from "react";
 import "react-native-reanimated";
 import { SheetProvider } from "react-native-actions-sheet";
-import { Animated, Easing, Vibration } from "react-native";
 
 import { useColorScheme } from "@/src/hooks/useColorScheme";
 
 // Contexts
 import { PrivyProvider } from "@privy-io/expo";
-import { AnkyProvider, useAnky } from "../context/AnkyContext";
+import { AnkyProvider } from "../context/AnkyContext";
 import { UserProvider } from "../context/UserContext";
-import { Pressable, Text, View, TouchableOpacity } from "react-native";
-import AnkyButton from "../components/AnkyButton";
-import WritingGame from "../components/WritingGame";
-import CustomTabBar from "../components/navigation/CustomTabBar";
-import { getCurrentAnkyverseDay } from "./lib/ankyverse";
+import { View } from "react-native";
 import { QuilibriumProvider } from "../context/QuilibriumContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import Ankito from "@/assets/icons/ankito.svg";
-import { Cloudinary } from "@cloudinary/url-gen";
-import { WritingSession } from "../types/Anky";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -41,17 +33,11 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
-const cld = new Cloudinary({
-  cloud: {
-    cloudName: process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME,
-  },
-});
-
 export default function RootLayout() {
   const colorScheme = useColorScheme();
 
   const [loaded] = useFonts({
-    SpaceMono: require("@/assets/fonts/Righteous-Regular.ttf"),
+    Righteous: require("@/assets/fonts/Righteous-Regular.ttf"),
   });
 
   useEffect(() => {
@@ -61,11 +47,6 @@ export default function RootLayout() {
   }, [loaded]);
 
   const [showWritingGame, setShowWritingGame] = useState(true);
-  const [buttonRotation] = useState(new Animated.Value(0));
-  const [buttonScale] = useState(new Animated.Value(1));
-  const [writingSession, setWritingSession] = useState<
-    WritingSession | undefined
-  >(undefined);
 
   if (!loaded) {
     return null;
