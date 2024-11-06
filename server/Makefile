@@ -71,8 +71,8 @@ db-check:
 
 db-setup: db-check
 	@echo "$(YELLOW)Setting up database...$(RESET)"
-	@migrate -database "${DATABASE_URL}" -path storage/migrations force 0
-	@migrate -database "${DATABASE_URL}" -path storage/migrations up
+	@migrate -database "postgresql://anky:development@localhost:5555/anky_db?sslmode=disable" -path storage/migrations force 0
+	@migrate -database "postgresql://anky:development@localhost:5555/anky_db?sslmode=disable" -path storage/migrations up
 	@echo "$(GREEN)Database setup complete!$(RESET)"
 
 db-migrate-create:

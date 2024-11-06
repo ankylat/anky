@@ -1,17 +1,8 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Create tables for the core entities
-CREATE TABLE privy_users (
-    id VARCHAR(255) PRIMARY KEY,
-    created_at BIGINT NOT NULL,
-    has_accepted_terms BOOLEAN NOT NULL DEFAULT FALSE,
-    is_guest BOOLEAN NOT NULL DEFAULT FALSE
-);
-
 CREATE TABLE linked_accounts (
-    id SERIAL PRIMARY KEY,
-    privy_user_id VARCHAR(255) REFERENCES privy_users(id),
+    privy_user_id VARCHAR(255) PRIMARY KEY,
     type VARCHAR(50) NOT NULL,
     address VARCHAR(255),
     chain_type VARCHAR(50),
@@ -27,9 +18,21 @@ CREATE TABLE linked_accounts (
     latest_verified_at BIGINT
 );
 
+CREATE TABLE farcaster_users (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    fid INTEGER NOT NULL,
+    username VARCHAR(255),
+    display_name VARCHAR(255),
+    pfp_url VARCHAR(255),
+    custody_address VARCHAR(255),
+    bio TEXT,
+    follower_count INTEGER DEFAULT 0,
+    following_count INTEGER DEFAULT 0
+);
+
 CREATE TABLE users (
-    id UUID PRIMARY KEY,  -- This will be generated on frontend at first app install
-    privy_did VARCHAR(255) UNIQUE REFERENCES privy_users(id),
+    id UUID PRIMARY KEY,  
+    privy_did VARCHAR(255),
     fid INTEGER,
     settings JSONB DEFAULT '{}',
     seed_phrase TEXT,
@@ -37,8 +40,29 @@ CREATE TABLE users (
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     jwt TEXT,
-    is_anonymous BOOLEAN DEFAULT TRUE  -- Tracks whether user has registered
+    is_anonymous BOOLEAN DEFAULT TRUE,
+    farcaster_user_id UUID REFERENCES farcaster_users(id)
 );
+
+CREATE TABLE user_metadata (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    device_id VARCHAR(255),
+    platform VARCHAR(100),
+    device_model VARCHAR(255),
+    os_version VARCHAR(100),
+    app_version VARCHAR(100),
+    screen_width INTEGER,
+    screen_height INTEGER,
+    locale VARCHAR(50),
+    timezone VARCHAR(100),
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    last_active TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    user_agent TEXT,
+    installation_source VARCHAR(100)
+);
+
+ALTER TABLE users ADD COLUMN metadata_id UUID REFERENCES user_metadata(id);
 
 CREATE TABLE writing_sessions (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -55,7 +79,8 @@ CREATE TABLE writing_sessions (
     parent_anky_id UUID,
     anky_response TEXT,
     status VARCHAR(50) DEFAULT 'in_progress',
-    anky_id UUID
+    anky_id UUID,
+    is_onboarding BOOLEAN DEFAULT FALSE
 );
 
 CREATE TABLE ankys (
@@ -94,3 +119,4 @@ CREATE INDEX idx_ankys_user_id ON ankys(user_id);
 CREATE INDEX idx_ankys_writing_session_id ON ankys(writing_session_id);
 CREATE INDEX idx_badges_user_id ON badges(user_id);
 CREATE INDEX idx_linked_accounts_privy_user_id ON linked_accounts(privy_user_id);
+CREATE INDEX idx_farcaster_users_fid ON farcaster_users(fid);

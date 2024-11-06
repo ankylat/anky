@@ -50,17 +50,16 @@ func NewAPIServer(listenAddr string, store *storage.PostgresStore) (*APIServer, 
 	}, nil
 }
 
-func (s *APIServer) Run() {
+func (s *APIServer) Run() error {
 	router := mux.NewRouter()
 
 	router.HandleFunc("/", makeHTTPHandleFunc(s.handleHelloWorld))
 	// User routes
+	router.HandleFunc("/users/register-anon-user", makeHTTPHandleFunc(s.handleRegisterAnonymousUser)).Methods("POST")
 	router.HandleFunc("/users", makeHTTPHandleFunc(s.handleGetUsers)).Methods("GET")
 	router.HandleFunc("/users/{id}", makeHTTPHandleFunc(s.handleGetUserByID)).Methods("GET")
-	router.HandleFunc("/users", makeHTTPHandleFunc(s.handleCreateUser)).Methods("POST")
 	router.HandleFunc("/users/{id}", makeHTTPHandleFunc(s.handleUpdateUser)).Methods("PUT")
 	router.HandleFunc("/users/{id}", makeHTTPHandleFunc(s.handleDeleteUser)).Methods("DELETE")
-	router.HandleFunc("/users/anonymous", makeHTTPHandleFunc(s.handleCreateAnonymousUser)).Methods("POST")
 
 	// Privy user routes
 	router.HandleFunc("/privy-users/${id}", makeHTTPHandleFunc(s.handleCreatePrivyUser)).Methods("POST")
@@ -80,11 +79,54 @@ func (s *APIServer) Run() {
 	router.HandleFunc("/users/{userId}/badges", makeHTTPHandleFunc(s.handleGetUserBadges)).Methods("GET")
 
 	log.Println("Server running on port:", s.listenAddr)
-	http.ListenAndServe(s.listenAddr, router)
+	return http.ListenAndServe(s.listenAddr, router)
 }
 
 func (s *APIServer) handleHelloWorld(w http.ResponseWriter, r *http.Request) error {
 	return WriteJSON(w, http.StatusOK, map[string]string{"message": "Hello, World!"})
+}
+
+// POST /users/register-anon-user
+func (s *APIServer) handleRegisterAnonymousUser(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	log.Println("Handling register anonymous user request")
+
+	newUser := new(types.CreateNewUserRequest)
+	if err := json.NewDecoder(r.Body).Decode(newUser); err != nil {
+		log.Printf("Error decoding request body: %v", err)
+		return err
+	}
+	log.Printf("Received request to create user: %+v", newUser)
+
+	if newUser.UserMetadata == nil {
+		newUser.UserMetadata = &types.UserMetadata{}
+	}
+
+	log.Printf("user metadata is: %+v", newUser.UserMetadata)
+
+	user := types.NewUser(newUser.ID, newUser.IsAnonymous, time.Now().UTC(), newUser.UserMetadata)
+
+	log.Printf("Created new user object with wallet address: %s", user.WalletAddress)
+
+	tokenString, err := utils.CreateJWT(user)
+	if err != nil {
+		log.Printf("Error creating JWT: %v", err)
+		return err
+	}
+	user.JWT = tokenString
+	log.Println("Generated JWT token for user")
+
+	if err := s.store.CreateUser(ctx, user); err != nil {
+		log.Printf("Error storing user in database: %v", err)
+		return err
+	}
+	log.Printf("Successfully stored user with ID %s in database", user.ID)
+
+	log.Println("Sending successful response")
+	return WriteJSON(w, http.StatusOK, map[string]interface{}{
+		"user": user,
+		"jwt":  tokenString,
+	})
 }
 
 // GET /users
@@ -126,52 +168,6 @@ func (s *APIServer) handleGetUserByID(w http.ResponseWriter, r *http.Request) er
 	return WriteJSON(w, http.StatusOK, user)
 }
 
-// POST /users
-func (s *APIServer) handleCreateUser(w http.ResponseWriter, r *http.Request) error {
-	ctx := r.Context()
-
-	// Decode the writing session request
-	writingSession := new(types.CreateWritingSessionRequest)
-	if err := json.NewDecoder(r.Body).Decode(writingSession); err != nil {
-		return err
-	}
-
-	// Create a new user with default settings
-	user := types.NewUser()
-	if user == nil {
-		return fmt.Errorf("failed to create new user")
-	}
-
-	// Generate JWT for the new user
-	tokenString, err := utils.CreateJWT(user)
-	if err != nil {
-		return err
-	}
-	user.JWT = tokenString
-
-	// Create the user in the database
-	if err := s.store.CreateUser(ctx, user); err != nil {
-		return err
-	}
-
-	// Create the writing session associated with this user
-	session := types.NewWritingSession(
-		uuid.MustParse(writingSession.SessionID),
-		user.ID,
-		writingSession.Prompt,
-		0,
-	)
-
-	if err := s.store.CreateWritingSession(ctx, session); err != nil {
-		return err
-	}
-
-	return WriteJSON(w, http.StatusOK, map[string]interface{}{
-		"user":           user,
-		"writingSession": session,
-	})
-}
-
 // PUT /users/{id}
 func (s *APIServer) handleUpdateUser(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
@@ -211,12 +207,6 @@ func (s *APIServer) handleDeleteUser(w http.ResponseWriter, r *http.Request) err
 	}
 
 	return s.store.DeleteUser(ctx, id)
-}
-
-// POST /users/anonymous
-func (s *APIServer) handleCreateAnonymousUser(w http.ResponseWriter, r *http.Request) error {
-	// TODO ::::: IMPLEMENT
-	return nil
 }
 
 // ***************** PRIVY ROUTES *****************
@@ -276,6 +266,7 @@ func (s *APIServer) handleWritingSessionStarted(w http.ResponseWriter, r *http.R
 	ctx := r.Context()
 
 	fmt.Println("Handling writing session started request...")
+	fmt.Println("Parsing request body...")
 
 	newWritingSessionRequest := new(types.CreateWritingSessionRequest)
 	if err := json.NewDecoder(r.Body).Decode(newWritingSessionRequest); err != nil {
@@ -285,29 +276,39 @@ func (s *APIServer) handleWritingSessionStarted(w http.ResponseWriter, r *http.R
 	fmt.Printf("Decoded writing session request: %+v\n", newWritingSessionRequest)
 
 	// Parse session ID
+	fmt.Printf("Attempting to parse session ID: %s\n", newWritingSessionRequest.SessionID)
 	sessionUUID, err := uuid.Parse(newWritingSessionRequest.SessionID)
 	if err != nil {
+		fmt.Printf("Failed to parse session ID: %v\n", err)
 		return fmt.Errorf("invalid session ID: %v", err)
 	}
+	fmt.Printf("Successfully parsed session ID to UUID: %s\n", sessionUUID)
 
 	// Handle anonymous users with a default UUID
+	fmt.Printf("Processing user ID: %s\n", newWritingSessionRequest.UserID)
 	var userUUID uuid.UUID
 	if newWritingSessionRequest.UserID == "anonymous" {
+		fmt.Println("Anonymous user detected, using default UUID")
 		// Use a specific UUID for anonymous users
 		userUUID = uuid.MustParse("00000000-0000-0000-0000-000000000000") // Anonymous user UUID
 	} else {
+		fmt.Println("Parsing non-anonymous user ID")
 		userUUID, err = uuid.Parse(newWritingSessionRequest.UserID)
 		if err != nil {
+			fmt.Printf("Failed to parse user ID: %v\n", err)
 			return fmt.Errorf("invalid user ID: %v", err)
 		}
 	}
+	fmt.Printf("Final user UUID: %s\n", userUUID)
 
 	// Get last session for user to determine next index
+	fmt.Printf("Fetching previous sessions for user %s\n", userUUID)
 	userSessions, err := s.store.GetUserWritingSessions(ctx, userUUID, false, 1, 0)
 	if err != nil {
 		fmt.Printf("Error getting user's last session: %v\n", err)
 		return err
 	}
+	fmt.Printf("Found %d previous sessions\n", len(userSessions))
 
 	sessionIndex := 0
 	if len(userSessions) > 0 {
@@ -315,15 +316,18 @@ func (s *APIServer) handleWritingSessionStarted(w http.ResponseWriter, r *http.R
 	}
 	fmt.Printf("New session will have index: %d\n", sessionIndex)
 
-	writingSession := types.NewWritingSession(sessionUUID, userUUID, newWritingSessionRequest.Prompt, sessionIndex)
+	fmt.Println("Creating new writing session object...")
+	writingSession := types.NewWritingSession(sessionUUID, userUUID, newWritingSessionRequest.Prompt, sessionIndex, newWritingSessionRequest.IsOnboarding)
 	fmt.Printf("Created new writing session: %+v\n", writingSession)
 
+	fmt.Println("Attempting to save writing session to database...")
 	if err := s.store.CreateWritingSession(ctx, writingSession); err != nil {
 		fmt.Printf("Error creating writing session: %v\n", err)
 		return err
 	}
-	fmt.Println("Successfully created writing session in database")
+	fmt.Printf("Successfully created writing session %s in database\n", writingSession.ID)
 
+	fmt.Println("Preparing response...")
 	fmt.Printf("Returning writing session: %+v\n", writingSession)
 
 	return WriteJSON(w, http.StatusOK, writingSession)
