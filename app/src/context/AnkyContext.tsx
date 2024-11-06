@@ -3,6 +3,7 @@ import axios from "axios";
 import { getCurrentAnkyverseDay } from "../app/lib/ankyverse";
 import { WritingGameProps } from "../types/WritingGame";
 import { AnkyUser } from "../types/User";
+import { WritingSession } from "../types/Anky";
 
 interface AnkyContextType {
   ankyUser: AnkyUser | null;
@@ -17,6 +18,10 @@ interface AnkyContextType {
   setIsUserWriting: React.Dispatch<React.SetStateAction<boolean>>;
   writingGameProps: WritingGameProps;
   setWritingGameProps: React.Dispatch<React.SetStateAction<WritingGameProps>>;
+  userWritingSessions: WritingSession[];
+  setUserWritingSessions: React.Dispatch<
+    React.SetStateAction<WritingSession[]>
+  >;
 }
 
 const AnkyContext = createContext<AnkyContextType | undefined>(undefined);
@@ -38,6 +43,9 @@ export const AnkyProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isWritingGameVisible, setIsWritingGameVisible] = useState(true);
   const [isUserWriting, setIsUserWriting] = useState(false);
   const ankyverseDay = getCurrentAnkyverseDay();
+  const [userWritingSessions, setUserWritingSessions] = useState<
+    WritingSession[]
+  >([]);
   const [writingGameProps, setWritingGameProps] = useState<WritingGameProps>({
     targetDuration: 480,
     directions: {
@@ -139,6 +147,8 @@ export const AnkyProvider: React.FC<{ children: React.ReactNode }> = ({
     setIsUserWriting,
     writingGameProps,
     setWritingGameProps,
+    userWritingSessions,
+    setUserWritingSessions,
   };
 
   return <AnkyContext.Provider value={value}>{children}</AnkyContext.Provider>;
