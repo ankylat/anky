@@ -27,51 +27,54 @@ import { v4 as uuidv4 } from "uuid";
 // These would be your separate result screen components
 import {
   WritingProgressBar,
-  ShortSessionScreen,
-  MediumSessionScreen,
-  LongSessionScreen,
+  IncompleteSessionScreen,
+  CompleteSessionScreen,
 } from "../components/WritingGame/onboarding/SessionScreens";
 import { useAnky } from "../context/AnkyContext";
 import { WritingSession } from "../types/Anky";
 import { useUser } from "../context/UserContext";
+import { processInitialWritingSessions } from "../api/anky";
+import { endWritingSession, startWritingSession } from "@/src/api/game";
+import { GameState, SessionData, Keystroke } from "@/src/types/WritingGame";
+import { prettyLog } from "./lib/user";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width, height } = Dimensions.get("window");
-
-interface Keystroke {
-  key?: string;
-  timestamp?: number;
-  timeSinceLastKeystroke?: number;
-}
-
-interface SessionData {
-  text: string;
-  startTime: number;
-  keystrokes: Keystroke[];
-  totalDuration: number;
-  longestPause: number;
-  wordCount: number;
-  averageWPM: number;
-  endReason: "timeout" | "completed";
-}
-
-type GameState = "intro" | "writing" | "short" | "medium" | "long";
 
 const AnimatedTextInput = Animated.createAnimatedComponent(TextInput);
 
 const WritingGame = () => {
   const { userWritingSessions, setUserWritingSessions } = useAnky();
-  const { anonymousId } = useUser();
-  const [gameState, setGameState] = useState<GameState>("intro");
+  const { anonymousId }: { anonymousId: string | null } = useUser();
+  const [gameState, setGameState] = useState<GameState>({
+    status: "intro",
+    session_id: uuidv4(),
+    game_over: false,
+    words_written: 0,
+    session_index_for_user: 0,
+    time_spent: 0,
+    starting_timestamp: new Date(),
+    prompt: "",
+    user_id: "",
+    is_session_active: false,
+    came_back_to_read: false,
+    session_started: false,
+    target_reached: false,
+    display_seconds: true,
+    current_mode: "center",
+    keyboard_height: 0,
+    is_onboarding: true,
+    text: "",
+    ending_timestamp: null,
+  });
   const [introText, setIntroText] = useState("");
   const [text, setText] = useState("");
   const [sessionData, setSessionData] = useState<SessionData | null>(null);
-  const [writingSession, setWritingSession] = useState<WritingSession | null>(
-    null
-  );
+
   const [keystrokes, setKeystrokes] = useState<Keystroke[]>([]);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const cursorOpacity = useSharedValue(1);
-  const [prompt, setPrompt] = useState("tell us who you are");
+  const [prompt, setPrompt] = useState("tell me who you are");
 
   const [timeSinceLastKeystroke, setTimeSinceLastKeystroke] = useState(0);
 
@@ -83,7 +86,7 @@ const WritingGame = () => {
 
   const CHAR_DELAY = 50;
   const TIMEOUT_DURATION = 8000; // 8 seconds
-  const MAX_SESSION_DURATION = 180000; // 180 seconds (3 minutes)
+  const MAX_SESSION_DURATION = 480000; // 480 seconds (8 minutes)
   const SHORT_SESSION_THRESHOLD = MAX_SESSION_DURATION * 0.3; // 30 seconds
 
   useEffect(() => {
@@ -102,7 +105,7 @@ const WritingGame = () => {
   }, []);
 
   useEffect(() => {
-    if (gameState === "intro") {
+    if (gameState.status === "intro") {
       cursorOpacity.value = withRepeat(
         withSequence(
           withTiming(0, { duration: 500 }),
@@ -115,7 +118,7 @@ const WritingGame = () => {
   }, [gameState]);
 
   useEffect(() => {
-    if (gameState === "writing") {
+    if (gameState.status === "writing") {
       const interval = setInterval(() => {
         const currentTime = Date.now();
         if (lastKeystrokeTime.current) {
@@ -130,7 +133,7 @@ const WritingGame = () => {
   }, [gameState]);
 
   useEffect(() => {
-    if (gameState === "intro") {
+    if (gameState.status === "intro") {
       let currentIndex = 0;
       const interval = setInterval(() => {
         if (currentIndex < prompt.length) {
@@ -164,17 +167,68 @@ const WritingGame = () => {
     };
   };
 
-  const determineEndScreen = (duration: number): GameState => {
-    if (duration < SHORT_SESSION_THRESHOLD) return "short";
-    if (duration < MAX_SESSION_DURATION) return "medium";
-    return "long";
-  };
+  const handleSessionEnded = async (data: SessionData) => {
+    try {
+      console.log("Starting handleSessionEnded with data:", data);
 
-  const handleSessionEnded = (data: SessionData) => {
-    setSessionData(data);
+      setSessionData(data);
+      console.log("Session data set");
 
-    const nextScreen = determineEndScreen(data.totalDuration);
-    setGameState(nextScreen);
+      prettyLog(data, "THE SESSION DATA IS: ");
+
+      const writingAttempts = await AsyncStorage.getItem("writing_attempts");
+      console.log(
+        "Retrieved writing attempts from localStorage:",
+        writingAttempts
+      );
+
+      prettyLog(writingAttempts, "THE WRITING ATTEMPTS ARE: ");
+
+      const newGameState = {
+        ...gameState,
+        status:
+          data.totalDuration > 478
+            ? ("completed" as const)
+            : ("failed" as const),
+        words_written: data.wordCount,
+        time_spent: data.totalDuration,
+        text: data.text,
+        ending_timestamp: new Date(),
+      };
+      console.log("Created new game state:", newGameState);
+
+      setGameState(newGameState);
+      console.log("Game state updated");
+
+      const newWritingAttempts = [
+        ...(writingAttempts ? JSON.parse(writingAttempts) : []),
+        newGameState,
+      ];
+      console.log("Created new writing attempts array:", newWritingAttempts);
+
+      prettyLog(newWritingAttempts, "THE NEW WRITING ATTEMPTS ARE: ");
+
+      await AsyncStorage.setItem(
+        "writing_attempts",
+        JSON.stringify(newWritingAttempts)
+      );
+      console.log("Saved new writing attempts to localStorage");
+
+      console.log("****************************************************");
+      await endWritingSession(gameState, "ENDING THE WRITING SESSION");
+
+      if (data.totalDuration >= MAX_SESSION_DURATION) {
+        console.log("Duration >= 480, user is ready");
+        prettyLog("THE USER IS READY, MOVE ON TO THE NEXT PHASE");
+      } else {
+        console.log("Duration < 480, user not ready");
+        prettyLog("THE USER IS NOT READY, KEEP THEM IN THE GAME");
+        console.log("Writing session ended");
+      }
+    } catch (error) {
+      console.error("Error in handleSessionEnded:", error);
+      throw error;
+    }
   };
 
   const handleTimeout = () => {
@@ -187,21 +241,6 @@ const WritingGame = () => {
         pause_points: [],
         flow_state_ranges: [],
       };
-      const thisWritingSession = {
-        ...writingSession,
-        ending_timestamp: new Date(),
-        words_written: stats.wordCount,
-        time_spent: stats.totalDuration,
-        status: "completed",
-        writingPatterns,
-        keystroke_data: stats.keystrokes,
-      };
-      setUserWritingSessions([
-        ...userWritingSessions,
-        {
-          ...thisWritingSession,
-        } as WritingSession,
-      ]);
 
       handleSessionEnded({
         text,
@@ -213,21 +252,29 @@ const WritingGame = () => {
   };
 
   const handleScreenTap = () => {
-    if (
-      gameState === "intro" ||
-      gameState === "short" ||
-      gameState === "medium" ||
-      gameState === "long"
-    ) {
-      setGameState("writing");
-      setWritingSession({
+    if (gameState.status !== "writing") {
+      console.log("IN HERE THE ANONYMOUS ID IS: ", anonymousId);
+      const thisWritingSession = {
         session_id: uuidv4(),
+        status: "writing",
         session_index_for_user: (userWritingSessions?.length ?? 0) + 1,
-        user_id: anonymousId,
         starting_timestamp: new Date(),
         prompt: prompt,
+        user_id: anonymousId,
+        is_onboarding: true,
+      };
+      setGameState({
+        ...gameState,
         status: "writing",
+        session_id: thisWritingSession.session_id,
+        session_index_for_user: thisWritingSession.session_index_for_user,
+        starting_timestamp: thisWritingSession.starting_timestamp,
+        prompt: thisWritingSession.prompt,
+        user_id: anonymousId || "",
       });
+
+      startWritingSession(thisWritingSession, "");
+      prettyLog(thisWritingSession, "STARTING A NEW WRITING SESSION");
       sessionStartTime.current = Date.now();
       lastKeystrokeTime.current = Date.now();
       setText("");
@@ -291,7 +338,7 @@ const WritingGame = () => {
   }));
 
   const renderContent = () => {
-    switch (gameState) {
+    switch (gameState.status) {
       case "intro":
         return (
           <TouchableWithoutFeedback onPress={handleScreenTap}>
@@ -316,7 +363,7 @@ const WritingGame = () => {
             style={{ flex: 1 }}
             className="relative"
           >
-            {gameState === "writing" && (
+            {gameState.status === "writing" && (
               <WritingProgressBar
                 timeSinceLastKeystroke={timeSinceLastKeystroke}
               />
@@ -340,27 +387,20 @@ const WritingGame = () => {
           </KeyboardAvoidingView>
         );
 
-      case "short":
+      case "failed":
         return (
-          <ShortSessionScreen
+          <IncompleteSessionScreen
+            messageFromAnky="You didn't write for 8 minutes! 💔"
             sessionData={sessionData!}
             onRetry={handleScreenTap}
           />
         );
 
-      case "medium":
+      case "completed":
         return (
-          <MediumSessionScreen
+          <CompleteSessionScreen
             sessionData={sessionData!}
-            onRetry={handleScreenTap}
-          />
-        );
-
-      case "long":
-        return (
-          <LongSessionScreen
-            sessionData={sessionData!}
-            onRetry={handleScreenTap}
+            onNextStep={() => {}}
           />
         );
     }
