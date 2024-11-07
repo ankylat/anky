@@ -34,7 +34,11 @@ import { useAnky } from "../context/AnkyContext";
 import { WritingSession } from "../types/Anky";
 import { useUser } from "../context/UserContext";
 import { processInitialWritingSessions } from "../api/anky";
-import { endWritingSession, startWritingSession } from "@/src/api/game";
+import {
+  endWritingSession,
+  onboardingSessionProcessing,
+  startWritingSession,
+} from "@/src/api/game";
 import { GameState, SessionData, Keystroke } from "@/src/types/WritingGame";
 import { prettyLog } from "./lib/user";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -215,6 +219,7 @@ const WritingGame = () => {
       console.log("Saved new writing attempts to localStorage");
 
       console.log("****************************************************");
+      getOnboardingResponse(newWritingAttempts);
       await endWritingSession(gameState, "ENDING THE WRITING SESSION");
 
       if (data.totalDuration >= MAX_SESSION_DURATION) {
@@ -227,6 +232,36 @@ const WritingGame = () => {
       }
     } catch (error) {
       console.error("Error in handleSessionEnded:", error);
+      throw error;
+    }
+  };
+
+  const getOnboardingResponse = async (
+    newWritingAttempts: WritingSession[]
+  ) => {
+    try {
+      // Get existing responses array from storage
+      const existingResponsesStr = await AsyncStorage.getItem(
+        "anky_onboarding_responses"
+      );
+      const existingResponses: string[] = existingResponsesStr
+        ? JSON.parse(existingResponsesStr)
+        : [];
+
+      // Get new response from API
+      const ankyResponse = await onboardingSessionProcessing(
+        newWritingAttempts,
+        existingResponses
+      );
+
+      // Add new response to array and save
+      const updatedResponses = [...existingResponses, ankyResponse.reflection];
+      await AsyncStorage.setItem(
+        "anky_onboarding_responses",
+        JSON.stringify(updatedResponses)
+      );
+    } catch (error) {
+      console.error("Error in getOnboardingResponse:", error);
       throw error;
     }
   };

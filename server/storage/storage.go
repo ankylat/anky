@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/ankylat/anky/server/types"
 	"github.com/golang-migrate/migrate/v4"
@@ -419,12 +420,13 @@ func scanIntoUser(row pgx.Row) (*types.User, error) {
 
 func scanIntoWritingSession(row pgx.Row) (*types.WritingSession, error) {
 	ws := new(types.WritingSession)
+	var endingTimestamp *time.Time // Use pointer to handle NULL
 	err := row.Scan(
 		&ws.ID,
 		&ws.SessionIndexForUser,
 		&ws.UserID,
 		&ws.StartingTimestamp,
-		&ws.EndingTimestamp,
+		&endingTimestamp,
 		&ws.Prompt,
 		&ws.Writing,
 		&ws.WordsWritten,
@@ -440,6 +442,12 @@ func scanIntoWritingSession(row pgx.Row) (*types.WritingSession, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan writing session: %w", err)
 	}
+
+	// Only set EndingTimestamp if not NULL
+	if endingTimestamp != nil {
+		ws.EndingTimestamp = *endingTimestamp
+	}
+
 	return ws, nil
 }
 

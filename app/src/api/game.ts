@@ -81,3 +81,40 @@ export const endWritingSession = async (
     throw error;
   }
 };
+
+export const onboardingSessionProcessing = async (
+  writingSession: WritingSession[],
+  ankyResponses: string[]
+): Promise<{ reflection: string }> => {
+  console.log(`Getting new anky responses`);
+  try {
+    let endpoint = `${API_URL}/anky/onboarding/${writingSession[0].user_id}`;
+    console.log(`Endpoint constructed: ${endpoint}`);
+    const user = { access_token: "" };
+
+    console.log("Preparing to make API request");
+    const response = await axios.post(endpoint, writingSession, {
+      headers: {
+        "api-key": POIESIS_API_KEY!,
+        token: user.access_token,
+        "User-Agent": `anky-mobile-app-${process.env.ENVIRONMENT}`,
+      },
+    });
+    console.log("API request completed");
+
+    prettyLog(response.data, "ANKY RESPONSES");
+    if (response.status !== 200) {
+      console.error(`Unexpected response status: ${response.status}`);
+      throw new Error("Failed to fetch user profile and casts");
+    }
+
+    console.log(
+      "Successfully added new session to the database",
+      response.data
+    );
+    return response.data;
+  } catch (error) {
+    console.error("Error adding new session to the database:", error);
+    throw error;
+  }
+};

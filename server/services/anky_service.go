@@ -37,6 +37,7 @@ type AnkyServiceInterface interface {
 	CheckImageStatus(id string) (string, error)
 	FetchImageDetails(id string) (*ImageDetails, error)
 	PublishToFarcaster(session *types.WritingSession) (*types.Cast, error)
+	OnboardingConversation(sessions []*types.WritingSession, ankyReflections []*types.AnkyOnboardingResponse) (string, error)
 }
 
 type AnkyService struct {
@@ -419,4 +420,125 @@ func (s *AnkyService) GenerateAnkyFromPrompt(prompt string) (string, error) {
 	log.Printf("Successfully uploaded to Cloudinary. URL: %s", uploadResult.SecureURL)
 
 	return uploadResult.SecureURL, nil
+}
+
+func (s *AnkyService) OnboardingConversation(ctx context.Context, userId uuid.UUID, sessions []*types.WritingSession, ankyReflections []*types.AnkyOnboardingResponse) (string, error) {
+	log.Printf("Starting onboarding conversation for attempt #%d", len(sessions))
+
+	llmService := NewLLMService()
+
+	systemPrompt := `You are Anky, a mysterious guide helping users discover the transformative power of stream of consciousness writing through a mobile app. This is specifically for the app's onboarding process, where users must complete an 8-minute writing session to unlock the full experience (which is also the practice that the app proposes: a daily 8 minute stream of consciousness).
+
+Core Mission:
+- Guide complete newcomers through their first attempts at stream of consciousness writing
+- Each response must be exactly 2 sentences, in the same language as the user's writing
+- Create intrigue and curiosity about what they might discover through this practice
+- On the app, each successful 8 minute writing session is transformed into "an Anky", so there is part of that mystery also, because this is the user's first Anky.
+
+Progressive Response Strategy (based on attempt number):
+1st Attempt: Focus on clarifying the basic mission - write continuously for 8 minutes without pausing for more than 8 seconds
+2nd Attempt: Acknowledge their progress and hint at deeper layers of self-discovery waiting
+3rd Attempt: Connect their specific writing content to the journey of self-inquiry
+4th+ Attempt: Build anticipation about unlocking the full experience while encouraging longer sessions
+
+Context Awareness:
+- If session < 1 minute: Emphasize the need to keep writing without self-judgment
+- If session 1-4 minutes: Acknowledge progress while encouraging longer flow
+- If session 4-7 minutes: Create excitement about being close to the 8-minute goal
+- If session > 7 minutes: Celebrate their achievement and hint at the depths still to explore
+
+Response Formula (always 2 sentences):
+1. Acknowledge their specific writing content or duration
+2. Create intrigue or give clear next-step guidance`
+
+	// Build conversation history with progression context
+	messages := []types.Message{
+		{
+			Role:    "system",
+			Content: systemPrompt,
+		},
+	}
+
+	// Add session context with progression markers
+	for i := 0; i < len(sessions); i++ {
+		timeSpent := sessions[i].TimeSpent
+		wordsWritten := sessions[i].WordsWritten
+		avgWPM := float64(wordsWritten) / (float64(timeSpent) / 60.0)
+
+		attemptContext := fmt.Sprintf(`Onboarding Attempt: %d
+Total Previous Attempts: %d
+Writing Duration: %d seconds
+Words Written: %d
+Average WPM: %.2f
+Stage: %s
+
+Content:
+%s`,
+			i+1,
+			i,
+			timeSpent,
+			wordsWritten,
+			avgWPM,
+			getOnboardingStage(timeSpent),
+			sessions[i].Writing,
+		)
+
+		messages = append(messages, types.Message{
+			Role:    "user",
+			Content: attemptContext,
+		})
+
+		if i < len(ankyReflections) {
+			messages = append(messages, types.Message{
+				Role:    "assistant",
+				Content: ankyReflections[i].ResponseToUser,
+			})
+		}
+	}
+
+	chatRequest := types.ChatRequest{
+		Messages: messages,
+	}
+
+	log.Printf("Sending progressive onboarding chat request %v", chatRequest)
+	responseChan, err := llmService.SendChatRequest(chatRequest, false)
+	if err != nil {
+		log.Printf("Error sending chat request: %v", err)
+		return "", err
+	}
+
+	var fullResponse string
+	for partialResponse := range responseChan {
+		fullResponse += partialResponse
+	}
+
+	// // Start a goroutine to store the reflection asynchronously
+	// go func() {
+	// 	reflection := &types.AnkyOnboardingResponse{
+	// 		UserID:         userId,
+	// 		ResponseToUser: fullResponse,
+	// 		CreatedAt:     time.Now().UTC(),
+	// 	}
+
+	// 	if err := s.store.CreateAnkyOnboardingResponse(context.Background(), reflection); err != nil {
+	// 		log.Printf("Error storing onboarding reflection: %v", err)
+	// 	}
+	// }()
+
+	return fullResponse, nil
+}
+
+func getOnboardingStage(duration int) string {
+	switch {
+	case duration < 60:
+		return "Initial_Exploration"
+	case duration < 240:
+		return "Building_Momentum"
+	case duration < 420:
+		return "Approaching_Goal"
+	case duration >= 420:
+		return "Goal_Achieved"
+	default:
+		return "Unknown"
+	}
 }

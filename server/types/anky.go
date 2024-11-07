@@ -220,6 +220,17 @@ type AnkyOnProfile struct {
 	CreatedAt     time.Time `json:"created_at" bson:"created_at"`
 }
 
+type AnkyOnboardingResponse struct {
+	ID            uuid.UUID `json:"id" bson:"id"`
+	UserID              uuid.UUID `json:"user_id" bson:"user_id"`
+	WritingSessionID    uuid.UUID `json:"writing_session_id" bson:"writing_session_id"`
+	CreatedAt           time.Time `json:"created_at" bson:"created_at"`
+	Reasoning           string    `json:"reasoning" bson:"reasoning"`
+	ResponseToUser      string    `json:"response_to_user" bson:"response_to_user"`
+	RepliedToWritingSessionID uuid.UUID `json:"replied_to_writing_session_id" bson:"replied_to_writing_session_id"`
+	AiModelUsed              string    `json:"ai_model_used" bson:"ai_model_used"`
+}
+
 func (ws *WritingSession) IsValidAnky() bool {
 	return ws.TimeSpent >= 480 // 8 minutes in seconds
 }

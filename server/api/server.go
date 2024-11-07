@@ -74,6 +74,7 @@ func (s *APIServer) Run() error {
 	router.HandleFunc("/ankys", makeHTTPHandleFunc(s.handleGetAnkys)).Methods("GET")
 	router.HandleFunc("/ankys/{id}", makeHTTPHandleFunc(s.handleGetAnkyByID)).Methods("GET")
 	router.HandleFunc("/users/{userId}/ankys", makeHTTPHandleFunc(s.handleGetAnkysByUserID)).Methods("GET")
+	router.HandleFunc("/anky/onboarding/{userId}", makeHTTPHandleFunc(s.handleProcessUserOnboarding)).Methods("GET")
 
 	// Badge routes
 	router.HandleFunc("/users/{userId}/badges", makeHTTPHandleFunc(s.handleGetUserBadges)).Methods("GET")
@@ -477,6 +478,43 @@ func getSessionID(r *http.Request) (string, error) {
 }
 
 // ***************** ANKY ROUTES *****************
+
+func (s *APIServer) handleProcessUserOnboarding(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	userID, err := utils.GetUserID(r)
+	if err != nil {
+		return err
+	}
+
+	// Parse request body
+	var onboardingRequest struct {
+		UserWritings    []*types.WritingSession        `json:"user_writings"`
+		AnkyReflections []*types.AnkyOnboardingResponse `json:"anky_reflections"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&onboardingRequest); err != nil {
+		return fmt.Errorf("error decoding request body: %v", err)
+	}
+
+	// Validate the lengths
+	if len(onboardingRequest.UserWritings) != len(onboardingRequest.AnkyReflections)+1 {
+		return fmt.Errorf("invalid number of writings and reflections")
+	}
+
+	ankyService, err := services.NewAnkyService(s.store)
+	if err != nil {
+		return fmt.Errorf("error creating anky service: %v", err)
+	}
+
+	response, err := ankyService.OnboardingConversation(ctx, userID, onboardingRequest.UserWritings, onboardingRequest.AnkyReflections)
+	if err != nil {
+		return fmt.Errorf("error processing onboarding conversation: %v", err)
+	}
+
+	return WriteJSON(w, http.StatusOK, map[string]string{
+		"reflection": response,
+	})
+}
 
 func (s *APIServer) handleGetAnkys(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
