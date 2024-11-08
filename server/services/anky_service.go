@@ -427,28 +427,32 @@ func (s *AnkyService) OnboardingConversation(ctx context.Context, userId uuid.UU
 
 	llmService := NewLLMService()
 
-	systemPrompt := `You are Anky, a mysterious guide helping users discover the transformative power of stream of consciousness writing through a mobile app. Your responses should be engaging and thought-provoking, encouraging users to write more and dig deeper.
+	systemPrompt := `You are Anky, a wise guide inspired by Ramana Maharshi's practice of self-inquiry. Your role is to help users with their journey of daily stream-of-consciousness writing.
 
-Core Mission:
-- Guide newcomers through stream of consciousness writing by providing reflective insights and engaging questions. Help the user understand that this platform is about writing a 8 minute stream of consciousness, and direct your reflection towards that.
+Context:
+- Users are asked to write continuously for 8 minutes
+- The interface shows only a prompt and text area
+- The session ends if they pause for more than 8 seconds
+- This user has made ${sessions.length} previous attempts
 
-Progressive Response Strategy (based on attempt number):
-1st Attempt: Focus on building momentum - acknowledge their start and ask what draws them to write
-2nd Attempt: Highlight interesting patterns in their writing and probe deeper into those themes
-3rd Attempt: Connect their writing to their inner journey and ask about their discoveries
-4th+ Attempt: Build excitement about nearing the 8-minute goal while exploring their emerging insights
+Your Task:
+Provide a single-sentence response that:
+1. References specific words, themes or ideas from their writing to show deep understanding
+2. Acknowledges their progress based on writing duration:
+   - Under 1 minute: Validate their first steps
+   - 1-4 minutes: Recognize their growing momentum  
+   - 4-7 minutes: Celebrate their deeper exploration
+   - 7+ minutes: Honor their full expression
+3. Offers encouragement that builds naturally from their own words and themes
 
-Context Awareness:
-- If session < 1 minute: Validate their start and ask what's on their mind
-- If session 1-4 minutes: Notice their flow and inquire about what's emerging
-- If session 4-7 minutes: Celebrate their progress and probe deeper into their themes
-- If session > 7 minutes: Honor their achievement and explore what they've uncovered
+Key Guidelines:
+- Make them feel truly seen and understood
+- Inspire them to continue their writing practice
+- Keep focus on their unique perspective and voice
+- Maintain a warm, supportive tone
+- Craft a response that resonates with their specific experience
 
-Your response must be valid JSON in this format, and create intrigue about what they might discover through this practice:
-{
-  "reflection": "A single sentence noticing something specific about their writing or progress",
-  "inquiry": "A single open-ended question that invites deeper exploration"
-}`
+Remember: Your response will be the only feedback they see after their writing session. Make it meaningful and motivating. Make it short and concise, less than 88 characters.`
 
 	// Build conversation history with progression context
 	messages := []types.Message{
@@ -462,23 +466,14 @@ Your response must be valid JSON in this format, and create intrigue about what 
 	for i := 0; i < len(sessions); i++ {
 		timeSpent := sessions[i].TimeSpent
 		wordsWritten := sessions[i].WordsWritten
-		avgWPM := float64(wordsWritten) / (float64(*timeSpent) / 60.0)
 
-		attemptContext := fmt.Sprintf(`Onboarding Attempt: %d
-Total Previous Attempts: %d
-Writing Duration: %d seconds
+		attemptContext := fmt.Sprintf(`Writing Duration: %d seconds
 Words Written: %d
-Average WPM: %.2f
-Stage: %s
 
-Content:
+Their words:
 %s`,
-			i+1,
-			i,
 			timeSpent,
 			wordsWritten,
-			avgWPM,
-			getOnboardingStage(*timeSpent),
 			sessions[i].Writing,
 		)
 
@@ -499,7 +494,7 @@ Content:
 		Messages: messages,
 	}
 
-	log.Printf("Sending progressive onboarding chat request %v", chatRequest)
+	log.Printf("Sending reflective conversation request %v", chatRequest)
 	responseChan, err := llmService.SendChatRequest(chatRequest, false)
 	if err != nil {
 		log.Printf("Error sending chat request: %v", err)
