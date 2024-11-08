@@ -71,6 +71,7 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
     try {
       console.log("Removing anonymousId from local storage");
       await AsyncStorage.removeItem("anonymousId");
+      await AsyncStorage.removeItem("anky_onboarding_responses");
       // Check if we already have an anonymous ID
       const storedAnonymousId = await AsyncStorage.getItem("anonymousId");
       console.log("CHECKING IF ANONYMOUS ID EXISTS", storedAnonymousId);

@@ -56,6 +56,7 @@ export const endWritingSession = async (
     console.log(`Endpoint constructed: ${endpoint}`);
 
     console.log("Preparing to make API request");
+    prettyLog(writingSession, "ENDING WRITING SESSION");
     const response = await axios.post(endpoint, writingSession, {
       headers: {
         "api-key": POIESIS_API_KEY!,
@@ -72,34 +73,40 @@ export const endWritingSession = async (
     }
 
     console.log(
-      "Successfully added new session to the database",
+      "Successfully updated the ended session on the database",
       response.data
     );
     return response.data;
   } catch (error) {
-    console.error("Error adding new session to the database:", error);
+    console.error("Error updating the session on the database:", error);
     throw error;
   }
 };
 
 export const onboardingSessionProcessing = async (
-  writingSession: WritingSession[],
-  ankyResponses: string[]
+  user_writings: WritingSession[],
+  anky_responses: string[]
 ): Promise<{ reflection: string }> => {
   console.log(`Getting new anky responses`);
   try {
-    let endpoint = `${API_URL}/anky/onboarding/${writingSession[0].user_id}`;
+    let endpoint = `${API_URL}/anky/onboarding/${user_writings[0].user_id}`;
     console.log(`Endpoint constructed: ${endpoint}`);
     const user = { access_token: "" };
 
     console.log("Preparing to make API request");
-    const response = await axios.post(endpoint, writingSession, {
-      headers: {
-        "api-key": POIESIS_API_KEY!,
-        token: user.access_token,
-        "User-Agent": `anky-mobile-app-${process.env.ENVIRONMENT}`,
-      },
-    });
+    prettyLog({ user_writings, anky_responses }, "ONBOARDING SESSION DATA");
+
+    const response = await axios.post(
+      endpoint,
+      { user_writings, anky_responses },
+      {
+        headers: {
+          "api-key": POIESIS_API_KEY!,
+          token: user.access_token,
+          "User-Agent": `anky-mobile-app-${process.env.ENVIRONMENT}`,
+        },
+      }
+    );
     console.log("API request completed");
 
     prettyLog(response.data, "ANKY RESPONSES");
@@ -108,13 +115,13 @@ export const onboardingSessionProcessing = async (
       throw new Error("Failed to fetch user profile and casts");
     }
 
-    console.log(
-      "Successfully added new session to the database",
-      response.data
-    );
+    console.log("got new response from anky", response.data);
     return response.data;
   } catch (error) {
-    console.error("Error adding new session to the database:", error);
+    console.error(
+      "Error adding the onboarding session to the database:",
+      error
+    );
     throw error;
   }
 };

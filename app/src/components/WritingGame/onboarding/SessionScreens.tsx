@@ -1,4 +1,5 @@
 // SessionScreens.tsx
+import { prettyLog } from "@/src/app/lib/user";
 import React, { useRef, useEffect } from "react";
 import {
   View,
@@ -111,22 +112,16 @@ const WritingProgressBar = ({
 export const IncompleteSessionScreen: React.FC<{
   sessionData: SessionData;
   onRetry: () => void;
-  messageFromAnky: string;
-}> = ({ sessionData, onRetry, messageFromAnky }) => {
+  ankyResponses: string[];
+}> = ({ sessionData, onRetry, ankyResponses }) => {
+  prettyLog(ankyResponses, "INSIDE THE INCOMPLETE SESSION SCREEN");
   return (
     <View style={[styles.container, { backgroundColor: "#ff0000" }]}>
-      <Text style={styles.title}>Session Incomplete</Text>
       <View style={styles.messageContainer}>
         <Text style={styles.message}>
-          {messageFromAnky || "Let's try again and reach the 8 minute mark!"}
-          {"\n\n"}
-          You wrote for {Math.round(sessionData.totalDuration / 1000)} seconds
-          {"\n"}
-          Expressing {sessionData.wordCount} words
-          {"\n"}
-          At {sessionData.averageWPM} words per minute
-          {"\n\n"}
-          The magic happens after 8 minutes!
+          {ankyResponses.length > 0
+            ? ankyResponses[ankyResponses.length - 1]
+            : "Let's try again and reach the 8 minute mark!"}
         </Text>
       </View>
       <TouchableOpacity style={styles.button} onPress={onRetry}>
