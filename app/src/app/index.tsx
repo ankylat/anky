@@ -74,6 +74,7 @@ const WritingGame = () => {
   const [introText, setIntroText] = useState("");
   const [text, setText] = useState("");
   const [sessionData, setSessionData] = useState<SessionData | null>(null);
+  const [ankyResponses, setAnkyResponses] = useState<string[]>([]);
 
   const [keystrokes, setKeystrokes] = useState<Keystroke[]>([]);
   const [keyboardHeight, setKeyboardHeight] = useState(0);
@@ -191,7 +192,7 @@ const WritingGame = () => {
       const newGameState = {
         ...gameState,
         status:
-          data.totalDuration > 478
+          data.totalDuration > 479000
             ? ("completed" as const)
             : ("failed" as const),
         words_written: data.wordCount,
@@ -208,6 +209,8 @@ const WritingGame = () => {
         ...(writingAttempts ? JSON.parse(writingAttempts) : []),
         newGameState,
       ];
+      await getOnboardingResponse(newWritingAttempts);
+
       console.log("Created new writing attempts array:", newWritingAttempts);
 
       prettyLog(newWritingAttempts, "THE NEW WRITING ATTEMPTS ARE: ");
@@ -219,8 +222,7 @@ const WritingGame = () => {
       console.log("Saved new writing attempts to localStorage");
 
       console.log("****************************************************");
-      getOnboardingResponse(newWritingAttempts);
-      await endWritingSession(gameState, "ENDING THE WRITING SESSION");
+      await endWritingSession(newGameState, "ENDING THE WRITING SESSION");
 
       if (data.totalDuration >= MAX_SESSION_DURATION) {
         console.log("Duration >= 480, user is ready");
@@ -253,6 +255,7 @@ const WritingGame = () => {
         newWritingAttempts,
         existingResponses
       );
+      setAnkyResponses((prev) => [...prev, ankyResponse.reflection]);
 
       // Add new response to array and save
       const updatedResponses = [...existingResponses, ankyResponse.reflection];
@@ -425,7 +428,7 @@ const WritingGame = () => {
       case "failed":
         return (
           <IncompleteSessionScreen
-            messageFromAnky="You didn't write for 8 minutes! 💔"
+            ankyResponses={ankyResponses}
             sessionData={sessionData!}
             onRetry={handleScreenTap}
           />
