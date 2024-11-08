@@ -1,6 +1,6 @@
 // SessionScreens.tsx
 import { prettyLog } from "@/src/app/lib/user";
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -20,6 +20,7 @@ import Animated, {
   Easing,
   withDelay,
 } from "react-native-reanimated";
+import { characters } from "@/src/app/lib/ankyverse";
 
 const { height, width } = Dimensions.get("window");
 
@@ -33,6 +34,7 @@ interface SessionData {
 interface SessionScreenProps {
   sessionData: SessionData;
   onNextStep: () => void;
+  ankyResponseReady: boolean;
 }
 
 // Common animated timer component
@@ -113,15 +115,61 @@ export const IncompleteSessionScreen: React.FC<{
   sessionData: SessionData;
   onRetry: () => void;
   ankyResponses: string[];
-}> = ({ sessionData, onRetry, ankyResponses }) => {
-  prettyLog(ankyResponses, "INSIDE THE INCOMPLETE SESSION SCREEN");
+  ankyResponseReady: boolean;
+}> = ({ sessionData, onRetry, ankyResponses, ankyResponseReady }) => {
+  const [displayText, setDisplayText] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Generate initial random characters on mount
+  useEffect(() => {
+    const randomChars = Array(88)
+      .fill("")
+      .map(() => characters[Math.floor(Math.random() * characters.length)])
+      .join("");
+    setDisplayText(randomChars);
+  }, []);
+
+  // Start transformation when ankyResponseReady becomes true
+  useEffect(() => {
+    if (ankyResponseReady && ankyResponses.length > 0) {
+      const finalMessage = ankyResponses[ankyResponses.length - 1];
+      let currentIndex = 0;
+
+      const interval = setInterval(() => {
+        if (currentIndex < finalMessage.length) {
+          setDisplayText((prev) => {
+            const newChar = finalMessage[currentIndex];
+            return (
+              finalMessage.slice(0, currentIndex) +
+              newChar +
+              prev.slice(currentIndex + 1)
+            );
+          });
+          currentIndex++;
+        } else {
+          clearInterval(interval);
+          setIsLoading(false);
+        }
+      }, 50);
+
+      return () => clearInterval(interval);
+    }
+  }, [ankyResponseReady, ankyResponses]);
+
   return (
     <View style={[styles.container, { backgroundColor: "#ff0000" }]}>
       <View style={styles.messageContainer}>
-        <Text style={styles.message}>
-          {ankyResponses.length > 0
-            ? ankyResponses[ankyResponses.length - 1]
-            : "Let's try again and reach the 8 minute mark!"}
+        <Text
+          style={[
+            styles.message,
+            isLoading && {
+              textShadowColor: "rgba(255,255,255,0.5)",
+              textShadowOffset: { width: 2, height: 2 },
+              textShadowRadius: 10,
+            },
+          ]}
+        >
+          {displayText}
         </Text>
       </View>
       <TouchableOpacity style={styles.button} onPress={onRetry}>

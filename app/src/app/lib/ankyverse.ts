@@ -89,7 +89,7 @@ function getAnkyverseDay(date: Date): AnkyverseDay {
   };
 }
 
-const characters: string[] = [
+export const characters: string[] = [
   "\u0C85",
   "\u0C86",
   "\u0C87",
