@@ -56,6 +56,7 @@ type CreateWritingSessionEndRequest struct {
 	AnkyResponse    string    `json:"anky_response"`
 	Status          string    `json:"status"`
 	IsOnboarding    bool      `json:"is_onboarding"`
+	Text            string    `json:"text"`
 }
 
 type CreateAnkyRequest struct {
@@ -167,30 +168,30 @@ type LinkedAccount struct {
 }
 
 type WritingSession struct {
-	ID                  uuid.UUID `json:"id" bson:"id"`
-	SessionIndexForUser int       `json:"session_index_for_user" bson:"session_index_for_user"`
-	UserID              uuid.UUID `json:"user_id" bson:"user_id"`
-	StartingTimestamp   time.Time `json:"starting_timestamp" bson:"starting_timestamp"`
-	EndingTimestamp     time.Time `json:"ending_timestamp" bson:"ending_timestamp"`
-	Prompt              string    `json:"prompt" bson:"prompt"`
-	Writing             string    `json:"writing" bson:"writing"`
-	WordsWritten        int       `json:"words_written" bson:"words_written"`
-	NewenEarned         float64   `json:"newen_earned" bson:"newen_earned"`
-	IsOnboarding        bool      `json:"is_onboarding" bson:"is_onboarding"`
+	ID                  uuid.UUID  `json:"id" bson:"id"`
+	SessionIndexForUser int        `json:"session_index_for_user" bson:"session_index_for_user"`
+	UserID              uuid.UUID  `json:"user_id" bson:"user_id"`
+	StartingTimestamp   time.Time  `json:"starting_timestamp" bson:"starting_timestamp"`
+	EndingTimestamp     *time.Time `json:"ending_timestamp" bson:"ending_timestamp"`
+	Prompt              string     `json:"prompt" bson:"prompt"`
+	Writing             string     `json:"writing" bson:"writing"`
+	WordsWritten        int        `json:"words_written" bson:"words_written"`
+	NewenEarned         float64    `json:"newen_earned" bson:"newen_earned"`
+	IsOnboarding        bool       `json:"is_onboarding" bson:"is_onboarding"`
 
-	TimeSpent int  `json:"time_spent" bson:"time_spent"`
+	TimeSpent *int `json:"time_spent" bson:"time_spent"`
 	IsAnky    bool `json:"is_anky" bson:"is_anky"`
 
 	// Threading component
-	ParentAnkyID string `json:"parent_anky_id" bson:"parent_anky_id"`
-	AnkyResponse string `json:"anky_response" bson:"anky_response"`
+	ParentAnkyID *uuid.UUID `json:"parent_anky_id" bson:"parent_anky_id"`
+	AnkyResponse *string    `json:"anky_response" bson:"anky_response"`
 
 	// Status handling
 	Status string `json:"status" bson:"status"`
 
 	// Anky-related fields
-	AnkyID string `json:"anky_id" bson:"anky_id"`
-	Anky   *Anky  `json:"anky" bson:"anky"`
+	AnkyID *uuid.UUID `json:"anky_id" bson:"anky_id"`
+	Anky   *Anky      `json:"anky" bson:"anky"`
 }
 
 type Anky struct {
@@ -221,18 +222,18 @@ type AnkyOnProfile struct {
 }
 
 type AnkyOnboardingResponse struct {
-	ID            uuid.UUID `json:"id" bson:"id"`
-	UserID              uuid.UUID `json:"user_id" bson:"user_id"`
-	WritingSessionID    uuid.UUID `json:"writing_session_id" bson:"writing_session_id"`
-	CreatedAt           time.Time `json:"created_at" bson:"created_at"`
-	Reasoning           string    `json:"reasoning" bson:"reasoning"`
-	ResponseToUser      string    `json:"response_to_user" bson:"response_to_user"`
+	ID                        uuid.UUID `json:"id" bson:"id"`
+	UserID                    uuid.UUID `json:"user_id" bson:"user_id"`
+	WritingSessionID          uuid.UUID `json:"writing_session_id" bson:"writing_session_id"`
+	CreatedAt                 time.Time `json:"created_at" bson:"created_at"`
+	Reasoning                 string    `json:"reasoning" bson:"reasoning"`
+	ResponseToUser            string    `json:"response_to_user" bson:"response_to_user"`
 	RepliedToWritingSessionID uuid.UUID `json:"replied_to_writing_session_id" bson:"replied_to_writing_session_id"`
-	AiModelUsed              string    `json:"ai_model_used" bson:"ai_model_used"`
+	AiModelUsed               string    `json:"ai_model_used" bson:"ai_model_used"`
 }
 
 func (ws *WritingSession) IsValidAnky() bool {
-	return ws.TimeSpent >= 480 // 8 minutes in seconds
+	return ws.TimeSpent != nil && *ws.TimeSpent >= 480 // 8 minutes in seconds
 }
 
 func (ws *WritingSession) SetAnkyStatus() {

@@ -422,34 +422,33 @@ func (s *AnkyService) GenerateAnkyFromPrompt(prompt string) (string, error) {
 	return uploadResult.SecureURL, nil
 }
 
-func (s *AnkyService) OnboardingConversation(ctx context.Context, userId uuid.UUID, sessions []*types.WritingSession, ankyReflections []*types.AnkyOnboardingResponse) (string, error) {
+func (s *AnkyService) OnboardingConversation(ctx context.Context, userId uuid.UUID, sessions []*types.WritingSession, ankyReflections []string) (string, error) {
 	log.Printf("Starting onboarding conversation for attempt #%d", len(sessions))
 
 	llmService := NewLLMService()
 
-	systemPrompt := `You are Anky, a mysterious guide helping users discover the transformative power of stream of consciousness writing through a mobile app. This is specifically for the app's onboarding process, where users must complete an 8-minute writing session to unlock the full experience (which is also the practice that the app proposes: a daily 8 minute stream of consciousness).
+	systemPrompt := `You are Anky, a mysterious guide helping users discover the transformative power of stream of consciousness writing through a mobile app. Your responses should be engaging and thought-provoking, encouraging users to write more and dig deeper.
 
 Core Mission:
-- Guide complete newcomers through their first attempts at stream of consciousness writing
-- Each response must be exactly 2 sentences, in the same language as the user's writing
-- Create intrigue and curiosity about what they might discover through this practice
-- On the app, each successful 8 minute writing session is transformed into "an Anky", so there is part of that mystery also, because this is the user's first Anky.
+- Guide newcomers through stream of consciousness writing by providing reflective insights and engaging questions. Help the user understand that this platform is about writing a 8 minute stream of consciousness, and direct your reflection towards that.
 
 Progressive Response Strategy (based on attempt number):
-1st Attempt: Focus on clarifying the basic mission - write continuously for 8 minutes without pausing for more than 8 seconds
-2nd Attempt: Acknowledge their progress and hint at deeper layers of self-discovery waiting
-3rd Attempt: Connect their specific writing content to the journey of self-inquiry
-4th+ Attempt: Build anticipation about unlocking the full experience while encouraging longer sessions
+1st Attempt: Focus on building momentum - acknowledge their start and ask what draws them to write
+2nd Attempt: Highlight interesting patterns in their writing and probe deeper into those themes
+3rd Attempt: Connect their writing to their inner journey and ask about their discoveries
+4th+ Attempt: Build excitement about nearing the 8-minute goal while exploring their emerging insights
 
 Context Awareness:
-- If session < 1 minute: Emphasize the need to keep writing without self-judgment
-- If session 1-4 minutes: Acknowledge progress while encouraging longer flow
-- If session 4-7 minutes: Create excitement about being close to the 8-minute goal
-- If session > 7 minutes: Celebrate their achievement and hint at the depths still to explore
+- If session < 1 minute: Validate their start and ask what's on their mind
+- If session 1-4 minutes: Notice their flow and inquire about what's emerging
+- If session 4-7 minutes: Celebrate their progress and probe deeper into their themes
+- If session > 7 minutes: Honor their achievement and explore what they've uncovered
 
-Response Formula (always 2 sentences):
-1. Acknowledge their specific writing content or duration
-2. Create intrigue or give clear next-step guidance`
+Your response must be valid JSON in this format, and create intrigue about what they might discover through this practice:
+{
+  "reflection": "A single sentence noticing something specific about their writing or progress",
+  "inquiry": "A single open-ended question that invites deeper exploration"
+}`
 
 	// Build conversation history with progression context
 	messages := []types.Message{
@@ -463,7 +462,7 @@ Response Formula (always 2 sentences):
 	for i := 0; i < len(sessions); i++ {
 		timeSpent := sessions[i].TimeSpent
 		wordsWritten := sessions[i].WordsWritten
-		avgWPM := float64(wordsWritten) / (float64(timeSpent) / 60.0)
+		avgWPM := float64(wordsWritten) / (float64(*timeSpent) / 60.0)
 
 		attemptContext := fmt.Sprintf(`Onboarding Attempt: %d
 Total Previous Attempts: %d
@@ -479,7 +478,7 @@ Content:
 			timeSpent,
 			wordsWritten,
 			avgWPM,
-			getOnboardingStage(timeSpent),
+			getOnboardingStage(*timeSpent),
 			sessions[i].Writing,
 		)
 
@@ -491,7 +490,7 @@ Content:
 		if i < len(ankyReflections) {
 			messages = append(messages, types.Message{
 				Role:    "assistant",
-				Content: ankyReflections[i].ResponseToUser,
+				Content: ankyReflections[i],
 			})
 		}
 	}
@@ -511,19 +510,6 @@ Content:
 	for partialResponse := range responseChan {
 		fullResponse += partialResponse
 	}
-
-	// // Start a goroutine to store the reflection asynchronously
-	// go func() {
-	// 	reflection := &types.AnkyOnboardingResponse{
-	// 		UserID:         userId,
-	// 		ResponseToUser: fullResponse,
-	// 		CreatedAt:     time.Now().UTC(),
-	// 	}
-
-	// 	if err := s.store.CreateAnkyOnboardingResponse(context.Background(), reflection); err != nil {
-	// 		log.Printf("Error storing onboarding reflection: %v", err)
-	// 	}
-	// }()
 
 	return fullResponse, nil
 }

@@ -57,9 +57,9 @@ func (s *APIServer) Run() error {
 	// User routes
 	router.HandleFunc("/users/register-anon-user", makeHTTPHandleFunc(s.handleRegisterAnonymousUser)).Methods("POST")
 	router.HandleFunc("/users", makeHTTPHandleFunc(s.handleGetUsers)).Methods("GET")
-	router.HandleFunc("/users/{id}", makeHTTPHandleFunc(s.handleGetUserByID)).Methods("GET")
-	router.HandleFunc("/users/{id}", makeHTTPHandleFunc(s.handleUpdateUser)).Methods("PUT")
-	router.HandleFunc("/users/{id}", makeHTTPHandleFunc(s.handleDeleteUser)).Methods("DELETE")
+	router.HandleFunc("/users/{userId}", makeHTTPHandleFunc(s.handleGetUserByID)).Methods("GET")
+	router.HandleFunc("/users/{userId}", makeHTTPHandleFunc(s.handleUpdateUser)).Methods("PUT")
+	router.HandleFunc("/users/{userId}", makeHTTPHandleFunc(s.handleDeleteUser)).Methods("DELETE")
 
 	// Privy user routes
 	router.HandleFunc("/privy-users/${id}", makeHTTPHandleFunc(s.handleCreatePrivyUser)).Methods("POST")
@@ -74,7 +74,7 @@ func (s *APIServer) Run() error {
 	router.HandleFunc("/ankys", makeHTTPHandleFunc(s.handleGetAnkys)).Methods("GET")
 	router.HandleFunc("/ankys/{id}", makeHTTPHandleFunc(s.handleGetAnkyByID)).Methods("GET")
 	router.HandleFunc("/users/{userId}/ankys", makeHTTPHandleFunc(s.handleGetAnkysByUserID)).Methods("GET")
-	router.HandleFunc("/anky/onboarding/{userId}", makeHTTPHandleFunc(s.handleProcessUserOnboarding)).Methods("GET")
+	router.HandleFunc("/anky/onboarding/{userId}", makeHTTPHandleFunc(s.handleProcessUserOnboarding)).Methods("POST")
 
 	// Badge routes
 	router.HandleFunc("/users/{userId}/badges", makeHTTPHandleFunc(s.handleGetUserBadges)).Methods("GET")
@@ -334,6 +334,7 @@ func (s *APIServer) handleWritingSessionStarted(w http.ResponseWriter, r *http.R
 	return WriteJSON(w, http.StatusOK, writingSession)
 }
 
+// Start of Selection
 // POST /writing-session-ended
 func (s *APIServer) handleWritingSessionEnded(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
@@ -342,49 +343,66 @@ func (s *APIServer) handleWritingSessionEnded(w http.ResponseWriter, r *http.Req
 
 	newWritingSessionEndRequest := new(types.CreateWritingSessionEndRequest)
 	if err := json.NewDecoder(r.Body).Decode(newWritingSessionEndRequest); err != nil {
-		fmt.Printf("Error decoding request body: %v\n", err)
-		return err
+		http.Error(w, fmt.Sprintf("Error decoding request body: %v", err), http.StatusBadRequest)
+		return nil
 	}
+	fmt.Printf("Decoded writing session end request: %+v\n", newWritingSessionEndRequest)
 
 	fmt.Printf("Looking up writing session with ID: %s\n", newWritingSessionEndRequest.SessionID)
 	writingSession, err := s.store.GetWritingSessionById(ctx, newWritingSessionEndRequest.SessionID)
 	if err != nil {
-		fmt.Printf("Error getting writing session: %v\n", err)
-		return err
+		http.Error(w, fmt.Sprintf("Error getting writing session: %v", err), http.StatusInternalServerError)
+		return nil
 	}
 
 	fmt.Println("Updating writing session fields...")
-	writingSession.EndingTimestamp = newWritingSessionEndRequest.EndingTimestamp
+	writingSession.EndingTimestamp = &newWritingSessionEndRequest.EndingTimestamp
 	writingSession.WordsWritten = newWritingSessionEndRequest.WordsWritten
 	writingSession.NewenEarned = newWritingSessionEndRequest.NewenEarned
-	writingSession.TimeSpent = newWritingSessionEndRequest.TimeSpent
+	writingSession.TimeSpent = &newWritingSessionEndRequest.TimeSpent
 	writingSession.IsAnky = newWritingSessionEndRequest.IsAnky
-	writingSession.ParentAnkyID = newWritingSessionEndRequest.ParentAnkyID
-	writingSession.AnkyResponse = newWritingSessionEndRequest.AnkyResponse
-	writingSession.Status = "completed"
+	writingSession.Writing = newWritingSessionEndRequest.Text
 
-	if writingSession.IsAnky && writingSession.TimeSpent >= 480 {
+	fmt.Printf("Parsed ParentAnkyID: %s\n", newWritingSessionEndRequest.ParentAnkyID)
+	if newWritingSessionEndRequest.ParentAnkyID != "" {
+		parentAnkyID, err := uuid.Parse(newWritingSessionEndRequest.ParentAnkyID)
+		if err != nil {
+			http.Error(w, fmt.Sprintf("Invalid ParentAnkyID: %v", err), http.StatusBadRequest)
+			return err
+		}
+		writingSession.ParentAnkyID = &parentAnkyID
+	}
+
+	writingSession.AnkyResponse = &newWritingSessionEndRequest.AnkyResponse
+	writingSession.Status = newWritingSessionEndRequest.Status
+
+	fmt.Printf("Writing session fields updated: %+v\n", writingSession)
+
+	if writingSession.IsAnky && writingSession.TimeSpent != nil && *writingSession.TimeSpent >= 480 {
 		bgCtx := context.Background()
 
 		fmt.Println("Initiating Anky creation process...")
 
-		// Create initial Anky record with "processing" status
 		anky := types.NewAnky(writingSession.ID, writingSession.Prompt, writingSession.UserID)
+		fmt.Printf("Created new Anky object: %+v\n", anky)
 
 		if err := s.store.CreateAnky(ctx, anky); err != nil {
-			return fmt.Errorf("error creating initial anky record: %v", err)
+			http.Error(w, fmt.Sprintf("Error creating initial anky record: %v", err), http.StatusInternalServerError)
+			return nil
 		}
+		fmt.Println("Initial Anky record created in database.")
 
-		// Start async processing
 		ankyService, err := services.NewAnkyService(s.store)
 		if err != nil {
-			return fmt.Errorf("error creating anky service: %v", err)
+			http.Error(w, fmt.Sprintf("Error creating anky service: %v", err), http.StatusInternalServerError)
+			return nil
 		}
+		fmt.Println("Anky service created successfully.")
+
 		errChan := make(chan error, 1)
 		go func() {
 			defer close(errChan)
 			if err := ankyService.ProcessAnkyCreation(bgCtx, anky, writingSession); err != nil {
-				// Log error and update Anky status in database
 				log.Printf("Error processing Anky creation: %v", err)
 				anky.Status = "failed"
 				if updateErr := s.store.UpdateAnky(bgCtx, anky); updateErr != nil {
@@ -394,13 +412,14 @@ func (s *APIServer) handleWritingSessionEnded(w http.ResponseWriter, r *http.Req
 			}
 		}()
 
-		writingSession.AnkyID = anky.ID.String()
+		writingSession.AnkyID = &anky.ID
+		fmt.Printf("Anky ID set in writing session: %s\n", anky.ID)
 	}
 
 	fmt.Printf("Saving writing session with updated status: %s\n", writingSession.Status)
 	if err := s.store.UpdateWritingSession(ctx, writingSession); err != nil {
 		fmt.Printf("Error updating writing session: %v\n", err)
-		return err
+		return nil
 	}
 
 	fmt.Println("Writing session successfully updated:")
@@ -480,37 +499,55 @@ func getSessionID(r *http.Request) (string, error) {
 // ***************** ANKY ROUTES *****************
 
 func (s *APIServer) handleProcessUserOnboarding(w http.ResponseWriter, r *http.Request) error {
+	fmt.Println("Starting handleProcessUserOnboarding...")
 	ctx := r.Context()
+
+	fmt.Println("Attempting to get user ID from request...")
 	userID, err := utils.GetUserID(r)
 	if err != nil {
+		fmt.Printf("Error getting user ID: %v\n", err)
 		return err
 	}
+	fmt.Printf("User ID obtained: %s\n", userID)
 
 	// Parse request body
+	fmt.Println("Decoding request body...")
 	var onboardingRequest struct {
-		UserWritings    []*types.WritingSession        `json:"user_writings"`
-		AnkyReflections []*types.AnkyOnboardingResponse `json:"anky_reflections"`
+		UserWritings    []*types.WritingSession `json:"user_writings"`
+		AnkyReflections []string                `json:"anky_responses"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&onboardingRequest); err != nil {
+		fmt.Printf("Error decoding request body: %v\n", err)
 		return fmt.Errorf("error decoding request body: %v", err)
 	}
+	fmt.Printf("Decoded request body: %+v\n", onboardingRequest)
 
 	// Validate the lengths
+	fmt.Println("Validating lengths of user writings and anky reflections...")
 	if len(onboardingRequest.UserWritings) != len(onboardingRequest.AnkyReflections)+1 {
+		fmt.Println("Invalid number of writings and reflections")
 		return fmt.Errorf("invalid number of writings and reflections")
 	}
+	fmt.Println("Validation successful")
 
+	fmt.Println("Creating Anky service...")
 	ankyService, err := services.NewAnkyService(s.store)
 	if err != nil {
+		fmt.Printf("Error creating anky service: %v\n", err)
 		return fmt.Errorf("error creating anky service: %v", err)
 	}
+	fmt.Println("Anky service created successfully")
 
+	fmt.Println("Processing onboarding conversation...")
 	response, err := ankyService.OnboardingConversation(ctx, userID, onboardingRequest.UserWritings, onboardingRequest.AnkyReflections)
 	if err != nil {
+		fmt.Printf("Error processing onboarding conversation: %v\n", err)
 		return fmt.Errorf("error processing onboarding conversation: %v", err)
 	}
+	fmt.Printf("Onboarding conversation processed successfully, response: %s\n", response)
 
+	fmt.Println("Sending response...")
 	return WriteJSON(w, http.StatusOK, map[string]string{
 		"reflection": response,
 	})

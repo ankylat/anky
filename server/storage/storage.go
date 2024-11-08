@@ -186,15 +186,6 @@ func (s *PostgresStore) CreateWritingSession(ctx context.Context, ws *types.Writ
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
     `
 
-	// Handle potentially nil UUID fields
-	var parentAnkyID *uuid.UUID
-	if ws.ParentAnkyID != "" {
-		parsed, err := uuid.Parse(ws.ParentAnkyID)
-		if err == nil {
-			parentAnkyID = &parsed
-		}
-	}
-
 	_, err := s.db.Exec(ctx, query,
 		ws.ID,
 		ws.UserID,
@@ -207,7 +198,7 @@ func (s *PostgresStore) CreateWritingSession(ctx context.Context, ws *types.Writ
 		ws.NewenEarned,
 		ws.TimeSpent,
 		ws.IsAnky,
-		parentAnkyID, // Use the nullable UUID
+		ws.ParentAnkyID, // Directly use the UUID pointer
 		ws.AnkyResponse,
 		ws.IsOnboarding,
 	)
@@ -420,7 +411,11 @@ func scanIntoUser(row pgx.Row) (*types.User, error) {
 
 func scanIntoWritingSession(row pgx.Row) (*types.WritingSession, error) {
 	ws := new(types.WritingSession)
-	var endingTimestamp *time.Time // Use pointer to handle NULL
+	var endingTimestamp *time.Time
+	var parentAnkyID *uuid.UUID
+	var ankyResponse *string
+	var ankyID *uuid.UUID
+
 	err := row.Scan(
 		&ws.ID,
 		&ws.SessionIndexForUser,
@@ -433,20 +428,25 @@ func scanIntoWritingSession(row pgx.Row) (*types.WritingSession, error) {
 		&ws.NewenEarned,
 		&ws.TimeSpent,
 		&ws.IsAnky,
-		&ws.ParentAnkyID,
-		&ws.AnkyResponse,
+		&parentAnkyID,
+		&ankyResponse,
 		&ws.Status,
-		&ws.AnkyID,
+		&ankyID,
 		&ws.IsOnboarding,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan writing session: %w", err)
 	}
 
-	// Only set EndingTimestamp if not NULL
+	// Handle nullable fields
 	if endingTimestamp != nil {
-		ws.EndingTimestamp = *endingTimestamp
+		ws.EndingTimestamp = endingTimestamp
 	}
+
+	// Direct assignment of UUID pointers
+	ws.ParentAnkyID = parentAnkyID
+	ws.AnkyResponse = ankyResponse
+	ws.AnkyID = ankyID
 
 	return ws, nil
 }
