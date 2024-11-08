@@ -80,6 +80,7 @@ const WritingGame = () => {
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const cursorOpacity = useSharedValue(1);
   const [prompt, setPrompt] = useState("tell me who you are");
+  const [ankyResponseReady, setAnkyResponseReady] = useState(false);
 
   const [timeSinceLastKeystroke, setTimeSinceLastKeystroke] = useState(0);
 
@@ -209,7 +210,6 @@ const WritingGame = () => {
         ...(writingAttempts ? JSON.parse(writingAttempts) : []),
         newGameState,
       ];
-      await getOnboardingResponse(newWritingAttempts);
 
       console.log("Created new writing attempts array:", newWritingAttempts);
 
@@ -222,7 +222,6 @@ const WritingGame = () => {
       console.log("Saved new writing attempts to localStorage");
 
       console.log("****************************************************");
-      await endWritingSession(newGameState, "ENDING THE WRITING SESSION");
 
       if (data.totalDuration >= MAX_SESSION_DURATION) {
         console.log("Duration >= 480, user is ready");
@@ -231,7 +230,9 @@ const WritingGame = () => {
         console.log("Duration < 480, user not ready");
         prettyLog("THE USER IS NOT READY, KEEP THEM IN THE GAME");
         console.log("Writing session ended");
+        await getOnboardingResponse(newWritingAttempts);
       }
+      await endWritingSession(newGameState, "ENDING THE WRITING SESSION");
     } catch (error) {
       console.error("Error in handleSessionEnded:", error);
       throw error;
@@ -255,6 +256,7 @@ const WritingGame = () => {
         newWritingAttempts,
         existingResponses
       );
+      setAnkyResponseReady(true);
       setAnkyResponses((prev) => [...prev, ankyResponse.reflection]);
 
       // Add new response to array and save
@@ -290,6 +292,7 @@ const WritingGame = () => {
   };
 
   const handleScreenTap = () => {
+    setAnkyResponseReady(false);
     if (gameState.status !== "writing") {
       console.log("IN HERE THE ANONYMOUS ID IS: ", anonymousId);
       const thisWritingSession = {
@@ -328,11 +331,11 @@ const WritingGame = () => {
         textInputRef.current?.focus();
       }
 
-      sessionTimeoutRef.current = setTimeout(() => {
-        Alert.alert("Time Check!", "You've been writing for 8 minutes! 🎉", [
-          { text: "Keep Writing!", style: "default" },
-        ]);
-      }, MAX_SESSION_DURATION);
+      // sessionTimeoutRef.current = setTimeout(() => {
+      //   Alert.alert("Time Check!", "You've been writing for 8 minutes! 🎉", [
+      //     { text: "Keep Writing!", style: "default" },
+      //   ]);
+      // }, MAX_SESSION_DURATION);
     }
   };
 
@@ -430,6 +433,7 @@ const WritingGame = () => {
           <IncompleteSessionScreen
             ankyResponses={ankyResponses}
             sessionData={sessionData!}
+            ankyResponseReady={ankyResponseReady}
             onRetry={handleScreenTap}
           />
         );
@@ -439,6 +443,7 @@ const WritingGame = () => {
           <CompleteSessionScreen
             sessionData={sessionData!}
             onNextStep={() => {}}
+            ankyResponseReady={ankyResponseReady}
           />
         );
     }
