@@ -57,6 +57,7 @@ db-migrate:
 	@echo "$(GREEN)✅ Migrations complete!$(RESET)"
 
 build:
+<<<<<<< Updated upstream
 	@echo "$(GREEN)Building application...$(RESET)"
 	@go build -o bin/server *.go
 
@@ -83,3 +84,16 @@ db-rollback:
 	@echo "$(YELLOW)Rolling back last migration...$(RESET)"
 	@migrate -database "${DATABASE_URL}" -path storage/migrations down 1
 	@echo "$(GREEN)Rollback complete!$(RESET)"
+=======
+	@echo "$(YELLOW)Building binary...$(RESET)"
+	@go build -o bin/anky main.go
+
+run: build db-check
+	@echo "$(GREEN)Running server...$(RESET)"
+	@./bin/anky
+
+db-check:
+	@echo "$(YELLOW)Checking database...$(RESET)"
+	@docker exec -it anky-postgres pg_isready -U anky -d anky_db || (echo "$(RED)Database is not ready!$(RESET)" && exit 1)
+	@echo "$(GREEN)Database is connected!$(RESET)"
+>>>>>>> Stashed changes
