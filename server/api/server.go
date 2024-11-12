@@ -60,6 +60,7 @@ func (s *APIServer) Run() error {
 	router.HandleFunc("/users/{userId}", makeHTTPHandleFunc(s.handleGetUserByID)).Methods("GET")
 	router.HandleFunc("/users/{userId}", makeHTTPHandleFunc(s.handleUpdateUser)).Methods("PUT")
 	router.HandleFunc("/users/{userId}", makeHTTPHandleFunc(s.handleDeleteUser)).Methods("DELETE")
+	router.HandleFunc("/users/create-profile/{userId}", makeHTTPHandleFunc(s.handleCreateUserProfile)).Methods("POST")
 
 	// Privy user routes
 	router.HandleFunc("/privy-users/${id}", makeHTTPHandleFunc(s.handleCreatePrivyUser)).Methods("POST")
@@ -75,6 +76,7 @@ func (s *APIServer) Run() error {
 	router.HandleFunc("/ankys/{id}", makeHTTPHandleFunc(s.handleGetAnkyByID)).Methods("GET")
 	router.HandleFunc("/users/{userId}/ankys", makeHTTPHandleFunc(s.handleGetAnkysByUserID)).Methods("GET")
 	router.HandleFunc("/anky/onboarding/{userId}", makeHTTPHandleFunc(s.handleProcessUserOnboarding)).Methods("POST")
+	router.HandleFunc("/anky/edit-cast", makeHTTPHandleFunc(s.handleEditCast)).Methods("POST")
 
 	// Badge routes
 	router.HandleFunc("/users/{userId}/badges", makeHTTPHandleFunc(s.handleGetUserBadges)).Methods("GET")
@@ -208,6 +210,40 @@ func (s *APIServer) handleDeleteUser(w http.ResponseWriter, r *http.Request) err
 	}
 
 	return s.store.DeleteUser(ctx, id)
+}
+
+func (s *APIServer) handleCreateUserProfile(w http.ResponseWriter, r *http.Request) error {
+	fmt.Println("Starting handleCreateUserProfile...")
+	ctx := r.Context()
+
+	fmt.Println("Attempting to get user ID from request...")
+	userID, err := utils.GetUserID(r)
+	if err != nil {
+		fmt.Printf("Error getting user ID: %v\n", err)
+		return err
+	}
+	fmt.Printf("User ID obtained: %s\n", userID)
+
+	ankyService, err := services.NewAnkyService(s.store)
+	if err != nil {
+		fmt.Printf("Error creating anky service: %v\n", err)
+		return fmt.Errorf("error creating anky service: %v", err)
+	}
+	fmt.Println("Anky service created successfully")
+
+	fmt.Println("Processing onboarding conversation...")
+	response, err := ankyService.CreateUserProfile(ctx, userID)
+	if err != nil {
+		fmt.Printf("Error processing onboarding conversation: %v\n", err)
+		return fmt.Errorf("error processing onboarding conversation: %v", err)
+	}
+	fmt.Printf("Onboarding conversation processed successfully, response: %s\n", response)
+
+	fmt.Println("Sending response...")
+	return WriteJSON(w, http.StatusOK, map[string]string{
+		"123": "123",
+	})
+
 }
 
 // ***************** PRIVY ROUTES *****************
@@ -378,30 +414,51 @@ func (s *APIServer) handleWritingSessionEnded(w http.ResponseWriter, r *http.Req
 
 	fmt.Printf("Writing session fields updated: %+v\n", writingSession)
 
-	if writingSession.IsAnky && writingSession.TimeSpent != nil && *writingSession.TimeSpent >= 480 {
+	if writingSession.IsAnky {
 		bgCtx := context.Background()
 
 		fmt.Println("Initiating Anky creation process...")
 
+		// Validate UUIDs before creating Anky
+		if writingSession.ID == uuid.Nil {
+			return fmt.Errorf("writing session ID is nil")
+		}
+		if writingSession.UserID == uuid.Nil {
+			return fmt.Errorf("user ID is nil")
+		}
+
 		anky := types.NewAnky(writingSession.ID, writingSession.Prompt, writingSession.UserID)
-		fmt.Printf("Created new Anky object: %+v\n", anky)
+
+		// Additional validation
+		if anky.ID == uuid.Nil {
+			return fmt.Errorf("generated anky ID is nil")
+		}
+
+		log.Printf("Creating Anky - ID: %s, UserID: %s, WritingSessionID: %s",
+			anky.ID, anky.UserID, anky.WritingSessionID)
 
 		if err := s.store.CreateAnky(ctx, anky); err != nil {
-			http.Error(w, fmt.Sprintf("Error creating initial anky record: %v", err), http.StatusInternalServerError)
-			return nil
+			log.Printf("Error creating initial anky record: %v", err)
+			return fmt.Errorf("failed to create anky record: %v", err)
 		}
 		fmt.Println("Initial Anky record created in database.")
 
 		ankyService, err := services.NewAnkyService(s.store)
 		if err != nil {
-			http.Error(w, fmt.Sprintf("Error creating anky service: %v", err), http.StatusInternalServerError)
-			return nil
+			log.Printf("Error creating anky service: %v", err)
+			return fmt.Errorf("failed to create anky service: %v", err)
 		}
 		fmt.Println("Anky service created successfully.")
 
+		// Create error channel with buffer
 		errChan := make(chan error, 1)
+		doneChan := make(chan bool, 1)
+
 		go func() {
 			defer close(errChan)
+			defer close(doneChan)
+
+			log.Printf("Starting ProcessAnkyCreation for Anky ID: %s", anky.ID)
 			if err := ankyService.ProcessAnkyCreation(bgCtx, anky, writingSession); err != nil {
 				log.Printf("Error processing Anky creation: %v", err)
 				anky.Status = "failed"
@@ -409,8 +466,22 @@ func (s *APIServer) handleWritingSessionEnded(w http.ResponseWriter, r *http.Req
 					log.Printf("Error updating Anky status: %v", updateErr)
 				}
 				errChan <- err
+				return
 			}
+			log.Printf("Successfully completed ProcessAnkyCreation for Anky ID: %s", anky.ID)
+			doneChan <- true
 		}()
+
+		// Set a timeout for the goroutine
+		select {
+		case err := <-errChan:
+			if err != nil {
+				log.Printf("Received error from ProcessAnkyCreation: %v", err)
+				// Continue execution despite error, as this is async
+			}
+		case <-time.After(2 * time.Second): // Adjust timeout as needed
+			log.Println("ProcessAnkyCreation started successfully in background")
+		}
 
 		writingSession.AnkyID = &anky.ID
 		fmt.Printf("Anky ID set in writing session: %s\n", anky.ID)
@@ -615,6 +686,34 @@ func (s *APIServer) handleGetAnkysByUserID(w http.ResponseWriter, r *http.Reques
 	}
 
 	return WriteJSON(w, http.StatusOK, ankys)
+}
+
+func (s *APIServer) handleEditCast(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	var editCastRequest struct {
+		Text    string `json:"text"`
+		UserFid int    `json:"user_fid"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&editCastRequest); err != nil {
+		fmt.Printf("Error decoding request body: %v\n", err)
+		return fmt.Errorf("error decoding request body: %v", err)
+	}
+	fmt.Printf("Decoded request body: %+v\n", editCastRequest)
+
+	ankyService, err := services.NewAnkyService(s.store)
+	if err != nil {
+		return fmt.Errorf("error creating anky service: %v", err)
+	}
+
+	response, err := ankyService.EditCast(ctx, editCastRequest.Text, editCastRequest.UserFid)
+	if err != nil {
+		return fmt.Errorf("error editing cast: %v", err)
+	}
+
+	return WriteJSON(w, http.StatusOK, map[string]string{
+		"response": response,
+	})
 }
 
 // ******************** BADGE ROUTES ********************

@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 
+	"context"
+
 	"github.com/ankylat/anky/server/types"
 	"github.com/joho/godotenv"
 )
@@ -260,4 +262,67 @@ func (s *NeynarService) WriteCast(apiKey, signerUUID, text, channelID, idem, ses
 
 	log.Printf("Successfully wrote cast. Response: %s", string(body))
 	return response.Cast, nil
+}
+
+func (s *NeynarService) CreateNewFid(ctx context.Context) (int, error) {
+	url := "https://farcaster.anky.bot/create-new-fid"
+
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return 0, fmt.Errorf("error creating request: %v", err)
+	}
+
+	req.Header.Add("accept", "application/json")
+	req.Header.Add("ANKY_API_KEY", s.apiKey)
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return 0, fmt.Errorf("error sending request: %v", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(res.Body)
+		return 0, fmt.Errorf("unexpected status code: %d, body: %s", res.StatusCode, string(body))
+	}
+
+	var response struct {
+		Fid int `json:"fid"`
+	}
+
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		return 0, fmt.Errorf("error reading response body: %v", err)
+	}
+
+	if err := json.Unmarshal(body, &response); err != nil {
+		return 0, fmt.Errorf("error unmarshaling response: %v", err)
+	}
+
+	return response.Fid, nil
+}
+
+func (s *NeynarService) LinkAnkyWithFid(ctx context.Context, ankyID string, fid int) error {
+	url := fmt.Sprintf("https://farcaster.anky.bot/link-anky/%s/%d", ankyID, fid)
+
+	req, err := http.NewRequest("POST", url, nil)
+	if err != nil {
+		return fmt.Errorf("error creating request: %v", err)
+	}
+
+	req.Header.Add("accept", "application/json")
+	req.Header.Add("ANKY_API_KEY", s.apiKey)
+
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("error sending request: %v", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(res.Body)
+		return fmt.Errorf("unexpected status code: %d, body: %s", res.StatusCode, string(body))
+	}
+
+	return nil
 }

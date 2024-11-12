@@ -201,15 +201,15 @@ type Anky struct {
 	ChosenPrompt     string    `json:"chosen_prompt" bson:"chosen_prompt"`
 	AnkyReflection   string    `json:"anky_reflection" bson:"anky_reflection"`
 	ImagePrompt      string    `json:"image_prompt" bson:"image_prompt"`
-	FollowUpPrompts  []string  `json:"follow_up_prompts" bson:"follow_up_prompts"`
+	FollowUpPrompt   string    `json:"follow_up_prompt" bson:"follow_up_prompt"`
 	ImageURL         string    `json:"image_url" bson:"image_url"`
 	ImageIPFSHash    string    `json:"image_ipfs_hash" bson:"image_ipfs_hash"`
 	Status           string    `json:"status" bson:"status"`
 
-	CastHash       string    `json:"cast_hash" bson:"cast_hash"`
-	CreatedAt      time.Time `json:"created_at" bson:"created_at"`
-	LastUpdatedAt  time.Time `json:"last_updated_at" bson:"last_updated_at"`
-	PreviousAnkyID string    `json:"previous_anky_id" bson:"previous_anky_id"`
+	CastHash      string    `json:"cast_hash" bson:"cast_hash"`
+	CreatedAt     time.Time `json:"created_at" bson:"created_at"`
+	LastUpdatedAt time.Time `json:"last_updated_at" bson:"last_updated_at"`
+	FID           int       `json:"fid" bson:"fid"`
 }
 
 type AnkyOnProfile struct {
