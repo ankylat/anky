@@ -13,7 +13,6 @@ import {
   TouchableWithoutFeedback,
   Text,
   TouchableOpacity,
-  PanResponder,
   StyleSheet,
   Keyboard,
   KeyboardAvoidingView,
@@ -56,12 +55,8 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
     propsModes = undefined,
   }) => {
     console.log("WritingGame component rendered");
-    const {
-      ankyUser,
-      setIsWritingGameVisible,
-      setIsUserWriting,
-      writingGameProps,
-    } = useAnky();
+    const { ankyUser, setIsWritingGameVisible, setIsUserWriting, currentAnky } =
+      useAnky();
     const { user, getAccessToken } = usePrivy();
 
     const lastKeystroke = useRef<number>(Date.now());
@@ -78,7 +73,6 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
       sessionStarted: false,
       targetReached: false,
       displaySeconds: true,
-      currentMode: "center",
       keyboardHeight: 0,
       tapCount: 0,
     });
@@ -86,36 +80,6 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
     const [text, setText] = useState<string>(
       writingSession?.writing || initialText
     );
-
-    const modes = useMemo(
-      () => propsModes || writingGameProps,
-      [propsModes, writingGameProps]
-    );
-
-    const panResponder = useMemo(() => {
-      const swipeThreshold = 50;
-      return PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
-        onPanResponderMove: (_, { dx, dy }) => {
-          if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > swipeThreshold) {
-            setGameState((prev) => ({
-              ...prev,
-              currentMode: dx > 0 ? "right" : "left",
-            }));
-          } else if (
-            Math.abs(dy) > Math.abs(dx) &&
-            Math.abs(dy) > swipeThreshold
-          ) {
-            setGameState((prev) => ({
-              ...prev,
-              currentMode: dy > 0 ? "down" : "up",
-            }));
-          }
-        },
-        onPanResponderRelease: () => {},
-      });
-    }, []);
 
     // Memoized keyboard event handlers
     useEffect(() => {
@@ -216,10 +180,7 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
         user_id: ankyUser?.id || "anonymous",
         starting_timestamp: new Date(),
         ending_timestamp: null,
-        prompt:
-          modes.directions[
-            gameState.currentMode as keyof typeof modes.directions
-          ].prompt,
+        prompt: currentAnky?.anky_inquiry,
         writing: null,
         words_written: 0,
         is_anky: false,
@@ -254,10 +215,7 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
         user_id: user?.id || "anonymous",
         starting_timestamp: new Date(),
         ending_timestamp: null,
-        prompt:
-          modes.directions[
-            gameState.currentMode as keyof typeof modes.directions
-          ].prompt,
+        prompt: currentAnky?.anky_inquiry,
         writing: text,
         words_written: text.split(" ").length,
         newen_earned: 0,
@@ -312,15 +270,7 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
       console.log("Rendering WritingGameSessionEnded component");
       return (
         <View style={{ flex: 1 }}>
-          <View
-            className="absolute w-full h-full"
-            style={{
-              backgroundColor:
-                modes.directions[
-                  gameState.currentMode as keyof typeof modes.directions
-                ].color,
-            }}
-          >
+          <View className="absolute w-full h-full">
             <TextInput
               className="flex-1 text-2xl p-5"
               style={{
@@ -374,12 +324,8 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
         <View
           className="flex-1 w-full pt-16"
           style={{
-            backgroundColor:
-              modes.directions[
-                gameState.currentMode as keyof typeof modes.directions
-              ].color,
+            backgroundColor: ankyverseDay?.currentColor.main || "#000",
           }}
-          {...panResponder.panHandlers}
         >
           {gameState.displaySeconds && (
             <Pressable
@@ -407,7 +353,8 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
             }}
           >
             <Text className="absolute top-4 left-4">
-              target: {modes.targetDuration} | {secondsBetweenKeystrokes}
+              target: {propsModes?.targetDuration || 480} |{" "}
+              {secondsBetweenKeystrokes}
             </Text>
           </View>
 
@@ -456,24 +403,15 @@ const WritingGame: React.FC<PlaygroundProps> = React.memo(
               ref={textInputRef}
               className="flex-1 text-2xl px-2"
               style={{
-                color:
-                  modes.directions[
-                    gameState.currentMode as keyof typeof modes.directions
-                  ].textColor,
+                color: ankyverseDay?.currentColor.textColor || "#fff",
                 maxHeight: height - gameState.keyboardHeight - 100,
               }}
               multiline
               onChangeText={handleTextChange}
               value={text}
-              placeholder={
-                modes.directions[
-                  gameState.currentMode as keyof typeof modes.directions
-                ].prompt
-              }
+              placeholder={currentAnky?.anky_inquiry}
               placeholderTextColor={
-                modes.directions[
-                  gameState.currentMode as keyof typeof modes.directions
-                ].textColor
+                ankyverseDay?.currentColor.textColor || "#fff"
               }
               editable={gameState.sessionStarted}
             />

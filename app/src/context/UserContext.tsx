@@ -10,7 +10,7 @@ import { getLocales } from "expo-localization";
 import { v4 as uuidv4 } from "uuid";
 import { Dimensions, Platform } from "react-native";
 import { registerAnonUser } from "../api";
-import { prettyLog } from "../app/lib/user";
+import { prettyLog } from "../app/lib/logs";
 
 interface UserContextType {
   casts: Cast[];

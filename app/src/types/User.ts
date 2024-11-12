@@ -1,4 +1,7 @@
-export interface User {
+import { User as PrivyUserType } from "@privy-io/expo";
+import { Anky } from "./Anky";
+
+export interface FarcasterAccount {
   id: string;
   active_status?: string;
   total_writing_time?: number;
@@ -19,6 +22,8 @@ export interface User {
   user_metadata?: UserMetadata;
   jwt?: string;
   is_anonymous?: boolean;
+  privy_account?: PrivyUserType;
+  chosen_anky?: Anky;
 }
 
 export interface Profile {

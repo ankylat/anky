@@ -1,11 +1,21 @@
-import React, { createContext, useContext, useMemo } from "react";
+import React, {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { usePrivy } from "@privy-io/expo";
+import { FarcasterAccount } from "@/src/types/User";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Define the shape of our context value
 interface QuilibriumContextValue {
   user: ReturnType<typeof usePrivy>["user"];
   isReady: ReturnType<typeof usePrivy>["isReady"];
   getAccessToken: ReturnType<typeof usePrivy>["getAccessToken"];
+  ankyUser: FarcasterAccount | null;
+  setAnkyUser: (user: FarcasterAccount | null) => void;
 }
 
 // Create the context with a default value
@@ -26,7 +36,15 @@ export const useQuilibrium = () => {
 export const QuilibriumProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
+  const [ankyUser, setAnkyUser] = useState<FarcasterAccount | null>(null);
   const { user, isReady, getAccessToken } = usePrivy();
+  useEffect(() => {
+    AsyncStorage.getItem("ankyUser").then((data) => {
+      if (!user && data) {
+        setAnkyUser(JSON.parse(data));
+      }
+    });
+  }, [user]);
 
   // Memoize the context value to prevent unnecessary re-renders
   const contextValue = useMemo(
@@ -34,8 +52,10 @@ export const QuilibriumProvider: React.FC<{ children: React.ReactNode }> = ({
       user,
       isReady,
       getAccessToken,
+      ankyUser,
+      setAnkyUser,
     }),
-    [user, isReady, getAccessToken]
+    [user, isReady, getAccessToken, ankyUser, setAnkyUser]
   );
 
   return (

@@ -1,5 +1,5 @@
 // SessionScreens.tsx
-import { prettyLog } from "@/src/app/lib/user";
+import { prettyLog } from "@/src/app/lib/logs";
 import React, { useRef, useEffect, useState } from "react";
 import {
   View,
@@ -21,6 +21,8 @@ import Animated, {
   withDelay,
 } from "react-native-reanimated";
 import { characters } from "@/src/app/lib/ankyverse";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import LinearGradient from "react-native-svg/lib/typescript/elements/LinearGradient";
 
 const { height, width } = Dimensions.get("window");
 
@@ -184,29 +186,76 @@ export const CompleteSessionScreen: React.FC<SessionScreenProps> = ({
   sessionData,
   onNextStep,
 }) => {
+  const progressSize = Math.min((sessionData.wordCount / 500) * 100, 100);
+  const rotateValue = useSharedValue(0);
+  const scaleValue = useSharedValue(1);
+
+  useEffect(() => {
+    rotateValue.value = withRepeat(
+      withTiming(360, { duration: 10000 }),
+      -1,
+      false
+    );
+    scaleValue.value = withRepeat(
+      withSequence(
+        withTiming(1.2, { duration: 1000 }),
+        withTiming(1, { duration: 1000 })
+      ),
+      -1,
+      true
+    );
+  }, []);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [
+      { rotate: `${rotateValue.value}deg` },
+      { scale: scaleValue.value },
+    ],
+  }));
+
   return (
-    <View style={[styles.container, { backgroundColor: "#00ff00" }]}>
-      <Text style={styles.title}>Session Complete!</Text>
-      <View style={styles.statsContainer}>
-        <Text style={styles.message}>
-          You stayed present for {Math.round(sessionData.totalDuration / 1000)}{" "}
-          seconds
-          {"\n"}
-          Expressing {sessionData.wordCount} words
-          {"\n"}
-          At {sessionData.averageWPM} words per minute
-          {"\n\n"}
-          Great job completing your session!
-        </Text>
-      </View>
-      <TouchableOpacity style={styles.button} onPress={onNextStep}>
-        <Text style={styles.buttonText}>Next Steps</Text>
+    <View style={[styles.container, { backgroundColor: "#0B1026" }]}>
+      <Animated.View style={[styles.mandala, animatedStyle]}>
+        <View style={styles.progressCircle}>
+          <View
+            style={[
+              styles.innerCircle,
+              { width: `${progressSize}%`, height: `${progressSize}%` },
+            ]}
+          >
+            {/* TODO: Import and use LottieView properly */}
+            <View style={styles.celebrationAnim} />
+          </View>
+        </View>
+      </Animated.View>
+
+      <TouchableOpacity style={styles.floatingButton} onPress={onNextStep}>
+        <MaterialCommunityIcons name="arrow-right" size={32} color="#00FFFF" />
       </TouchableOpacity>
     </View>
   );
 };
 
 const styles = StyleSheet.create({
+  floatingButton: {
+    position: "absolute",
+    bottom: 40,
+    right: 40,
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: "rgba(0,0,0,0.8)",
+    alignItems: "center",
+    justifyContent: "center",
+    elevation: 5,
+    shadowColor: "#000",
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+  },
   container: {
     flex: 1,
     alignItems: "center",
@@ -310,6 +359,29 @@ const styles = StyleSheet.create({
     textAlign: "center",
     lineHeight: 32,
     marginBottom: 20,
+  },
+  mandala: {
+    width: width * 0.8,
+    height: width * 0.8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  progressCircle: {
+    width: "100%",
+    height: "100%",
+    borderRadius: width * 0.4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  innerCircle: {
+    backgroundColor: "#0B1026",
+    borderRadius: width * 0.4,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  celebrationAnim: {
+    width: "100%",
+    height: "100%",
   },
 });
 

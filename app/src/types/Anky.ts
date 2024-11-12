@@ -1,4 +1,5 @@
 import { Cast } from "./Cast";
+import { Keystroke } from "./WritingGame";
 
 export interface WritingSession {
   session_id: string | null;
@@ -10,18 +11,21 @@ export interface WritingSession {
   writing?: string | null;
   words_written?: number | 0;
   newen_earned?: number | 0;
+  is_onboarding?: boolean | null;
+
   time_spent?: number | null; // duration in seconds
   is_anky?: boolean | null;
 
   parent_anky_id?: string | null;
-  writing_patterns?: WritingPatterns;
-  keystroke_data?: KeystrokeEvent[];
-  is_onboarding?: boolean | null;
+  anky_response?: string | null;
 
   status?: string | null;
 
   anky_id?: string | null;
   anky?: Anky | null;
+
+  writing_patterns?: WritingPatterns;
+  keystroke_data?: Keystroke[];
 }
 
 export interface Anky {
@@ -30,15 +34,16 @@ export interface Anky {
   writing_session_id: string;
   prompt: string;
   anky_reflection: string | null;
-  image_url: string | null;
+  anky_inquiry: string;
+  image_url: string;
   image_ipfs_hash: string | null;
   status: string | null;
   cast_hash: string | null;
   created_at: Date;
   updated_at: Date;
   previous_anky_id: string | null;
-
-  cast: Cast | null;
+  name: string;
+  token_address: string | null;
 }
 
 export interface WritingPatterns {
