@@ -13,7 +13,6 @@
 
 ### Key Relationships
 - Each writing session belongs to a user
-- Ankys can be linked to writing sessions and other ankys (previous_anky_id)
 - Badges belong to users
 - Linked accounts connect to privy_users
 

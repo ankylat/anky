@@ -90,14 +90,13 @@ CREATE TABLE ankys (
     chosen_prompt TEXT,
     anky_reflection TEXT,
     image_prompt TEXT,
-    follow_up_prompts TEXT[],
+    follow_up_prompt TEXT,
     image_url TEXT,
     image_ipfs_hash TEXT,
     status VARCHAR(50) DEFAULT 'created',
     cast_hash VARCHAR(255),
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    last_updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    previous_anky_id UUID REFERENCES ankys(id)
+    last_updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE badges (

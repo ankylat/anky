@@ -76,7 +76,7 @@ func (s *AnkyService) ProcessAnkyCreation(ctx context.Context, anky *types.Anky,
 	s.store.UpdateAnky(ctx, anky)
 	anky.ImagePrompt = reflection["imageprompt"]
 
-	anky.FollowUpPrompts = []string{reflection["center"], reflection["purpose"], reflection["mortality"], reflection["freedom"], reflection["connection"]}
+	anky.FollowUpPrompt = reflection["prompt"]
 
 	anky.Status = "going_to_generate_image"
 	s.store.UpdateAnky(ctx, anky)
@@ -158,6 +158,68 @@ func (s *AnkyService) ProcessAnkyCreation(ctx context.Context, anky *types.Anky,
 	return nil
 }
 
+// CreateUserProfile creates a new Farcaster profile for a user by:
+// 1. Creating a new FID (Farcaster ID) through Neynar's API
+// 2. Linking that FID with the user's most recent Anky writing
+// 3. Returning the approval URL that the user needs to visit to complete setup
+func (s *AnkyService) CreateUserProfile(ctx context.Context, userID uuid.UUID) (string, error) {
+	log.Printf("Starting CreateUserProfile service for user ID: %s", userID)
+
+	// First we need to create a new FID (Farcaster ID) for this user
+	// This is done by calling Neynar's API which will:
+	// 1. Generate a new signer
+	// 2. Create a new FID
+	// 3. Return the FID number
+	neynarService := NewNeynarService()
+
+	newFid, err := neynarService.CreateNewFid(ctx)
+	if err != nil {
+		log.Printf("Error creating new FID through Neynar: %v", err)
+		return "", fmt.Errorf("failed to create new FID: %v", err)
+	}
+
+	// We need to get the user's most recent Anky writing
+	// This will be linked with their new Farcaster profile
+	lastAnky, err := s.store.GetLastAnkyByUserID(ctx, userID)
+	if err != nil {
+		log.Printf("Error retrieving user's last Anky: %v", err)
+		return "", fmt.Errorf("failed to get last Anky: %v", err)
+	}
+
+	// Make sure the user has at least one Anky writing
+	if lastAnky == nil {
+		return "", fmt.Errorf("user must create at least one Anky writing before creating a profile")
+	}
+
+	// Update the Anky in our database to store the FID
+	// This creates the link between the user's writing and their Farcaster identity
+	err = s.store.UpdateAnky(ctx, &types.Anky{
+		ID:     lastAnky.ID,
+		FID:    newFid,
+		Status: "fid_linked",
+	})
+	if err != nil {
+		log.Printf("Error updating Anky with new FID: %v", err)
+		return "", fmt.Errorf("failed to link FID to Anky: %v", err)
+	}
+
+	// Now we need to tell Neynar to link this Anky with the FID
+	// This creates the connection in Neynar's system
+	err = s.LinkAnkyWithFid(ctx, lastAnky.ID, newFid)
+	if err != nil {
+		log.Printf("Error linking Anky with FID in Neynar: %v", err)
+		return "", fmt.Errorf("failed to link Anky with FID in Neynar: %v", err)
+	}
+
+	// For now return a placeholder URL since the approval URL isn't returned by CreateNewFid
+	return "https://farcaster.anky.bot/approve", nil
+}
+
+func (s *AnkyService) LinkAnkyWithFid(ctx context.Context, ankyID uuid.UUID, fid int) error {
+	// TODO: LINK ANKY WITH NEWLY CREATED FID
+	return nil
+}
+
 func (s *AnkyService) GenerateAnkyReflection(session *types.WritingSession) (map[string]string, error) {
 	log.Printf("Starting LLM processing for session ID: %s", session.ID)
 
@@ -168,27 +230,19 @@ func (s *AnkyService) GenerateAnkyReflection(session *types.WritingSession) (map
 		Messages: []types.Message{
 			{
 				Role: "system",
-				Content: `You are an AI guide for deep self-exploration, grounded in the tradition of Ramana Maharshi's self-inquiry method. Your role is to analyze the user's stream of consciousness writing and generate prompts that guide them deeper into their psyche. Focus on the five cardinal directions of inquiry, each representing a fundamental aspect of human experience.
-	
+				Content: `You are an AI guide for deep self-exploration. Your role is to analyze the user's stream of consciousness writing and generate two prompts:
+
+				1. A thought-provoking question that guides them deeper into self-reflection
+				2. A vivid, symbolic description for image generation that captures the essence of their writing
+
 				Generate a JSON object with the following structure:
 				
 				{
-					"center": "A direct question pointing to the source of the 'I' thought, in the style of Ramana Maharshi. This prompt should guide the user to explore their core identity and sense of self.",
-					"purpose": "A probing question about the user's deepest sense of purpose and meaning in life. This prompt should encourage reflection on personal calling and life's significance.",
-					"mortality": "A direct question addressing awareness of mortality and life's transient nature. This prompt should confront the user with themes of impermanence, transformation, and finite existence.",
-					"freedom": "A challenging question about the nature and limits of personal freedom. This prompt should explore themes of personal choice, authenticity, and self-determination.",
-					"connection": "An insightful question exploring the user's web of relationships and sense of interconnection. This prompt should examine themes of interdependence and unity with others and the world.",
-					"imageprompt": "A vivid, symbolic description for image generation, incorporating elements from all explored directions. This should capture the essence of the user's writing and serve as a visual representation of their self-exploration journey."
+					"prompt": "A direct, penetrating question that encourages deeper self-exploration",
+					"imageprompt": "A vivid, symbolic description for image generation that captures the essence of the user's writing"
 				}
-
-				Guidelines for generating prompts:
-				1. CENTER prompts should always point directly to the source of the 'I' thought
-				2. PURPOSE prompts should explore meaning and purpose without spiritual bypass
-				3. MORTALITY prompts should face mortality and impermanence directly
-				4. FREEDOM prompts should challenge assumed limitations
-				5. CONNECTION prompts should explore authentic connection
 				
-				Keep all responses penetrating and direct. Avoid spiritual jargon. Use clear, precise language that guides the user toward genuine self-understanding. Each direction should maintain its archetypal nature while adapting to the user's current exploration. Strictly adhere to this JSON format in your response.`,
+				Keep responses clear and direct. Avoid spiritual jargon. Use precise language that guides the user toward genuine self-understanding. Strictly adhere to this JSON format in your response.`,
 			},
 			{
 				Role:    "user",
@@ -216,11 +270,7 @@ func (s *AnkyService) GenerateAnkyReflection(session *types.WritingSession) (map
 	// Parse the JSON response
 	log.Printf("Parsing JSON response from LLM")
 	var llmOutput struct {
-		Center      string `json:"center"`
-		Purpose     string `json:"purpose"`
-		Mortality   string `json:"mortality"`
-		Freedom     string `json:"freedom"`
-		Connection  string `json:"connection"`
+		Prompt      string `json:"prompt"`
 		ImagePrompt string `json:"imageprompt"`
 	}
 	err = json.Unmarshal([]byte(fullResponse), &llmOutput)
@@ -231,11 +281,8 @@ func (s *AnkyService) GenerateAnkyReflection(session *types.WritingSession) (map
 	log.Printf("Parsed LLM output: %+v", llmOutput)
 
 	return map[string]string{
-		"center":     llmOutput.Center,
-		"purpose":    llmOutput.Purpose,
-		"mortality":  llmOutput.Mortality,
-		"freedom":    llmOutput.Freedom,
-		"connection": llmOutput.Connection,
+		"prompt":      llmOutput.Prompt,
+		"imageprompt": llmOutput.ImagePrompt,
 	}, nil
 }
 
@@ -422,6 +469,11 @@ func (s *AnkyService) GenerateAnkyFromPrompt(prompt string) (string, error) {
 	return uploadResult.SecureURL, nil
 }
 
+func (s *AnkyService) EditCast(ctx context.Context, text string, userFid int) (string, error) {
+	log.Printf("Starting edit cast service with text: %s and userFid: %d", text, userFid)
+	return "", nil
+}
+
 func (s *AnkyService) OnboardingConversation(ctx context.Context, userId uuid.UUID, sessions []*types.WritingSession, ankyReflections []string) (string, error) {
 	log.Printf("Starting onboarding conversation for attempt #%d", len(sessions))
 
@@ -522,4 +574,8 @@ func getOnboardingStage(duration int) string {
 	default:
 		return "Unknown"
 	}
+}
+
+func (s *AnkyService) CreateUserProfile(ctx context.Context, userID uuid.UUID) (string, error) {
+	return "123", nil
 }

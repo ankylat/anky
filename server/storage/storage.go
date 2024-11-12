@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 	"time"
 
@@ -325,9 +326,45 @@ func (s *PostgresStore) GetAnkysByUserID(ctx context.Context, userID uuid.UUID, 
 }
 
 func (s *PostgresStore) CreateAnky(ctx context.Context, anky *types.Anky) error {
-	query := `INSERT INTO ankys (id, user_id, writing_session_id, chosen_prompt, anky_reflection, image_prompt, follow_up_prompts, image_url, image_ipfs_hash, status, cast_hash, created_at, last_updated_at, previous_anky_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`
-	_, err := s.db.Exec(ctx, query, anky.ID, anky.UserID, anky.WritingSessionID, anky.ChosenPrompt, anky.AnkyReflection, anky.ImagePrompt, anky.FollowUpPrompts, anky.ImageURL, anky.ImageIPFSHash, anky.Status, anky.CastHash, anky.CreatedAt, anky.LastUpdatedAt, anky.PreviousAnkyID)
-	return err
+	// Add debug logging
+	log.Printf("Creating Anky with ID: %s, UserID: %s, WritingSessionID: %s",
+		anky.ID, anky.UserID, anky.WritingSessionID)
+
+	query := `
+        INSERT INTO ankys (
+            id, user_id, writing_session_id, chosen_prompt, 
+            anky_reflection, image_prompt, follow_up_prompt, 
+            image_url, image_ipfs_hash, status, cast_hash, 
+            created_at, last_updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    `
+
+	// Initialize LastUpdatedAt if it's zero
+	if anky.LastUpdatedAt.IsZero() {
+		anky.LastUpdatedAt = time.Now().UTC()
+	}
+
+	_, err := s.db.Exec(ctx, query,
+		anky.ID,               // $1
+		anky.UserID,           // $2
+		anky.WritingSessionID, // $3
+		anky.ChosenPrompt,     // $4
+		anky.AnkyReflection,   // $5
+		anky.ImagePrompt,      // $6
+		anky.FollowUpPrompt,   // $7
+		anky.ImageURL,         // $8
+		anky.ImageIPFSHash,    // $9
+		anky.Status,           // $10
+		anky.CastHash,         // $11
+		anky.CreatedAt,        // $12
+		anky.LastUpdatedAt,    // $13
+	)
+
+	if err != nil {
+		return fmt.Errorf("failed to create anky: %w", err)
+	}
+
+	return nil
 }
 
 func (s *PostgresStore) UpdateAnky(ctx context.Context, anky *types.Anky) error {
@@ -338,13 +375,13 @@ func (s *PostgresStore) UpdateAnky(ctx context.Context, anky *types.Anky) error 
 			chosen_prompt = $3,
 			anky_reflection = $4,
 			image_prompt = $5,
-			follow_up_prompts = $6,
+			follow_up_prompt = $6,
 			image_url = $7,
 			image_ipfs_hash = $8,
 			status = $9,
 			cast_hash = $10,
 			last_updated_at = $11,
-			previous_anky_id = $12
+			fid = $12
 		WHERE id = $13`
 	_, err := s.db.Exec(ctx, query,
 		anky.UserID,
@@ -352,15 +389,23 @@ func (s *PostgresStore) UpdateAnky(ctx context.Context, anky *types.Anky) error 
 		anky.ChosenPrompt,
 		anky.AnkyReflection,
 		anky.ImagePrompt,
-		anky.FollowUpPrompts,
+
+		anky.FollowUpPrompt,
 		anky.ImageURL,
 		anky.ImageIPFSHash,
 		anky.Status,
 		anky.CastHash,
 		anky.LastUpdatedAt,
-		anky.PreviousAnkyID,
-		anky.ID)
+		anky.ID,
+		anky.FID,
+	)
 	return err
+}
+
+func (s *PostgresStore) GetLastAnkyByUserID(ctx context.Context, userID uuid.UUID) (*types.Anky, error) {
+	query := `SELECT * FROM ankys WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1`
+	row := s.db.QueryRow(ctx, query, userID)
+	return scanIntoAnky(row)
 }
 
 // ******************** Badge operations ********************
@@ -460,14 +505,13 @@ func scanIntoAnky(row pgx.Row) (*types.Anky, error) {
 		&anky.ChosenPrompt,
 		&anky.AnkyReflection,
 		&anky.ImagePrompt,
-		&anky.FollowUpPrompts,
+		&anky.FollowUpPrompt,
 		&anky.ImageURL,
 		&anky.ImageIPFSHash,
 		&anky.Status,
 		&anky.CastHash,
 		&anky.CreatedAt,
 		&anky.LastUpdatedAt,
-		&anky.PreviousAnkyID,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scan anky: %w", err)
