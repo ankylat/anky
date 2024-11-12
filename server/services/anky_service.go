@@ -195,7 +195,6 @@ func (s *AnkyService) CreateUserProfile(ctx context.Context, userID uuid.UUID) (
 	// This creates the link between the user's writing and their Farcaster identity
 	err = s.store.UpdateAnky(ctx, &types.Anky{
 		ID:     lastAnky.ID,
-		FID:    newFid,
 		Status: "fid_linked",
 	})
 	if err != nil {
@@ -234,12 +233,14 @@ func (s *AnkyService) GenerateAnkyReflection(session *types.WritingSession) (map
 
 				1. A thought-provoking question that guides them deeper into self-reflection
 				2. A vivid, symbolic description for image generation that captures the essence of their writing
+				3. A one-sentece reflection of what the user just wrote
 
 				Generate a JSON object with the following structure:
 				
 				{
 					"prompt": "A direct, penetrating question that encourages deeper self-exploration",
-					"imageprompt": "A vivid, symbolic description for image generation that captures the essence of the user's writing"
+					"imageprompt": "A vivid, symbolic description for image generation that captures the essence of the user's writing",
+					"reflection": "A one-sentence reflection of what the user just wrote"
 				}
 				
 				Keep responses clear and direct. Avoid spiritual jargon. Use precise language that guides the user toward genuine self-understanding. Strictly adhere to this JSON format in your response.`,
@@ -272,6 +273,7 @@ func (s *AnkyService) GenerateAnkyReflection(session *types.WritingSession) (map
 	var llmOutput struct {
 		Prompt      string `json:"prompt"`
 		ImagePrompt string `json:"imageprompt"`
+		Reflection  string `json:"reflection"`
 	}
 	err = json.Unmarshal([]byte(fullResponse), &llmOutput)
 	if err != nil {
@@ -283,6 +285,7 @@ func (s *AnkyService) GenerateAnkyReflection(session *types.WritingSession) (map
 	return map[string]string{
 		"prompt":      llmOutput.Prompt,
 		"imageprompt": llmOutput.ImagePrompt,
+		"reflection":  llmOutput.Reflection,
 	}, nil
 }
 
@@ -574,8 +577,4 @@ func getOnboardingStage(duration int) string {
 	default:
 		return "Unknown"
 	}
-}
-
-func (s *AnkyService) CreateUserProfile(ctx context.Context, userID uuid.UUID) (string, error) {
-	return "123", nil
 }

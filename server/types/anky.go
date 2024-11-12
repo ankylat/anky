@@ -87,14 +87,15 @@ type User struct {
 }
 
 type FarcasterUser struct {
-	FID            int    `json:"fid"`
-	Username       string `json:"username"`
-	DisplayName    string `json:"display_name"`
-	ProfilePicture string `json:"pfp_url"`
-	CustodyAddress string `json:"custody_address"`
-	Bio            string `json:"bio"`
-	FollowerCount  int    `json:"follower_count"`
-	FollowingCount int    `json:"following_count"`
+	FID                 int    `json:"fid"`
+	Username            string `json:"username"`
+	DisplayName         string `json:"display_name"`
+	ProfilePicture      string `json:"pfp_url"`
+	CustodyAddress      string `json:"custody_address"`
+	Bio                 string `json:"bio"`
+	FollowerCount       int    `json:"follower_count"`
+	FollowingCount      int    `json:"following_count"`
+	EncryptedSignerUUID string `json:"encrypted_signer_uuid"`
 }
 
 type UserMetadata struct {
@@ -209,7 +210,6 @@ type Anky struct {
 	CastHash      string    `json:"cast_hash" bson:"cast_hash"`
 	CreatedAt     time.Time `json:"created_at" bson:"created_at"`
 	LastUpdatedAt time.Time `json:"last_updated_at" bson:"last_updated_at"`
-	FID           int       `json:"fid" bson:"fid"`
 }
 
 type AnkyOnProfile struct {

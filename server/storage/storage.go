@@ -381,7 +381,6 @@ func (s *PostgresStore) UpdateAnky(ctx context.Context, anky *types.Anky) error 
 			status = $9,
 			cast_hash = $10,
 			last_updated_at = $11,
-			fid = $12
 		WHERE id = $13`
 	_, err := s.db.Exec(ctx, query,
 		anky.UserID,
@@ -397,7 +396,6 @@ func (s *PostgresStore) UpdateAnky(ctx context.Context, anky *types.Anky) error 
 		anky.CastHash,
 		anky.LastUpdatedAt,
 		anky.ID,
-		anky.FID,
 	)
 	return err
 }
