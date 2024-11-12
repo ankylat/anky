@@ -3,7 +3,7 @@ import axios from "axios";
 import { getCurrentAnkyverseDay } from "../app/lib/ankyverse";
 import { WritingGameProps } from "../types/WritingGame";
 import { AnkyUser } from "../types/User";
-import { WritingSession } from "../types/Anky";
+import { Anky, WritingSession } from "../types/Anky";
 
 interface AnkyContextType {
   ankyUser: AnkyUser | null;
@@ -16,12 +16,17 @@ interface AnkyContextType {
   setIsWritingGameVisible: React.Dispatch<React.SetStateAction<boolean>>;
   isUserWriting: boolean;
   setIsUserWriting: React.Dispatch<React.SetStateAction<boolean>>;
-  writingGameProps: WritingGameProps;
-  setWritingGameProps: React.Dispatch<React.SetStateAction<WritingGameProps>>;
-  userWritingSessions: WritingSession[];
-  setUserWritingSessions: React.Dispatch<
-    React.SetStateAction<WritingSession[]>
-  >;
+
+  currentAnky: Anky | null;
+  setCurrentAnky: React.Dispatch<React.SetStateAction<Anky | null>>;
+  userStreak: number;
+  setUserStreak: React.Dispatch<React.SetStateAction<number>>;
+  userAnkys: Anky[];
+  setUserAnkys: React.Dispatch<React.SetStateAction<Anky[]>>;
+  userDrafts: WritingSession[];
+  setUserDrafts: React.Dispatch<React.SetStateAction<WritingSession[]>>;
+  userCollectedAnkys: Anky[];
+  setUserCollectedAnkys: React.Dispatch<React.SetStateAction<Anky[]>>;
 }
 
 const AnkyContext = createContext<AnkyContextType | undefined>(undefined);
@@ -40,47 +45,30 @@ export const AnkyProvider: React.FC<{ children: React.ReactNode }> = ({
   const [ankyUser, setAnkyUser] = useState<AnkyUser | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isWritingGameVisible, setIsWritingGameVisible] = useState(true);
+  const [isWritingGameVisible, setIsWritingGameVisible] = useState(false);
   const [isUserWriting, setIsUserWriting] = useState(false);
   const ankyverseDay = getCurrentAnkyverseDay();
-  const [userWritingSessions, setUserWritingSessions] = useState<
-    WritingSession[]
-  >([]);
-  const [writingGameProps, setWritingGameProps] = useState<WritingGameProps>({
-    targetDuration: 480,
-    directions: {
-      center: {
-        direction: "center",
-        prompt: "tell us who you are",
-        color: ankyverseDay.currentColor.main,
-        textColor: ankyverseDay.currentColor.textColor,
-      },
-      up: {
-        direction: "up",
-        prompt: "hello world",
-        color: "#000000",
-        textColor: "#FFFFFF",
-      },
-      right: {
-        direction: "right",
-        prompt: "what's your biggest dream?",
-        color: "#1a237e",
-        textColor: "#FFFFFF",
-      },
-      down: {
-        direction: "down",
-        prompt: "describe your perfect day",
-        color: "#004d40",
-        textColor: "#FFFFFF",
-      },
-      left: {
-        direction: "left",
-        prompt: "what's your greatest fear?",
-        color: "#b71c1c",
-        textColor: "#FFFFFF",
-      },
-    },
+  const [currentAnky, setCurrentAnky] = useState<Anky | null>({
+    id: "",
+    user_id: "",
+    writing_session_id: "",
+    prompt: "",
+    anky_reflection: null,
+    anky_inquiry: "tell me who you are",
+    image_url: require("@/assets/images/anky.png"),
+    image_ipfs_hash: null,
+    status: null,
+    cast_hash: null,
+    created_at: new Date(),
+    updated_at: new Date(),
+    previous_anky_id: null,
+    name: "",
+    token_address: null,
   });
+  const [userStreak, setUserStreak] = useState(1);
+  const [userAnkys, setUserAnkys] = useState<Anky[]>([]);
+  const [userDrafts, setUserDrafts] = useState<WritingSession[]>([]);
+  const [userCollectedAnkys, setUserCollectedAnkys] = useState<Anky[]>([]);
 
   const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;
 
@@ -145,10 +133,16 @@ export const AnkyProvider: React.FC<{ children: React.ReactNode }> = ({
     setIsWritingGameVisible,
     isUserWriting,
     setIsUserWriting,
-    writingGameProps,
-    setWritingGameProps,
-    userWritingSessions,
-    setUserWritingSessions,
+    currentAnky,
+    setCurrentAnky,
+    userStreak,
+    setUserStreak,
+    userAnkys,
+    setUserAnkys,
+    userDrafts,
+    setUserDrafts,
+    userCollectedAnkys,
+    setUserCollectedAnkys,
   };
 
   return <AnkyContext.Provider value={value}>{children}</AnkyContext.Provider>;

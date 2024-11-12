@@ -1,0 +1,91 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Invisible outer circle for spacing (10% gap) -->
+  <circle cx="50" cy="55" r="44" fill="none"/>
+  
+  <!-- Pouch base - more rugged/medieval shape -->
+  <path d="
+    M35 45
+    C25 55, 25 75, 50 85
+    C75 75, 75 55, 65 45
+    C60 48, 40 48, 35 45
+    Z" 
+    fill="#1A1A1A" 
+    stroke="#2A9FD6" 
+    stroke-width="1.5"
+  />
+  
+  <!-- Leather texture suggestion lines -->
+  <path d="M40 60 Q50 65 60 60" fill="none" stroke="#2A9FD6" stroke-width="0.5" opacity="0.3"/>
+  <path d="M38 70 Q50 75 62 70" fill="none" stroke="#2A9FD6" stroke-width="0.5" opacity="0.3"/>
+  
+  <!-- Pouch neck with rugged texture -->
+  <path d="
+    M35 45
+    C40 42, 60 42, 65 45
+    C60 48, 40 48, 35 45
+    Z"
+    fill="#111111"
+    stroke="#2A9FD6"
+    stroke-width="1.5"
+  />
+  
+  <!-- Drawstring -->
+  <path d="
+    M33 44
+    Q50 41 67 44
+    Q50 47 33 44
+    Z"
+    fill="none"
+    stroke="#FF69B4"
+    stroke-width="1"
+  >
+    <animate 
+      attributeName="d" 
+      values="
+        M33 44 Q50 41 67 44 Q50 47 33 44;
+        M33 44 Q50 42 67 44 Q50 46 33 44;
+        M33 44 Q50 41 67 44 Q50 47 33 44"
+      dur="4s"
+      repeatCount="indefinite"
+    />
+  </path>
+  
+  <!-- Coins with medieval style -->
+  <g transform="translate(0, 5)">
+    <!-- Gold coin -->
+    <circle cx="45" cy="60" r="8" fill="#FFD700" opacity="0.9"/>
+    <circle cx="45" cy="60" r="6" fill="none" stroke="#FFD700" stroke-width="0.5"/>
+    <path d="M41 60 L49 60" stroke="#FFD700" stroke-width="0.5"/>
+    <path d="M45 56 L45 64" stroke="#FFD700" stroke-width="0.5"/>
+    
+    <!-- Silver coin -->
+    <circle cx="55" cy="65" r="8" fill="#C0C0C0" opacity="0.8"/>
+    <circle cx="55" cy="65" r="6" fill="none" stroke="#C0C0C0" stroke-width="0.5"/>
+    <path d="M51 65 L59 65" stroke="#C0C0C0" stroke-width="0.5"/>
+    
+    <!-- Bronze coin -->
+    <circle cx="47" cy="70" r="8" fill="#CD7F32" opacity="0.7"/>
+    <circle cx="47" cy="70" r="6" fill="none" stroke="#CD7F32" stroke-width="0.5"/>
+    <path d="M43 70 L51 70" stroke="#CD7F32" stroke-width="0.5"/>
+  </g>
+  
+  <!-- Magical sparkles -->
+  <g opacity="0.8">
+    <circle cx="40" cy="55" r="0.5" fill="#FFFF00">
+      <animate attributeName="opacity" values="0.8;0.3;0.8" dur="1.5s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="60" cy="60" r="0.5" fill="#FF69B4">
+      <animate attributeName="opacity" values="0.8;0.3;0.8" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="50" cy="75" r="0.5" fill="#2A9FD6">
+      <animate attributeName="opacity" values="0.8;0.3;0.8" dur="2.5s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+  
+  <!-- Runes-inspired glyphs -->
+  <g opacity="0.4">
+    <path d="M37 65 L39 67 L37 69" fill="none" stroke="#2A9FD6" stroke-width="0.5"/>
+    <path d="M57 60 L59 62 L57 64" fill="none" stroke="#FF69B4" stroke-width="0.5"/>
+    <path d="M47 75 L49 77 L47 79" fill="none" stroke="#FFFF00" stroke-width="0.5"/>
+  </g>
+</svg>

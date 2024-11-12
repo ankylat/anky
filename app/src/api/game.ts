@@ -3,7 +3,7 @@ import { User } from "../types/User";
 import { Cast } from "../types/Cast";
 import { User as PrivyUser } from "@privy-io/expo";
 import { WritingSession } from "@/src/types/Anky";
-import { prettyLog } from "../app/lib/user";
+import { prettyLog } from "../app/lib/logs";
 
 const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;
 const POIESIS_API_KEY = process.env.POIESIS_API_KEY;
@@ -77,8 +77,9 @@ export const endWritingSession = async (
       response.data
     );
     return response.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error updating the session on the database:", error);
+    console.log("The error is", error.response);
     throw error;
   }
 };

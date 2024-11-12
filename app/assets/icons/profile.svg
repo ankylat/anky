@@ -1,0 +1,116 @@
+<svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+  <!-- Invisible boundary circle -->
+  <circle cx="50" cy="50" r="44" fill="none"/>
+  
+  <!-- Base energy field -->
+  <path d="
+    M25 50
+    C25 35, 35 25, 50 25
+    C65 25, 75 35, 75 50
+    C75 65, 65 75, 50 75
+    C35 75, 25 65, 25 50
+    Z"
+    fill="#1E3B8C"
+    stroke="#9B4DCA"
+    stroke-width="1.5"
+  >
+    <animate
+      attributeName="d"
+      values="
+        M25 50 C25 35 35 25 50 25 C65 25 75 35 75 50 C75 65 65 75 50 75 C35 75 25 65 25 50;
+        M26 50 C26 36 35 26 50 26 C65 26 74 36 74 50 C74 64 65 74 50 74 C35 74 26 64 26 50;
+        M25 50 C25 35 35 25 50 25 C65 25 75 35 75 50 C75 65 65 75 50 75 C35 75 25 65 25 50"
+      dur="3s"
+      repeatCount="indefinite"
+    />
+  </path>
+  
+  <!-- Connection lines -->
+  <g opacity="0.4">
+    <path d="M40 35 L60 35" stroke="#9B4DCA" stroke-width="0.5"/>
+    <path d="M35 50 L65 50" stroke="#9B4DCA" stroke-width="0.5"/>
+    <path d="M40 65 L60 65" stroke="#9B4DCA" stroke-width="0.5"/>
+  </g>
+  
+  <!-- Core essence circle -->
+  <circle cx="50" cy="50" r="15" 
+    fill="none" 
+    stroke="#FFD700" 
+    stroke-width="1"
+    opacity="0.8">
+    <animate
+      attributeName="r"
+      values="15;16;15"
+      dur="2s"
+      repeatCount="indefinite"
+    />
+  </circle>
+  
+  <!-- Energy nodes -->
+  <g>
+    <!-- Top node -->
+    <circle cx="50" cy="35" r="4" fill="#1E3B8C" stroke="#9B4DCA" stroke-width="1">
+      <animate
+        attributeName="r"
+        values="4;4.5;4"
+        dur="2s"
+        repeatCount="indefinite"
+      />
+    </circle>
+    <circle cx="50" cy="35" r="1" fill="#FFD700"/>
+    
+    <!-- Bottom node -->
+    <circle cx="50" cy="65" r="4" fill="#1E3B8C" stroke="#9B4DCA" stroke-width="1">
+      <animate
+        attributeName="r"
+        values="4;4.5;4"
+        dur="2.3s"
+        repeatCount="indefinite"
+      />
+    </circle>
+    <circle cx="50" cy="65" r="1" fill="#FFD700"/>
+    
+    <!-- Left node -->
+    <circle cx="35" cy="50" r="4" fill="#1E3B8C" stroke="#9B4DCA" stroke-width="1">
+      <animate
+        attributeName="r"
+        values="4;4.5;4"
+        dur="1.7s"
+        repeatCount="indefinite"
+      />
+    </circle>
+    <circle cx="35" cy="50" r="1" fill="#FFD700"/>
+    
+    <!-- Right node -->
+    <circle cx="65" cy="50" r="4" fill="#1E3B8C" stroke="#9B4DCA" stroke-width="1">
+      <animate
+        attributeName="r"
+        values="4;4.5;4"
+        dur="2.5s"
+        repeatCount="indefinite"
+      />
+    </circle>
+    <circle cx="65" cy="50" r="1" fill="#FFD700"/>
+  </g>
+  
+  <!-- Constellation connections -->
+  <g opacity="0.6">
+    <path d="M35 50 L50 35 L65 50 L50 65 Z" fill="none" stroke="#FFD700" stroke-width="0.5"/>
+  </g>
+  
+  <!-- Decorative particles -->
+  <g>
+    <circle cx="45" cy="45" r="0.5" fill="#FFD700">
+      <animate attributeName="opacity" values="1;0;1" dur="2s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="55" cy="45" r="0.5" fill="#FFD700">
+      <animate attributeName="opacity" values="1;0;1" dur="1.5s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="45" cy="55" r="0.5" fill="#FFD700">
+      <animate attributeName="opacity" values="1;0;1" dur="2.5s" repeatCount="indefinite"/>
+    </circle>
+    <circle cx="55" cy="55" r="0.5" fill="#FFD700">
+      <animate attributeName="opacity" values="1;0;1" dur="1.8s" repeatCount="indefinite"/>
+    </circle>
+  </g>
+</svg>

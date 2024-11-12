@@ -1,441 +1,389 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   View,
-  KeyboardAvoidingView,
-  Platform,
   Text,
   TextInput,
-  ScrollView,
   TouchableOpacity,
-  Keyboard,
+  StyleSheet,
+  SafeAreaView,
+  FlatList,
+  KeyboardAvoidingView,
+  Platform,
   Animated,
-  ActivityIndicator,
+  Dimensions,
+  StatusBar,
 } from "react-native";
-import axios from "axios";
-import { Ionicons } from "@expo/vector-icons";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { usePrivy } from "@privy-io/expo";
-import { AdvancedImage } from "cloudinary-react-native";
-import { Cloudinary } from "@cloudinary/url-gen";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
+// Types
 interface Message {
-  role: "user" | "assistant";
-  content: string;
-  type?: "text" | "image";
-}
-
-interface PromptOption {
+  id: number;
+  sender: "user" | "ankyverse";
   text: string;
-  summary: string;
-  color: string;
+  type: "greeting" | "response" | "inquiry" | "calendar" | "offering";
+  timestamp: string;
 }
 
-const promptOptions: PromptOption[] = [
-  {
-    text: "Imagine you're Terence McKenna exploring the far reaches of the psychedelic multiverse. What alien landscapes do you encounter?",
-    summary: "McKenna's Multiverse",
-    color: "#FF69B4",
-  },
-  {
-    text: "As Ramana Maharshi, if you could communicate with the universe, what profound truths would it reveal to you?",
-    summary: "Maharshi's Universal Truths",
-    color: "#4CAF50",
-  },
-  {
-    text: "Channel your inner David Foster Wallace. If thoughts were tangible objects, how would you describe the clutter of the human mind?",
-    summary: "Wallace's Mind Clutter",
-    color: "#FFA500",
-  },
-  {
-    text: "As Alex Grey, paint a world where emotions are visible as vibrant colors and patterns. What does it look like?",
-    summary: "Grey's Emotional Canvas",
-    color: "#9C27B0",
-  },
-  {
-    text: "Imagine you're Albert Hofmann on a journey through the molecular structure of consciousness. What do you discover?",
-    summary: "Hofmann's Consciousness Journey",
-    color: "#2196F3",
-  },
-  {
-    text: "As Carl Jung, if you could map the collective unconscious, what archetypes and symbols would you find?",
-    summary: "Jung's Archetype Map",
-    color: "#F44336",
-  },
-  {
-    text: "Channel your inner Timothy Leary. What's the most mind-expanding experience you've ever had?",
-    summary: "Leary's Mind Expansion",
-    color: "#00BCD4",
-  },
-  {
-    text: "As Alan Watts, describe a moment of pure enlightenment. What does it feel like?",
-    summary: "Watts' Enlightenment",
-    color: "#FFEB3B",
-  },
-  {
-    text: "Imagine you're J.K. Rowling. What would a day in the life of your favorite book character be like?",
-    summary: "Rowling's Character Day",
-    color: "#795548",
-  },
-  {
-    text: "As ancient Roman emperor Julius Caesar, if you could invent a new holiday, what would it celebrate?",
-    summary: "Caesar's Holiday",
-    color: "#607D8B",
-  },
-  {
-    text: "Channel your inner Sherlock Holmes. What's the most interesting conversation you've overheard?",
-    summary: "Holmes' Overheard Talk",
-    color: "#E91E63",
-  },
-  {
-    text: "As Stephen King, if you could have dinner with any fictional villain, who would it be and why?",
-    summary: "King's Villain Dinner",
-    color: "#673AB7",
-  },
-  {
-    text: "Imagine you're Isaac Newton. What would happen if gravity reversed for just one minute every day?",
-    summary: "Newton's Reverse Gravity",
-    color: "#3F51B5",
-  },
-  {
-    text: "As Leonardo da Vinci, if you could add one new feature to the human body, what would it be?",
-    summary: "Da Vinci's Body Upgrade",
-    color: "#009688",
-  },
-  {
-    text: "Channel your inner Indiana Jones. What's the most unusual place you've ever fallen asleep?",
-    summary: "Indy's Unusual Sleep",
-    color: "#8BC34A",
-  },
-  {
-    text: "As Charles Darwin, if you could combine any two animals to create a new species, what would you choose?",
-    summary: "Darwin's Animal Fusion",
-    color: "#CDDC39",
-  },
-];
+const { width } = Dimensions.get("window");
 
-const cld = new Cloudinary({
-  cloud: {
-    cloudName: process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME,
-  },
-});
-
-export default function ChatScreen() {
+const AnkyverseDialog = () => {
   const [messages, setMessages] = useState<Message[]>([]);
-  const [inputText, setInputText] = useState("");
-  const [isInputActive, setIsInputActive] = useState(false);
-  const [randomPrompts, setRandomPrompts] = useState<PromptOption[]>([]);
-  const [unusedPrompts, setUnusedPrompts] = useState<PromptOption[]>([]);
-  const [loading, setLoading] = useState(false);
-  const inputRef = useRef<TextInput>(null);
-  const scrollViewRef = useRef<ScrollView>(null);
-  const fadeAnim = useRef(new Animated.Value(1)).current;
-  const queryClient = useQueryClient();
+  const [userText, setUserText] = useState("");
+  const [isWritingComplete, setIsWritingComplete] = useState(false);
+  const [currentDay, setCurrentDay] = useState("");
+  const [isAnkyverseTyping, setIsAnkyverseTyping] = useState(false);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const flatListRef = useRef<FlatList>(null);
 
-  const { getAccessToken } = usePrivy();
-
-  const generateAnkyImageMutation = useMutation({
-    mutationFn: async () => {
-      console.log("INIAHUHISAOIC HERE");
-      const accessToken = await getAccessToken();
-      console.log("accessToasd9080asdasken", accessToken);
-      const response = await axios.post(
-        `${process.env.EXPO_PUBLIC_ANKY_API_URL}/generate-anky-from-prompt`,
-        {
-          prompt: inputText,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
-      console.log("responasi797sa97aasse", response.data);
-      return response.data;
-    },
-    onError: (error) => {
-      if (axios.isAxiosError(error) && error.response?.status === 401) {
-        console.error("User not authorized to generate images");
-      } else {
-        console.error("Error generating image:", error);
-      }
-    },
-    onSuccess: (data) => {
-      console.log("Image generated successfully:", data);
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: data.imageUrl,
-          type: "image",
-        },
-      ]);
-    },
-  });
-
-  const generateAnkyImage = () => {
-    generateAnkyImageMutation.mutate();
-  };
-
+  // Initialize current day in Ankyverse calendar format
   useEffect(() => {
-    setMessages([
-      {
-        role: "assistant",
-        content:
-          "welcome home, dear reader. or writer, if you dare to. your mission is to do it for 8 minutes every day. we will do the rest (or it will happen on its own)",
-        type: "text",
-      },
-    ]);
+    const initializeDialog = async () => {
+      const date = new Date();
+      const week = Math.ceil(date.getDate() / 7);
+      const day = `s${date.getFullYear().toString().slice(2)}w${week
+        .toString()
+        .padStart(2, "0")}d${date.getDate().toString().padStart(2, "0")}`;
+      setCurrentDay(day);
 
-    const shuffled = [...promptOptions].sort(() => 0.5 - Math.random());
-    setRandomPrompts(shuffled.slice(0, 3));
-    setUnusedPrompts(shuffled.slice(3));
-  }, []);
-
-  const handleSendMessage = async (content: string) => {
-    if (content.trim() === "") return;
-
-    console.log("Sending message:", content);
-
-    const newMessage: Message = {
-      role: "user",
-      content: content.trim(),
-      type: "text",
+      // Initial greeting
+      addMessage({
+        sender: "ankyverse",
+        text: `Welcome to ${day} of the Ankyverse. You've just completed your writing ritual. Would you like to explore what emerged from your stream of consciousness?`,
+        type: "greeting",
+      });
     };
 
-    const updatedMessages = [...messages, newMessage];
-    setMessages(updatedMessages);
-    setInputText("");
-    setLoading(true);
+    initializeDialog();
+    animateIn();
+  }, []);
 
-    try {
-      console.log("Sending request to API");
-      const response = await axios.post(
-        `${process.env.EXPO_PUBLIC_ANKY_API_URL}/talk-to-anky?json_formatting=false`,
-        {
-          messages: updatedMessages,
-        }
-      );
+  const animateIn = () => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 1000,
+      useNativeDriver: true,
+    }).start();
+  };
 
-      console.log("Received response from API:", response.data.response);
-
-      const assistantMessage: Message = {
-        role: "assistant",
-        content: response.data.response,
-        type: "text",
+  const addMessage = useCallback(
+    (message: Omit<Message, "id" | "timestamp">) => {
+      const newMessage = {
+        id: Date.now(),
+        timestamp: new Date().toISOString(),
+        ...message,
       };
 
-      setMessages([...updatedMessages, assistantMessage]);
-    } catch (error) {
-      console.error("Error sending message:", error);
-    } finally {
-      setLoading(false);
+      setMessages((prev) => [...prev, newMessage]);
+
+      // Scroll to bottom after message is added
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    },
+    []
+  );
+
+  const simulateAnkyverseTyping = useCallback(async () => {
+    setIsAnkyverseTyping(true);
+    await new Promise((resolve) =>
+      setTimeout(resolve, 1500 + Math.random() * 1000)
+    );
+    setIsAnkyverseTyping(false);
+  }, []);
+
+  const handleUserResponse = async () => {
+    if (!userText.trim()) return;
+
+    // Add user message
+    addMessage({
+      sender: "user",
+      text: userText,
+      type: "response",
+    });
+
+    setUserText("");
+    await simulateAnkyverseTyping();
+
+    // Ankyverse response based on conversation stage
+    const messageCount = messages.length;
+
+    if (messageCount === 1) {
+      addMessage({
+        sender: "ankyverse",
+        text: "I sense both clarity and uncertainty in your words. Let's explore what patterns emerged during your writing. What stood out to you the most?",
+        type: "inquiry",
+      });
+    } else if (messageCount === 3) {
+      addMessage({
+        sender: "ankyverse",
+        text: "The Ankyverse calendar suggests that today's energy aligns with introspection and creative expression. How does this resonate with what you wrote?",
+        type: "calendar",
+      });
+    } else if (messageCount === 5) {
+      addMessage({
+        sender: "ankyverse",
+        text: "Your writing will be preserved in the Ankyverse as a unique timestamp of your journey. Would you like to receive a crystal that captures the essence of today's reflection?",
+        type: "offering",
+      });
+    } else if (messageCount === 7) {
+      setIsWritingComplete(true);
+      // Save dialog to AsyncStorage
+      try {
+        const dialogData = {
+          date: currentDay,
+          messages: messages,
+          completedAt: new Date().toISOString(),
+        };
+        await AsyncStorage.setItem(
+          `dialog_${currentDay}`,
+          JSON.stringify(dialogData)
+        );
+      } catch (error) {
+        console.error("Error saving dialog:", error);
+      }
     }
   };
 
-  const activateInput = () => {
-    console.log("Activating input");
-    setIsInputActive(true);
-    setTimeout(() => {
-      console.log("Focusing input");
-      inputRef.current?.focus();
-    }, 100);
-  };
+  const renderMessage = ({ item }: { item: Message }) => {
+    const isUser = item.sender === "user";
 
-  useEffect(() => {
-    console.log("Scrolling to end of messages");
-    scrollViewRef.current?.scrollToEnd({ animated: true });
-  }, [messages]);
-
-  const replacePrompt = (index: number) => {
-    if (unusedPrompts.length === 0) return;
-
-    Animated.timing(fadeAnim, {
-      toValue: 0,
-      duration: 200,
-      useNativeDriver: true,
-    }).start(() => {
-      const newPrompt = unusedPrompts[0];
-      const newRandomPrompts = [...randomPrompts];
-      newRandomPrompts[index] = newPrompt;
-      setRandomPrompts(newRandomPrompts);
-      setUnusedPrompts(unusedPrompts.slice(1));
-
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 200,
-        useNativeDriver: true,
-      }).start();
-    });
+    return (
+      <View
+        style={[
+          styles.messageContainer,
+          isUser
+            ? styles.userMessageContainer
+            : styles.ankyverseMessageContainer,
+        ]}
+      >
+        <View
+          style={[
+            styles.messageBubble,
+            isUser ? styles.userBubble : styles.ankyverseBubble,
+          ]}
+        >
+          <Text
+            style={[
+              styles.messageText,
+              isUser ? styles.userMessageText : styles.ankyverseMessageText,
+            ]}
+          >
+            {item.text}
+          </Text>
+          <Text style={styles.timestamp}>
+            {new Date(item.timestamp).toLocaleTimeString()}
+          </Text>
+        </View>
+      </View>
+    );
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-      className="flex-1"
-      keyboardVerticalOffset={Platform.OS === "ios" ? 100 : 0}
-    >
-      <View className="flex-1">
-        <ScrollView
-          ref={scrollViewRef}
-          style={{ flex: 1, padding: 10 }}
-          contentContainerStyle={{ paddingBottom: 20 }}
-        >
-          {messages.map((message, index) => (
-            <View
-              key={index}
-              style={{
-                alignSelf: message.role === "user" ? "flex-end" : "flex-start",
-                backgroundColor:
-                  message.role === "user" ? "#DCF8C6" : "#E5E5EA",
-                borderRadius: 10,
-                padding: 10,
-                marginBottom: 10,
-                maxWidth: "80%",
-              }}
-            >
-              {message.type === "text" ? (
-                <Text>{message.content}</Text>
-              ) : (
-                <AdvancedImage
-                  style={{ width: 200, height: 200, borderRadius: 10 }}
-                  cldImg={cld.image(message.content)}
-                />
-              )}
-            </View>
-          ))}
-        </ScrollView>
-        <Animated.View
-          style={{
-            flexDirection: "row",
-            justifyContent: "space-between",
-            marginBottom: 10,
-            paddingHorizontal: 10,
-            opacity: fadeAnim,
-          }}
-        >
-          {randomPrompts.map((prompt, index) => (
-            <TouchableOpacity
-              key={index}
-              style={{
-                backgroundColor: prompt.color,
-                paddingVertical: 10,
-                paddingHorizontal: 15,
-                borderRadius: 20,
-                flex: 1,
-                marginHorizontal: index === 1 ? 5 : 0,
-              }}
-              onPress={() => {
-                handleSendMessage(prompt.text);
-                replacePrompt(index);
-              }}
-            >
-              <Text
-                style={{
-                  color: "white",
-                  textAlign: "center",
-                  fontWeight: "bold",
-                }}
-              >
-                {prompt.summary}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </Animated.View>
-        <View style={{ flexDirection: "row", padding: 10 }}>
-          {isInputActive ? (
-            <TextInput
-              ref={inputRef}
-              style={{
-                flex: 1,
-                borderWidth: 1,
-                borderColor: "#ccc",
-                borderRadius: 20,
-                paddingHorizontal: 15,
-                paddingVertical: 10,
-                marginRight: 10,
-              }}
-              value={inputText}
-              onChangeText={(text) => {
-                console.log("Input text changed:", text);
-                setInputText(text);
-              }}
-              placeholder="Type a message..."
-              onBlur={() => {
-                console.log("Input blurred");
-                if (inputText.trim() === "") {
-                  console.log("Input empty, deactivating");
-                  setIsInputActive(false);
-                }
-              }}
-            />
-          ) : (
-            <TouchableOpacity
-              style={{
-                flex: 1,
-                borderWidth: 1,
-                borderColor: "#ccc",
-                borderRadius: 20,
-                paddingHorizontal: 15,
-                paddingVertical: 10,
-                marginRight: 10,
-                justifyContent: "center",
-              }}
-              onPress={activateInput}
-            >
-              <Text style={{ color: "#999" }}>
-                Can you give me three tips to deal with imposter syndrome?
-              </Text>
-            </TouchableOpacity>
-          )}
-          <TouchableOpacity
-            className="mt-auto"
-            style={{
-              backgroundColor: "#007AFF",
-              borderRadius: 20,
-              paddingHorizontal: 20,
-              height: 40,
-              justifyContent: "center",
-              marginRight: 10,
-            }}
-            onPress={() => {
-              console.log("Send button pressed");
-              handleSendMessage(inputText);
-            }}
-          >
-            <Text style={{ color: "white" }}>Ask Anky</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            className="mt-auto"
-            style={{
-              backgroundColor: "#007AFF",
-              borderRadius: 20,
-              width: 40,
-              height: 40,
-              justifyContent: "center",
-              alignItems: "center",
-            }}
-            onPress={generateAnkyImage}
-          >
-            <Ionicons name="image-outline" size={24} color="white" />
-          </TouchableOpacity>
-        </View>
-        {loading && (
-          <View
-            style={{
-              position: "absolute",
-              top: 0,
-              bottom: 0,
-              left: 0,
-              right: 0,
-              justifyContent: "center",
-              alignItems: "center",
-              backgroundColor: "rgba(0,0,0,0.3)",
-            }}
-          >
-            <ActivityIndicator size="large" color="#007AFF" />
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <Text style={styles.headerText}>{currentDay}</Text>
+      </View>
+
+      {/* Messages */}
+      <Animated.View style={[styles.messagesContainer, { opacity: fadeAnim }]}>
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          renderItem={renderMessage}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.messagesList}
+        />
+
+        {isAnkyverseTyping && (
+          <View style={styles.typingIndicator}>
+            <View style={styles.typingDot} />
+            <View style={[styles.typingDot, { marginLeft: 4 }]} />
+            <View style={[styles.typingDot, { marginLeft: 4 }]} />
           </View>
         )}
-      </View>
-    </KeyboardAvoidingView>
+      </Animated.View>
+
+      {/* Input Area */}
+      {!isWritingComplete && (
+        <KeyboardAvoidingView
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
+          style={styles.inputContainer}
+        >
+          <TextInput
+            style={styles.input}
+            value={userText}
+            onChangeText={setUserText}
+            placeholder="Share your thoughts..."
+            placeholderTextColor="#666"
+            onSubmitEditing={handleUserResponse}
+            multiline
+          />
+          <TouchableOpacity
+            style={styles.sendButton}
+            onPress={handleUserResponse}
+            disabled={!userText.trim()}
+          >
+            <Text style={styles.sendButtonText}>Send</Text>
+          </TouchableOpacity>
+        </KeyboardAvoidingView>
+      )}
+
+      {/* Completion Overlay */}
+      {isWritingComplete && (
+        <View style={styles.completionOverlay}>
+          <View style={styles.completionDialog}>
+            <Text style={styles.completionTitle}>Journey Complete</Text>
+            <Text style={styles.completionText}>
+              Your reflection has been preserved in the Ankyverse. A crystal has
+              been generated to commemorate this moment.
+            </Text>
+            <TouchableOpacity
+              style={styles.newJourneyButton}
+              onPress={() => setIsWritingComplete(false)}
+            >
+              <Text style={styles.newJourneyButtonText}>Begin New Journey</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+    </SafeAreaView>
   );
-}
+};
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#1a1a1a",
+  },
+  header: {
+    padding: 16,
+    backgroundColor: "#2d2d2d",
+    borderBottomWidth: 1,
+    borderBottomColor: "#333",
+  },
+  headerText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  messagesContainer: {
+    flex: 1,
+  },
+  messagesList: {
+    padding: 16,
+  },
+  messageContainer: {
+    marginBottom: 16,
+    maxWidth: width * 0.8,
+  },
+  userMessageContainer: {
+    alignSelf: "flex-end",
+  },
+  ankyverseMessageContainer: {
+    alignSelf: "flex-start",
+  },
+  messageBubble: {
+    borderRadius: 16,
+    padding: 12,
+  },
+  userBubble: {
+    backgroundColor: "#6b46c1",
+  },
+  ankyverseBubble: {
+    backgroundColor: "#2d2d2d",
+  },
+  messageText: {
+    fontSize: 16,
+    marginBottom: 4,
+  },
+  userMessageText: {
+    color: "#fff",
+  },
+  ankyverseMessageText: {
+    color: "#e9d8fd",
+  },
+  timestamp: {
+    fontSize: 12,
+    color: "rgba(255, 255, 255, 0.6)",
+  },
+  typingIndicator: {
+    flexDirection: "row",
+    padding: 16,
+    alignItems: "center",
+  },
+  typingDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#6b46c1",
+    opacity: 0.6,
+  },
+  inputContainer: {
+    flexDirection: "row",
+    padding: 16,
+    backgroundColor: "#2d2d2d",
+    alignItems: "center",
+  },
+  input: {
+    flex: 1,
+    backgroundColor: "#404040",
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    color: "#fff",
+    marginRight: 8,
+  },
+  sendButton: {
+    backgroundColor: "#6b46c1",
+    borderRadius: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+  },
+  sendButtonText: {
+    color: "#fff",
+    fontWeight: "600",
+  },
+  completionOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.8)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  completionDialog: {
+    backgroundColor: "#2d2d2d",
+    borderRadius: 16,
+    padding: 24,
+    width: "90%",
+    alignItems: "center",
+  },
+  completionTitle: {
+    color: "#e9d8fd",
+    fontSize: 24,
+    fontWeight: "600",
+    marginBottom: 16,
+  },
+  completionText: {
+    color: "#fff",
+    textAlign: "center",
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  newJourneyButton: {
+    backgroundColor: "#6b46c1",
+    borderRadius: 20,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  newJourneyButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+});
+
+export default AnkyverseDialog;

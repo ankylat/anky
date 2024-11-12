@@ -55,6 +55,7 @@ export const registerAnonUser = async (user: User): Promise<User> => {
     return response.data;
   } catch (err: any) {
     console.error("Error registering anonymous user:", err);
+    console.log("The error is", err.response.data);
 
     if (err.response && err.response.status === 400) {
       throw new Error("token is required in headers");

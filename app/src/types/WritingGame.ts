@@ -50,7 +50,8 @@ export type GameState = {
 };
 
 export interface Keystroke {
+  session_id: string;
   key?: string;
   timestamp?: number;
-  timeSinceLastKeystroke?: number;
+  time_delta?: number;
 }

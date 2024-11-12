@@ -13,17 +13,11 @@ import * as Clipboard from "expo-clipboard";
 
 import { Ionicons } from "@expo/vector-icons";
 import { useUser } from "../../context/UserContext";
-import { User } from "../../types/User";
-import { Cast } from "../../types/Cast";
+
 import ProfileGrid from "../../components/Profile/ProfileGrid";
 import DraftsGrid from "../../components/Profile/DraftsGrid";
 import { useQuilibrium } from "@/src/context/QuilibriumContext";
-import AetherCoin from "@/assets/icons/aether.svg";
-import LuminaCoin from "@/assets/icons/lumina.svg";
-import TerraCoin from "@/assets/icons/terra.svg";
-import { Link } from "expo-router";
-import { calculateBalance } from "@/src/app/lib/transactions";
-import NotLoggedInUserView from "@/src/components/Profile/NotLoggedInUserView";
+
 import {
   useEmbeddedWallet,
   usePrivy,
@@ -32,7 +26,10 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CollectedGrid from "@/src/components/Profile/CollectedGrid";
 import { WritingSession } from "@/src/types/Anky";
-import UserWithoutProfile from "@/src/components/Profile/UserWithoutProfile";
+import { useAnky } from "@/src/context/AnkyContext";
+import UserAnkysGrid from "@/src/components/Profile/UserAnkysGrid";
+import UserDraftsGrid from "@/src/components/Profile/UserDraftsGrid";
+import UsersCollectedDisplay from "@/src/components/Profile/UsersCollectedDisplay";
 
 const ProfileScreen = ({
   setShowWritingGame,
@@ -42,8 +39,9 @@ const ProfileScreen = ({
   const [viewMode, setViewMode] = useState<"ankys" | "drafts" | "collected">(
     "ankys"
   );
-  const { user, isReady } = useQuilibrium();
-  console.log("THE USER IS: ", JSON.stringify(user, null, 2));
+  const { ankyUser, isReady } = useQuilibrium();
+  const { userStreak, userAnkys, userDrafts, userCollectedAnkys } = useAnky();
+  console.log("THE USER IS: ", JSON.stringify(ankyUser, null, 2));
   const { logout } = usePrivy();
   const unlinkFarcaster = useUnlinkFarcaster();
   const wallet = useEmbeddedWallet();
@@ -62,6 +60,7 @@ const ProfileScreen = ({
         setDrafts(JSON.parse(storedDrafts));
       }
     };
+
     getDrafts();
   }, []);
 
@@ -73,24 +72,12 @@ const ProfileScreen = ({
     );
   }
 
-  if (!user) {
-    return <NotLoggedInUserView />;
-  }
-
-  if (!doesUserHaveProfile) {
-    return <UserWithoutProfile setShowWritingGame={setShowWritingGame} />;
-  }
-
-  const farcasterAccount = user.linked_accounts.find(
-    (account) => account.type === "farcaster"
-  );
-
   return (
     <View className="flex-1 bg-white pt-10">
       <View className="items-center p-5 ">
         <View className="flex flex-row justify-between w-full">
           <Text className="text-2xl font-bold mr-auto pl-2 mb-2">
-            @{farcasterAccount?.username || "your_username"}
+            @{ankyUser?.username || "ಹನುಮಂತ"}
           </Text>
 
           <View className="flex flex-row gap-4">
@@ -145,84 +132,30 @@ const ProfileScreen = ({
         <View className="flex flex-row justify-between w-full items-center">
           <View className="relative ">
             <Image
-              source={{
-                uri:
-                  farcasterAccount?.profile_picture_url ||
-                  "https://wrpcd.net/cdn-cgi/imagedelivery/BXluQx4ige9GuW0Ia56BHw/017bb663-b817-4064-bf93-46d6bf6e7f00/anim=false,fit=contain,f=auto,w=336",
-              }}
+              source={require("@/assets/images/anky.png")}
               className="w-24 h-24 rounded-full mb-2.5"
             />
-            <Pressable
-              onPress={() => alert("Edit")}
-              className="absolute bottom-0 right-0"
-            >
-              <Text className="text-3xl">👽</Text>
-            </Pressable>
           </View>
 
           <View className="flex flex-row gap-4 flex-1 px-16 justify-between">
             <View className="items-center">
-              <Text className="text-2xl font-bold">{casts?.length || 0}</Text>
-              <Text className="text-sm text-gray-600">ankys</Text>
+              <Text className="text-3xl font-bold">
+                {userAnkys?.length || 0}
+              </Text>
+              <Text className="text-xl text-gray-600">ankys</Text>
             </View>
             <View className="items-center">
-              <Text className="text-2xl font-bold">0</Text>
-              <Text className="text-sm text-gray-600">streak</Text>
+              <Text className="text-3xl font-bold">{userStreak || 0}</Text>
+              <Text className="text-xl text-gray-600">sadhana</Text>
             </View>
           </View>
         </View>
-        <Pressable
-          className=""
-          onPress={async () => {
-            // return const response = await logout();
-            try {
-              console.log("the wallet is", wallet?.account?.address);
-              console.log("copying to clipboard");
-              await Clipboard.setStringAsync(wallet?.account?.address || "");
-            } catch (error) {
-              console.log("there was an error creating the wallet", error);
-            }
-          }}
-        >
-          <Text className="text-lg my-2">
-            {user.linked_accounts.find(
-              (account) =>
-                account.type === "wallet" && account.wallet_client == "privy"
-            )?.address || "logout"}
-          </Text>
-        </Pressable>
-        <Link
-          href={`/transactions/${farcasterAccount?.fid || "18350"}`}
-          asChild
-        >
-          <TouchableOpacity className="w-2/3 border-2 border-yellow-400 rounded-lg p-4 my-4">
-            <View className="flex-row justify-between w-full">
-              <View className="flex-row items-center">
-                <AetherCoin width={40} height={40} />
-                <Text className="ml-2 text-lg">--</Text>
-              </View>
-              <View className="flex-row items-center">
-                <LuminaCoin width={40} height={40} />
-                <Text className="ml-2 text-lg">--</Text>
-              </View>
-              <View className="flex-row items-center">
-                <TerraCoin width={40} height={40} />
-                <Text className="ml-2 text-lg">--</Text>
-              </View>
-            </View>
-            <View className="flex-row justify-between items-center mt-2">
-              <Text className="text-sm text-gray-600 ml-auto">
-                Balance: -- $newen
-              </Text>
-            </View>
-          </TouchableOpacity>
-        </Link>
 
-        <Text className="text-left w-full font-bold mb-1">
-          {farcasterAccount?.display_name || "Display Name"}
+        <Text className="text-left text-2xl mt-2 w-full font-bold mb-1">
+          {ankyUser?.display_name || "ಹನುಮಂತ"}
         </Text>
-        <Text className="text-lg mb-1 w-full text-left">
-          {farcasterAccount?.bio || "No bio available"}
+        <Text className="text-xl mb-1 w-full text-left">
+          {ankyUser?.profile?.bio?.text || "ಪವನಸುತ | ಭಕ್ತಿ ಯೋಧ | ರಾಮ ಸೇವಕ"}
         </Text>
 
         <View className="flex-row mt-2">
@@ -280,10 +213,10 @@ const ProfileScreen = ({
         </View>
       </View>
       <ScrollView className="flex-1">
-        {viewMode === "ankys" && <ProfileGrid casts={casts} />}
-        {viewMode === "drafts" && <DraftsGrid drafts={drafts} />}
+        {viewMode === "ankys" && <UserAnkysGrid userAnkys={userAnkys} />}
+        {viewMode === "drafts" && <UserDraftsGrid userDrafts={userDrafts} />}
         {viewMode === "collected" && (
-          <CollectedGrid userCollection={userMintedAnkys} />
+          <UsersCollectedDisplay userCollectedAnkys={userCollectedAnkys} />
         )}
       </ScrollView>
     </View>

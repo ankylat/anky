@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   Vibration,
   View,
+  Image,
 } from "react-native";
 
 import { TabBarIcon } from "@/src/components/navigation/TabBarIcon";
@@ -19,6 +20,10 @@ import { useLoginWithFarcaster, usePrivy } from "@privy-io/expo";
 import { WritingSession } from "@/src/types/Anky";
 import { getCurrentAnkyverseDay } from "../lib/ankyverse";
 import ProfileScreen from "./profile";
+import ProfileIcon from "@/assets/icons/profile.svg";
+import PouchIcon from "@/assets/icons/pouch.svg";
+import Playground from "@/assets/icons/playground.svg";
+import Scroll from "@/assets/icons/scroll.svg";
 
 export default function TabLayout() {
   const { user } = usePrivy();
@@ -53,6 +58,13 @@ export default function TabLayout() {
       <Tabs
         screenOptions={{
           tabBarActiveTintColor: Colors[colorScheme ?? "light"].tint,
+          tabBarStyle: {
+            backgroundColor: "#1a1f3d",
+            borderTopWidth: 2,
+            borderTopColor: "#ff6b00",
+            height: 90,
+            position: "relative",
+          },
           header: ({ route, options }) => {
             return (
               <Header
@@ -67,23 +79,39 @@ export default function TabLayout() {
         }}
       >
         <Tabs.Screen
-          name="index"
+          name="feed"
           options={{
-            title: "Home",
+            title: "",
+            headerShown: false,
             tabBarIcon: ({ color, focused }) => (
-              <TabBarIcon
-                name={focused ? "home" : "home-outline"}
+              <Scroll
+                width={88}
+                height={88}
                 color={color}
+                style={{
+                  opacity: focused ? 1 : 0.8,
+                  marginTop: 33,
+                }}
               />
             ),
           }}
         />
+
         <Tabs.Screen
           name="anky"
           options={{
-            title: "Playground",
+            title: "",
+            headerShown: false,
             tabBarIcon: ({ color, focused }) => (
-              <MaterialCommunityIcons name="alien" size={24} color="black" />
+              <Playground
+                width={111}
+                height={111}
+                color={color}
+                style={{
+                  opacity: focused ? 1 : 0.8,
+                  marginTop: 20,
+                }}
+              />
             ),
           }}
         />
@@ -106,14 +134,18 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="map"
+          name="pouch"
           options={{
-            title: "Map",
+            title: "",
             headerShown: false,
             tabBarIcon: ({ color, focused }) => (
-              <TabBarIcon
-                name={focused ? "map" : "map-outline"}
+              <PouchIcon
+                width={111}
+                height={111}
                 color={color}
+                style={{
+                  opacity: focused ? 1 : 0.8,
+                }}
               />
             ),
           }}
@@ -121,12 +153,17 @@ export default function TabLayout() {
         <Tabs.Screen
           name="profile"
           options={{
-            title: "Profile",
+            title: "",
             headerShown: false,
             tabBarIcon: ({ color, focused }) => (
-              <TabBarIcon
-                name={focused ? "person" : "person-outline"}
+              <ProfileIcon
+                width={111}
+                height={111}
                 color={color}
+                style={{
+                  opacity: focused ? 1 : 0.8,
+                  marginTop: 33,
+                }}
               />
             ),
           }}
