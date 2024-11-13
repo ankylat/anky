@@ -30,6 +30,7 @@ import { useAnky } from "@/src/context/AnkyContext";
 import UserAnkysGrid from "@/src/components/Profile/UserAnkysGrid";
 import UserDraftsGrid from "@/src/components/Profile/UserDraftsGrid";
 import UsersCollectedDisplay from "@/src/components/Profile/UsersCollectedDisplay";
+import { getUserLocalDrafts } from "../lib/writingGame";
 
 const ProfileScreen = ({
   setShowWritingGame,
@@ -54,10 +55,10 @@ const ProfileScreen = ({
 
   useEffect(() => {
     const getDrafts = async () => {
-      const storedDrafts = await AsyncStorage.getItem("writingSessions");
-      console.log("the stored drafts are", storedDrafts);
-      if (storedDrafts) {
-        setDrafts(JSON.parse(storedDrafts));
+      const user_drafts = await getUserLocalDrafts();
+      console.log("the user drafts are", user_drafts);
+      if (user_drafts) {
+        setDrafts(user_drafts);
       }
     };
 

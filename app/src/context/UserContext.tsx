@@ -3,22 +3,26 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { Cast } from "../types/Cast";
 import * as Device from "expo-device";
-import { User, UserMetadata } from "../types/User";
-import { WritingSession } from "../types/Anky";
+import { UserMetadata, AnkyUser } from "../types/User";
+import { Anky, WritingSession } from "../types/Anky";
 import { useQuilibrium } from "./QuilibriumContext";
 import { getLocales } from "expo-localization";
 import { v4 as uuidv4 } from "uuid";
 import { Dimensions, Platform } from "react-native";
 import { registerAnonUser } from "../api";
 import { prettyLog } from "../app/lib/logs";
+import { getUserLocalWritingSessions } from "../app/lib/writingGame";
 
 interface UserContextType {
-  casts: Cast[];
+  ankys: Anky[];
   drafts: WritingSession[];
+  setAnkys: (ankys: Anky[]) => void;
+  setDrafts: (drafts: WritingSession[]) => void;
   isLoading: boolean;
   error: string | null;
   refreshUserData: () => Promise<void>;
-  userMintedAnkys: WritingSession[];
+  collectedAnkys: WritingSession[];
+  setCollectedAnkys: (collectedAnkys: WritingSession[]) => void;
   anonymousId: string | null;
 }
 
@@ -35,9 +39,9 @@ export const useUser = () => {
 export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [casts, setCasts] = useState<Cast[]>([]);
+  const [ankys, setAnkys] = useState<Anky[]>([]);
   const [drafts, setDrafts] = useState<WritingSession[]>([]);
-  const [userMintedAnkys, setUserMintedAnkys] = useState<WritingSession[]>([]);
+  const [collectedAnkys, setCollectedAnkys] = useState<WritingSession[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [anonymousId, setAnonymousId] = useState<string>("");
@@ -81,12 +85,11 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
         const metadata = await collectUserMetadata();
         console.log("Metadata collected", metadata);
 
-        const newAnonUser: User = {
+        const newAnonUser: AnkyUser = {
           id: newAnonymousId,
-          user_metadata: metadata,
-          total_writing_time: 0,
-          last_session_date: null,
-          is_anonymous: true,
+          settings: {},
+          walletAddress: "",
+          createdAt: new Date().toISOString(),
         };
 
         // Register anonymous user with backend
@@ -127,25 +130,39 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
         await initializeAnonymousUser();
       }
 
-      const storedDrafts = await AsyncStorage.getItem("writingSessions");
-      if (storedDrafts) {
-        const parsedDrafts = JSON.parse(storedDrafts);
-        // Sort by date and take the most recent sessions
-        const recentDrafts = parsedDrafts
+      // Get writing sessions from writingGame.ts helper
+      const writingSessions = await getUserLocalWritingSessions();
+
+      if (writingSessions.length > 0) {
+        // Filter regular drafts (not Ankys)
+        const regularDrafts = writingSessions
+          .filter((session) => !session.is_anky)
           .sort(
-            (a: WritingSession, b: WritingSession) =>
+            (a, b) =>
               new Date(b.starting_timestamp).getTime() -
               new Date(a.starting_timestamp).getTime()
           )
           .slice(0, 50);
-        setDrafts(recentDrafts);
+        setDrafts(regularDrafts);
+
+        // Filter Anky sessions
+        const ankyDrafts = writingSessions
+          .filter((session) => session.is_anky)
+          .sort(
+            (a, b) =>
+              new Date(b.starting_timestamp).getTime() -
+              new Date(a.starting_timestamp).getTime()
+          );
+        setCollectedAnkys(ankyDrafts);
+
         console.log(
-          "Recent user drafts loaded from local storage",
-          recentDrafts.length
+          "Writing sessions loaded:",
+          `${regularDrafts.length} drafts, ${ankyDrafts.length} Ankys`
         );
       } else {
-        console.log("No drafts found in local storage");
+        console.log("No writing sessions found");
         setDrafts([]);
+        setCollectedAnkys([]);
       }
 
       console.log("User data fetched successfully");
@@ -167,9 +184,12 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   const value = {
-    casts,
+    ankys,
+    setAnkys,
     drafts,
-    userMintedAnkys,
+    setDrafts,
+    collectedAnkys,
+    setCollectedAnkys,
     isLoading,
     error,
     refreshUserData,

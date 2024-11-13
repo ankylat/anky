@@ -42,7 +42,7 @@ export interface Anky {
   created_at: Date;
   updated_at: Date;
   previous_anky_id: string | null;
-  name: string;
+  name: string | null;
   token_address: string | null;
 }
 

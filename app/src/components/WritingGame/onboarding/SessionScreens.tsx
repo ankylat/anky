@@ -37,6 +37,8 @@ interface SessionScreenProps {
   sessionData: SessionData;
   onNextStep: () => void;
   ankyResponseReady: boolean;
+  elapsedTime: number;
+  ankyReflection: string;
 }
 
 // Common animated timer component
@@ -70,8 +72,10 @@ const AnimatedTimer = ({ duration }: { duration: number }) => {
 // Writing progress bar component
 const WritingProgressBar = ({
   timeSinceLastKeystroke,
+  elapsedTime,
 }: {
   timeSinceLastKeystroke: number;
+  elapsedTime: number;
 }) => {
   const progress = useSharedValue(1);
   const secondsBetweenKeystrokes = 8;
@@ -185,53 +189,82 @@ export const IncompleteSessionScreen: React.FC<{
 export const CompleteSessionScreen: React.FC<SessionScreenProps> = ({
   sessionData,
   onNextStep,
+  ankyReflection,
 }) => {
-  const progressSize = Math.min((sessionData.wordCount / 500) * 100, 100);
-  const rotateValue = useSharedValue(0);
-  const scaleValue = useSharedValue(1);
-
-  useEffect(() => {
-    rotateValue.value = withRepeat(
-      withTiming(360, { duration: 10000 }),
-      -1,
-      false
-    );
-    scaleValue.value = withRepeat(
-      withSequence(
-        withTiming(1.2, { duration: 1000 }),
-        withTiming(1, { duration: 1000 })
-      ),
-      -1,
-      true
-    );
-  }, []);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [
-      { rotate: `${rotateValue.value}deg` },
-      { scale: scaleValue.value },
-    ],
-  }));
-
+  // Comment: Need a celebratory animation showing sparkles and confetti bursting from center
+  // Prompt for AI: "Create a celebratory animation with gold and white sparkles and confetti
+  // bursting from the center in a circular pattern, lasting 3 seconds with easing"
+  const [step, setStep] = useState<"stats" | "anky-reflection">("stats");
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  console.log("elapsedTime", sessionData);
   return (
-    <View style={[styles.container, { backgroundColor: "#0B1026" }]}>
-      <Animated.View style={[styles.mandala, animatedStyle]}>
-        <View style={styles.progressCircle}>
-          <View
-            style={[
-              styles.innerCircle,
-              { width: `${progressSize}%`, height: `${progressSize}%` },
-            ]}
-          >
-            {/* TODO: Import and use LottieView properly */}
-            <View style={styles.celebrationAnim} />
+    <View className="flex-1 items-center justify-center bg-black p-5">
+      {step === "stats" ? (
+        <>
+          <View className="w-full items-center mb-8">
+            <Text className="text-5xl font-bold text-white">
+              {sessionData.wordCount}
+            </Text>
+            <Text className="text-sm text-gray-400 mt-1">TOTAL WORDS</Text>
           </View>
-        </View>
-      </Animated.View>
 
-      <TouchableOpacity style={styles.floatingButton} onPress={onNextStep}>
-        <MaterialCommunityIcons name="arrow-right" size={32} color="#00FFFF" />
-      </TouchableOpacity>
+          <View className="w-full items-center mb-8">
+            <Text className="text-4xl font-bold text-white">
+              {Math.floor(sessionData.totalDuration / 1000 / 60)}
+            </Text>
+            <Text className="text-sm text-gray-400 mt-1">MINUTES TODAY</Text>
+          </View>
+
+          <View className="w-full items-center mb-8">
+            <View className="flex-row gap-2 mb-2">
+              {[1, 2, 3, 4, 5, 6, 7].map((day) => (
+                <View
+                  key={day}
+                  className={`w-4 h-4 rounded-full ${
+                    day <= 5 ? "bg-green-500" : "bg-gray-700"
+                  }`}
+                />
+              ))}
+            </View>
+            <Text className="text-sm text-gray-400">5 SESSIONS THIS WEEK</Text>
+          </View>
+
+          <TouchableOpacity
+            onPress={() => setStep("anky-reflection")}
+            className="w-full bg-white rounded-lg py-4 mb-4"
+          >
+            <Text className="text-black text-center font-bold text-lg">
+              Continue
+            </Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={() => setIsShareModalOpen(true)}
+            className="w-full border border-white rounded-lg py-4"
+          >
+            <Text className="text-white text-center font-bold text-lg">
+              Share
+            </Text>
+          </TouchableOpacity>
+        </>
+      ) : (
+        <>
+          <View className="w-full items-center mb-8">
+            <Text className="text-2xl text-white text-center">
+              ನಿಮ್ಮ ಅಂಕಿ ನಿಮ್ಮ ಬರವಣಿಗೆಯನ್ನು ಪ್ರತಿಬಿಂಬಿಸುತ್ತಿದೆ...
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            onPress={onNextStep}
+            className="w-full bg-white rounded-lg py-4 mb-4"
+          >
+            <Text className="text-black text-center font-bold text-lg">
+              Continue to Profile
+            </Text>
+          </TouchableOpacity>
+        </>
+      )}
     </View>
   );
 };
