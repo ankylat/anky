@@ -3,16 +3,8 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { User as PrivyUser } from "@privy-io/expo";
 import { GameState, SessionData } from "@/src/types/WritingGame";
-
-interface WritingSession {
-  id: string;
-  text: string;
-  timeSpent: number;
-  timestamp: string;
-  isAnky: boolean;
-  ankyImageUrl?: string;
-  ankyResponse?: string; // Added field for Anky's response
-}
+import { prettyLog } from "./logs";
+import { Anky, WritingSession } from "@/src/types/Anky";
 
 // Function to send writing to Anky and process the response
 async function sendWritingToAnky(
@@ -38,95 +30,74 @@ async function sendWritingToAnky(
   }
 }
 
-export async function processWritingSession(
-  text: string,
-  timeSpent: number,
-  user: PrivyUser
-) {
-  const sessionId = uuidv4();
-  const isAnky = timeSpent >= 480; // 8 minutes or more
-  const timestamp = new Date().toISOString();
+// export async function processWritingSession(
+//   text: string,
+//   timeSpent: number,
+//   user: PrivyUser
+// ) {
+//   const sessionId = uuidv4();
+//   const isAnky = timeSpent >= 480; // 8 minutes or more
+//   const timestamp = new Date().toISOString();
 
-  const writingSession: WritingSession = {
-    id: sessionId,
-    text,
-    timeSpent,
-    timestamp,
-    isAnky,
-  };
+//   const writingSession: WritingSession = {
+//     session_id: sessionId,
+//     writing: text,
+//     time_spent: timeSpent,
+//     starting_timestamp: new Date(timestamp),
+//     is_anky: isAnky,
+//   };
 
-  // Save the writing session to local storage
-  try {
-    const existingSessions = await AsyncStorage.getItem("writingSessions");
-    const sessions: WritingSession[] = existingSessions
-      ? JSON.parse(existingSessions)
-      : [];
-    sessions.push(writingSession);
-    await AsyncStorage.setItem("writingSessions", JSON.stringify(sessions));
-  } catch (error) {
-    console.error("Error saving writing session:", error);
-  }
+//   // Save the writing session to local storage
+//   try {
+//     const existingSessions = await AsyncStorage.getItem("writingSessions");
+//     const sessions: WritingSession[] = existingSessions
+//       ? JSON.parse(existingSessions)
+//       : [];
+//     sessions.push(writingSession);
+//     await AsyncStorage.setItem("writingSessions", JSON.stringify(sessions));
+//   } catch (error) {
+//     console.error("Error saving writing session:", error);
+//   }
 
-  // If it's an Anky session, process it further
-  if (isAnky) {
-    try {
-      // Send the text to Anky and get the image URL and response
-      const ankyResponse = await sendWritingToAnky(text, user);
-      writingSession.ankyImageUrl = ankyResponse.imageUrl;
-      writingSession.ankyResponse = ankyResponse.response;
+//   // If it's an Anky session, process it further
+//   if (isAnky) {
+//     try {
+//       // Send the text to Anky and get the image URL and response
+//       const ankyResponse = await sendWritingToAnky(text, user);
+//       writingSession.ankyImageUrl = ankyResponse.imageUrl;
+//       writingSession.ankyResponse = ankyResponse.response;
 
-      // Update the session in storage with the image URL and Anky's response
-      const existingSessions = await AsyncStorage.getItem("writingSessions");
-      if (existingSessions) {
-        const sessions: WritingSession[] = JSON.parse(existingSessions);
-        const updatedSessions = sessions.map((session) =>
-          session.id === sessionId ? writingSession : session
-        );
-        await AsyncStorage.setItem(
-          "writingSessions",
-          JSON.stringify(updatedSessions)
-        );
-      }
+//       // Update the session in storage with the image URL and Anky's response
+//       const existingSessions = await AsyncStorage.getItem("writingSessions");
+//       if (existingSessions) {
+//         const sessions: WritingSession[] = JSON.parse(existingSessions);
+//         const updatedSessions = sessions.map((session) =>
+//           session.id === sessionId ? writingSession : session
+//         );
+//         await AsyncStorage.setItem(
+//           "writingSessions",
+//           JSON.stringify(updatedSessions)
+//         );
+//       }
 
-      // Update user's profile with the new Anky session
-      await updateUserProfile(writingSession);
+//       // Update user's profile with the new Anky session
+//       await updateUserProfile(writingSession);
 
-      // TODO for backend:
-      // 1. Store the writing session in the database
-      // 2. Associate the session with the user
-      // 3. Store the generated image URL
-      // 4. Store Anky's response
-      // 5. Implement proper error handling and retries
-      // 6. Consider implementing a queue system for processing long writings
-      // 7. Ensure data consistency between frontend and backend
-    } catch (error) {
-      console.error("Error processing Anky session:", error);
-    }
-  }
+//       // TODO for backend:
+//       // 1. Store the writing session in the database
+//       // 2. Associate the session with the user
+//       // 3. Store the generated image URL
+//       // 4. Store Anky's response
+//       // 5. Implement proper error handling and retries
+//       // 6. Consider implementing a queue system for processing long writings
+//       // 7. Ensure data consistency between frontend and backend
+//     } catch (error) {
+//       console.error("Error processing Anky session:", error);
+//     }
+//   }
 
-  return writingSession;
-}
-
-async function updateUserProfile(session: WritingSession) {
-  try {
-    const userProfile = await AsyncStorage.getItem("userProfile");
-    if (userProfile) {
-      const profile = JSON.parse(userProfile);
-      if (!profile.ankySessions) {
-        profile.ankySessions = [];
-      }
-      profile.ankySessions.push({
-        id: session.id,
-        timestamp: session.timestamp,
-        imageUrl: session.ankyImageUrl,
-        response: session.ankyResponse,
-      });
-      await AsyncStorage.setItem("userProfile", JSON.stringify(profile));
-    }
-  } catch (error) {
-    console.error("Error updating user profile:", error);
-  }
-}
+//   return writingSession;
+// }
 
 export function fromGameStateToWritingSession(gameState: GameState) {
   return {
@@ -142,6 +113,86 @@ export function fromGameStateToWritingSession(gameState: GameState) {
     prompt: gameState.prompt,
     words_written: gameState.words_written,
   };
+}
+
+export async function storeNewDraftLocally(
+  newDraft: WritingSession
+): Promise<WritingSession[]> {
+  try {
+    const existing_user_drafts = await AsyncStorage.getItem("user_drafts");
+    const drafts: WritingSession[] = existing_user_drafts
+      ? JSON.parse(existing_user_drafts)
+      : [];
+    drafts.unshift(newDraft);
+    await AsyncStorage.setItem("drafts", JSON.stringify(drafts));
+    prettyLog(newDraft, "NEW DRAFT STORED LOCALLY");
+    return drafts;
+  } catch (error) {
+    console.error("Error storing draft:", error);
+    return [];
+  }
+}
+
+export async function getUserLocalDrafts() {
+  try {
+    const existing_user_drafts = await AsyncStorage.getItem("user_drafts");
+    return existing_user_drafts ? JSON.parse(existing_user_drafts) : [];
+  } catch (error) {
+    console.error("Error getting user drafts:", error);
+    return [];
+  }
+}
+
+export async function storeNewAnkyLocally(newAnky: Anky) {
+  try {
+    const existing_user_ankys = await AsyncStorage.getItem("user_ankys");
+    const ankys: Anky[] = existing_user_ankys
+      ? JSON.parse(existing_user_ankys)
+      : [];
+    ankys.unshift(newAnky);
+    await AsyncStorage.setItem("user_ankys", JSON.stringify(ankys));
+    prettyLog(newAnky, "NEW ANKY STORED LOCALLY");
+  } catch (error) {
+    console.error("Error storing anky:", error);
+  }
+}
+
+export async function getUserLocalAnkys() {
+  try {
+    const existing_user_ankys = await AsyncStorage.getItem("user_ankys");
+    return existing_user_ankys ? JSON.parse(existing_user_ankys) : [];
+  } catch (error) {
+    console.error("Error getting user ankys:", error);
+    return [];
+  }
+}
+
+export async function storeUserWritingSessionLocally(
+  newWritingSession: WritingSession
+): Promise<WritingSession[]> {
+  try {
+    const existing_sessions = await AsyncStorage.getItem("writing_sessions");
+    const sessions: WritingSession[] = existing_sessions
+      ? JSON.parse(existing_sessions)
+      : [];
+    sessions.unshift(newWritingSession);
+    await AsyncStorage.setItem("writing_sessions", JSON.stringify(sessions));
+    prettyLog(newWritingSession, "NEW WRITING SESSION STORED LOCALLY");
+    return sessions;
+  } catch (error) {
+    console.error("Error storing writing session:", error);
+    return [];
+  }
+}
+
+export async function getUserLocalWritingSessions(): Promise<WritingSession[]> {
+  try {
+    const existing_sessions = await AsyncStorage.getItem("writing_sessions");
+    return existing_sessions ? JSON.parse(existing_sessions) : [];
+  } catch (error) {
+    console.error("Error getting user writing sessions:", error);
+    return [];
+  }
 }
 
 // export interface WritingSession {

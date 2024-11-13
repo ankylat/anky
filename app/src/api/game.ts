@@ -1,5 +1,4 @@
 import axios from "axios";
-import { User } from "../types/User";
 import { Cast } from "../types/Cast";
 import { User as PrivyUser } from "@privy-io/expo";
 import { WritingSession } from "@/src/types/Anky";

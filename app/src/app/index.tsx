@@ -35,7 +35,7 @@ import {
   CompleteSessionScreen,
 } from "../components/WritingGame/onboarding/SessionScreens";
 import { useAnky } from "../context/AnkyContext";
-import { WritingSession } from "../types/Anky";
+import { Anky, WritingSession } from "../types/Anky";
 import { useUser } from "../context/UserContext";
 import { processInitialWritingSessions } from "../api/anky";
 import {
@@ -47,7 +47,11 @@ import { SessionData, Keystroke } from "@/src/types/WritingGame";
 import { prettyLog } from "./lib/logs";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
-import { clearAllUserDataFromLocalStorage } from "./lib/development";
+import {
+  storeNewAnkyLocally,
+  storeNewDraftLocally,
+  storeUserWritingSessionLocally,
+} from "./lib/writingGame";
 
 const { width, height } = Dimensions.get("window");
 
@@ -57,14 +61,24 @@ const WritingGame = () => {
   const glowIntensity = useSharedValue(1);
   const scaleText = useSharedValue(1);
   const { currentAnky } = useAnky();
-  const { anonymousId }: { anonymousId: string | null } = useUser();
+  const {
+    anonymousId,
+    setAnkys,
+    setDrafts,
+    ankys,
+  }: {
+    anonymousId: string | null;
+    setAnkys: (ankys: Anky[]) => void;
+    setDrafts: (drafts: WritingSession[]) => void;
+    ankys: Anky[];
+  } = useUser();
   const [writingSession, setWritingSession] = useState<WritingSession>({
     session_id: "",
     session_index_for_user: 0,
     user_id: anonymousId || "",
     starting_timestamp: new Date(),
     ending_timestamp: null,
-    prompt: "tell me who you are",
+    prompt: currentAnky?.anky_inquiry ?? "tell me who you are",
     writing: "",
     words_written: 0,
     newen_earned: 0,
@@ -73,7 +87,7 @@ const WritingGame = () => {
     is_anky: false,
     parent_anky_id: null,
     anky_response: null,
-    status: "intro",
+    status: "anky-prompt",
     anky_id: null,
     anky: null,
     writing_patterns: undefined,
@@ -105,11 +119,7 @@ const WritingGame = () => {
   // const MAX_SESSION_DURATION = 480000; // 480 seconds (8 minutes)
 
   useEffect(() => {
-    clearAllUserDataFromLocalStorage();
-  }, []);
-
-  useEffect(() => {
-    if (writingSession.status === "intro") {
+    if (writingSession.status === "anky-prompt") {
       // Cursor blink animation (existing)
       cursorOpacity.value = withRepeat(
         withSequence(
@@ -173,7 +183,7 @@ const WritingGame = () => {
   useEffect(() => {
     console.log("IN HERE");
     Vibration.vibrate([100, 50, 200, 50, 300, 50, 400]); // Increasing intensity pattern to build excitement
-    if (writingSession.status === "intro") {
+    if (writingSession.status === "anky-prompt") {
       cursorOpacity.value = withRepeat(
         withSequence(
           withTiming(0, { duration: 500 }),
@@ -201,7 +211,7 @@ const WritingGame = () => {
   }, [writingSession]);
 
   useEffect(() => {
-    if (writingSession.status === "intro") {
+    if (writingSession.status === "anky-prompt") {
       let currentIndex = 0;
       const interval = setInterval(() => {
         if (currentIndex < (writingSession?.prompt ?? "").length) {
@@ -276,34 +286,27 @@ const WritingGame = () => {
         ending_timestamp: new Date(),
         is_anky: data.totalDuration >= MAX_SESSION_DURATION ? true : false,
         keystroke_data: keystrokes,
+        anky_id: data.totalDuration > MAX_SESSION_DURATION ? uuidv4() : null,
       };
+      setWritingSession(endedWritingSession);
       prettyLog(endedWritingSession, "The ended session data is: ");
 
-      console.log("Session data set");
+      let newWritingSessions: WritingSession[] = [];
 
-      const writingAttempts = await AsyncStorage.getItem("writing_attempts");
-      console.log(
-        "Retrieved writing attempts from localStorage:",
-        writingAttempts
-      );
+      if (!endedWritingSession.is_anky) {
+        newWritingSessions = await storeUserWritingSessionLocally(
+          endedWritingSession
+        );
+        prettyLog(newWritingSessions, "THE NEW DRAFTS ARE: ");
+        setDrafts(newWritingSessions.filter((session) => !session.is_anky));
+      }
 
-      prettyLog(writingAttempts, "THE WRITING ATTEMPTS ARE: ");
-
-      setWritingSession(endedWritingSession as WritingSession);
-
-      const newWritingAttempts = [
-        ...(writingAttempts ? JSON.parse(writingAttempts) : []),
-        endedWritingSession,
-      ];
-
-      prettyLog(newWritingAttempts, "THE NEW WRITING ATTEMPTS ARE: ");
-
-      await AsyncStorage.setItem(
-        "writing_attempts",
-        JSON.stringify(newWritingAttempts)
-      );
-      console.log("Saved new writing attempts to localStorage");
-
+      console.log("****************************************************");
+      console.log("****************************************************");
+      console.log("****************************************************");
+      console.log("****************************************************");
+      console.log("****************************************************");
+      console.log("****************************************************");
       console.log("****************************************************");
 
       if (endedWritingSession.is_anky) {
@@ -312,6 +315,18 @@ const WritingGame = () => {
           endedWritingSession,
           "THE USER IS READY, MOVE ON TO THE NEXT PHASE"
         );
+        const newAnky = [
+          {
+            id: endedWritingSession.anky_id,
+            user_id: anonymousId,
+            writing_session_id: endedWritingSession.session_id,
+            prompt: endedWritingSession.prompt,
+            anky_reflection: "",
+            image_url: "@/assets/images/anky.png",
+            status: "sent-to-backend",
+          } as Anky,
+        ];
+        setAnkys([...newAnky, ...ankys]);
       } else {
         console.log("Duration < 480, user not ready");
         prettyLog(
@@ -319,21 +334,20 @@ const WritingGame = () => {
           "THE USER IS NOT READY, KEEP THEM IN THE GAME"
         );
         console.log("Writing session ended");
-        await getOnboardingResponse(newWritingAttempts);
+        await getAnkyResponse(newWritingSessions);
       }
-      await endWritingSession(
+      const response = await endWritingSession(
         endedWritingSession,
         "ENDING THE WRITING SESSION"
       );
+      prettyLog(response, "THE RESPONSE FROM ENDING THE WRITING SESSION IS: ");
     } catch (error) {
       console.error("Error in handleSessionEnded:", error);
       throw error;
     }
   };
 
-  const getOnboardingResponse = async (
-    newWritingAttempts: WritingSession[]
-  ) => {
+  const getAnkyResponse = async (newDrafts: WritingSession[]) => {
     try {
       // Get existing responses array from storage
       const existingResponsesStr = await AsyncStorage.getItem(
@@ -345,7 +359,7 @@ const WritingGame = () => {
 
       // Get new response from API
       const ankyResponse = await onboardingSessionProcessing(
-        newWritingAttempts,
+        newDrafts,
         existingResponses
       );
       setAnkyResponseReady(true);
@@ -366,13 +380,7 @@ const WritingGame = () => {
   const handleTimeout = () => {
     if (text.length > 0) {
       const stats = calculateStats(text, keystrokes);
-      const writingPatterns = {
-        average_speed: stats.averageWPM,
-        longest_pause: stats.longestPause,
-        speed_variations: [],
-        pause_points: [],
-        flow_state_ranges: [],
-      };
+
       const sessionStats: SessionData = {
         text,
         startTime: sessionStartTime.current!,
@@ -455,7 +463,7 @@ const WritingGame = () => {
 
   const renderContent = () => {
     switch (writingSession.status) {
-      case "intro":
+      case "anky-prompt":
         return (
           <TouchableWithoutFeedback onPress={handleScreenTap}>
             <View className="flex-1 items-center justify-center px-10 pb-[100px] android:pb-20">
@@ -496,6 +504,7 @@ const WritingGame = () => {
             {writingSession.status === "writing" && (
               <WritingProgressBar
                 timeSinceLastKeystroke={timeSinceLastKeystroke}
+                elapsedTime={new Date().getTime() - sessionStartTime.current!}
               />
             )}
             <TextInput
@@ -533,6 +542,8 @@ const WritingGame = () => {
             sessionData={sessionData!}
             onNextStep={() => router.push("/(tabs)/profile")}
             ankyResponseReady={ankyResponseReady}
+            elapsedTime={new Date().getTime() - sessionStartTime.current!}
+            ankyReflection={ankyResponses[ankyResponses.length - 1]}
           />
         );
     }

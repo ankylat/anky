@@ -25,6 +25,7 @@ import { UserProvider } from "../context/UserContext";
 import { View } from "react-native";
 import { QuilibriumProvider } from "../context/QuilibriumContext";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { clearAllUserDataFromLocalStorage } from "./lib/development";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -43,6 +44,7 @@ export default function RootLayout() {
   useEffect(() => {
     if (loaded) {
       SplashScreen.hideAsync();
+      clearAllUserDataFromLocalStorage();
     }
   }, [loaded]);
 
