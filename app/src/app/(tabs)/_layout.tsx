@@ -1,4 +1,4 @@
-import { Tabs } from "expo-router";
+import { router, Tabs } from "expo-router";
 import React, { useState } from "react";
 import {
   StyleSheet,
@@ -12,14 +12,13 @@ import {
 import { TabBarIcon } from "@/src/components/navigation/TabBarIcon";
 import { Colors } from "@/src/constants/Colors";
 import { useColorScheme } from "@/src/hooks/useColorScheme";
-import WritingGame from "@/src/components/WritingGame";
+import WritingGame from "@/src/components/Writing_Game";
 import { useAnky } from "@/src/context/AnkyContext";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Header } from "@react-navigation/elements";
 import { useLoginWithFarcaster, usePrivy } from "@privy-io/expo";
 import { WritingSession } from "@/src/types/Anky";
 import { getCurrentAnkyverseDay } from "../lib/ankyverse";
-import ProfileScreen from "./profile";
 import ProfileIcon from "@/assets/icons/profile.svg";
 import PouchIcon from "@/assets/icons/pouch.svg";
 import Playground from "@/assets/icons/playground.svg";
@@ -38,7 +37,13 @@ export default function TabLayout() {
     },
   });
   const colorScheme = useColorScheme();
-  const { isWritingGameVisible, setIsWritingGameVisible } = useAnky();
+  const {
+    isWritingGameVisible,
+    setIsWritingGameVisible,
+    didUserWriteToday,
+    isUserWriting,
+  } = useAnky();
+
   const [writingSession, setWritingSession] = useState<
     WritingSession | undefined
   >(undefined);
@@ -118,6 +123,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="write"
           options={{
+            headerShown: false,
             title: "",
             tabBarIcon: ({ color, focused }) => (
               <TabBarIcon
@@ -134,7 +140,7 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
-          name="pouch"
+          name="wallet"
           options={{
             title: "",
             headerShown: false,
@@ -175,13 +181,13 @@ export default function TabLayout() {
             headerShown: false,
           }}
         />
-        <Tabs.Screen
+        {/* <Tabs.Screen
           name="transactions/[fid]"
           options={{
             tabBarButton: (props) => null,
             title: "$newen transactions",
           }}
-        />
+        /> */}
       </Tabs>
 
       {isWritingGameVisible && (
@@ -195,63 +201,52 @@ export default function TabLayout() {
             zIndex: 10,
           }}
         >
-          <WritingGame
-            onGameOver={(wordsWritten, timeSpent) => {
-              console.log(
-                `Words written: ${wordsWritten}, Time spent: ${timeSpent}`
-              );
-              console.log(
-                `Processing writing game results: ${wordsWritten} words written in ${timeSpent} seconds`
-              );
-            }}
-            writingSession={writingSession}
-            setWritingSession={setWritingSession}
-            secondsBetweenKeystrokes={8}
-            ankyverseDay={ankyverseDay}
-          />
+          <WritingGame />
         </View>
       )}
 
-      <View
-        style={{
-          position: "absolute",
-          bottom: 33,
-          left: 0,
-          right: 0,
-          alignItems: "center",
-          justifyContent: "center",
-          pointerEvents: "box-none",
-          zIndex: 1000,
-        }}
-      >
-        <TouchableOpacity
+      {!isUserWriting && didUserWriteToday && (
+        <View
           style={{
-            backgroundColor: ankyverseDay.currentColor.secondary,
-            borderRadius: 9999,
-            padding: 16,
-            shadowColor: "#000",
-            shadowOffset: { width: 0, height: 2 },
-            shadowOpacity: 0.25,
-            shadowRadius: 3.84,
-            elevation: 5,
+            position: "absolute",
+            bottom: 33,
+            left: 0,
+            right: 0,
+            alignItems: "center",
+            justifyContent: "center",
+            pointerEvents: "box-none",
+            zIndex: 1000,
           }}
-          onPress={() => {
-            Vibration.vibrate(5);
-            setIsWritingGameVisible((x) => !x);
-          }}
-          activeOpacity={0.9}
         >
-          <Text
+          <TouchableOpacity
             style={{
-              fontSize: 24,
-              color: "white",
-              textAlign: "center",
+              backgroundColor: ankyverseDay.currentColor.secondary,
+              borderRadius: 9999,
+              padding: 16,
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 2 },
+              shadowOpacity: 0.25,
+              shadowRadius: 3.84,
+              elevation: 5,
             }}
+            onPress={() => {
+              Vibration.vibrate(5);
+              setIsWritingGameVisible(!isWritingGameVisible);
+            }}
+            activeOpacity={0.9}
           >
-            👽
-          </Text>
-        </TouchableOpacity>
-      </View>
+            <Text
+              style={{
+                fontSize: 24,
+                color: "white",
+                textAlign: "center",
+              }}
+            >
+              👽
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }

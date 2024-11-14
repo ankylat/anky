@@ -12,7 +12,7 @@ import { Cast } from "@/src/types/Cast";
 import { Link, router } from "expo-router";
 import { SheetManager } from "react-native-actions-sheet";
 import { usePrivy, useLinkWithFarcaster } from "@privy-io/expo";
-import { useQuilibrium } from "../context/QuilibriumContext";
+import { useUser } from "../context/UserContext";
 
 interface CastElementProps {
   cast: Cast;
@@ -24,7 +24,7 @@ const CastElement: React.FC<CastElementProps> = ({
   isInModal = false,
 }) => {
   const [isTextExpanded, setIsTextExpanded] = useState(isInModal);
-  const { user } = useQuilibrium();
+  const { user } = useUser();
   const { linkWithFarcaster } = useLinkWithFarcaster();
   const toggleTextExpansion = () => {
     if (!isInModal) {

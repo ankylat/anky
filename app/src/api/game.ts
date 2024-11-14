@@ -37,8 +37,9 @@ export const startWritingSession = async (
       response.data
     );
     return response.data;
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error adding new session to the database:", error);
+    console.log("The error is", error.response);
     throw error;
   }
 };
@@ -50,6 +51,7 @@ export const endWritingSession = async (
   console.log(
     `Adding new writing session to the database and sending to backend`
   );
+
   try {
     let endpoint = `${API_URL}/writing-session-ended`;
     console.log(`Endpoint constructed: ${endpoint}`);
@@ -79,49 +81,6 @@ export const endWritingSession = async (
   } catch (error: any) {
     console.error("Error updating the session on the database:", error);
     console.log("The error is", error.response);
-    throw error;
-  }
-};
-
-export const onboardingSessionProcessing = async (
-  user_writings: WritingSession[],
-  anky_responses: string[]
-): Promise<{ reflection: string }> => {
-  console.log(`Getting new anky responses`);
-  try {
-    let endpoint = `${API_URL}/anky/onboarding/${user_writings[0].user_id}`;
-    console.log(`Endpoint constructed: ${endpoint}`);
-    const user = { access_token: "" };
-
-    console.log("Preparing to make API request");
-    prettyLog({ user_writings, anky_responses }, "ONBOARDING SESSION DATA");
-
-    const response = await axios.post(
-      endpoint,
-      { user_writings, anky_responses },
-      {
-        headers: {
-          "api-key": POIESIS_API_KEY!,
-          token: user.access_token,
-          "User-Agent": `anky-mobile-app-${process.env.ENVIRONMENT}`,
-        },
-      }
-    );
-    console.log("API request completed");
-
-    prettyLog(response.data, "ANKY RESPONSES");
-    if (response.status !== 200) {
-      console.error(`Unexpected response status: ${response.status}`);
-      throw new Error("Failed to fetch user profile and casts");
-    }
-
-    console.log("got new response from anky", response.data);
-    return response.data;
-  } catch (error) {
-    console.error(
-      "Error adding the onboarding session to the database:",
-      error
-    );
     throw error;
   }
 };

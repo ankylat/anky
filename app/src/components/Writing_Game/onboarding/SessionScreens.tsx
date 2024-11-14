@@ -23,6 +23,8 @@ import Animated, {
 import { characters } from "@/src/app/lib/ankyverse";
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import LinearGradient from "react-native-svg/lib/typescript/elements/LinearGradient";
+import { WritingSession } from "@/src/types/Anky";
+import { useAnky } from "@/src/context/AnkyContext";
 
 const { height, width } = Dimensions.get("window");
 
@@ -77,23 +79,49 @@ const WritingProgressBar = ({
   timeSinceLastKeystroke: number;
   elapsedTime: number;
 }) => {
-  const progress = useSharedValue(1);
+  const keystrokeProgress = useSharedValue(1);
+  const sessionProgress = useSharedValue(0);
   const secondsBetweenKeystrokes = 8;
+  const maxSessionDuration = 480000; // 480 seconds in milliseconds
 
   useEffect(() => {
-    progress.value = withTiming(
+    keystrokeProgress.value = withTiming(
       1 - timeSinceLastKeystroke / secondsBetweenKeystrokes,
       {
         duration: 100,
       }
     );
-  }, [timeSinceLastKeystroke]);
 
-  const animatedStyle = useAnimatedStyle(() => {
+    sessionProgress.value = withTiming(elapsedTime / maxSessionDuration, {
+      duration: 100,
+    });
+  }, [timeSinceLastKeystroke, elapsedTime]);
+
+  const keystrokeAnimatedStyle = useAnimatedStyle(() => {
     return {
-      width: `${progress.value * 100}%`,
+      width: `${keystrokeProgress.value * 100}%`,
       backgroundColor: interpolateColor(
-        progress.value,
+        keystrokeProgress.value,
+        [0, 0.143, 0.286, 0.429, 0.571, 0.714, 0.857, 1],
+        [
+          "#ff0000",
+          "#ffa500",
+          "#ffff00",
+          "#00ff00",
+          "#0000ff",
+          "#4b0082",
+          "#8b00ff",
+          "#ffffff",
+        ]
+      ),
+    };
+  });
+
+  const sessionAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      width: `${sessionProgress.value * 100}%`,
+      backgroundColor: interpolateColor(
+        sessionProgress.value,
         [0, 0.143, 0.286, 0.429, 0.571, 0.714, 0.857, 1],
         [
           "#ff0000",
@@ -111,159 +139,62 @@ const WritingProgressBar = ({
 
   return (
     <View style={styles.progressBarContainer}>
-      <Animated.View style={[styles.progressBar, animatedStyle]} />
+      <Animated.View style={[styles.lifeBar, keystrokeAnimatedStyle]} />
+      <Animated.View style={[styles.progressBar, sessionAnimatedStyle]} />
     </View>
   );
 };
 
-// Screen for incomplete sessions (< 8 minutes)
-export const IncompleteSessionScreen: React.FC<{
+interface SessionData {
+  text: string;
+  totalDuration: number;
+  wordCount: number;
+  averageWPM: number;
+}
+
+// Screen for both complete and incomplete sessions
+export const SessionEndScreen: React.FC<{
   sessionData: SessionData;
-  onRetry: () => void;
-  ankyResponses: string[];
-  ankyResponseReady: boolean;
-}> = ({ sessionData, onRetry, ankyResponses, ankyResponseReady }) => {
-  const [displayText, setDisplayText] = useState("");
-  const [isLoading, setIsLoading] = useState(true);
-
-  // Generate initial random characters on mount
-  useEffect(() => {
-    const randomChars = Array(88)
-      .fill("")
-      .map(() => characters[Math.floor(Math.random() * characters.length)])
-      .join("");
-    setDisplayText(randomChars);
-  }, []);
-
-  // Start transformation when ankyResponseReady becomes true
-  useEffect(() => {
-    if (ankyResponseReady && ankyResponses.length > 0) {
-      const finalMessage = ankyResponses[ankyResponses.length - 1];
-      let currentIndex = 0;
-
-      const interval = setInterval(() => {
-        if (currentIndex < finalMessage.length) {
-          setDisplayText((prev) => {
-            const newChar = finalMessage[currentIndex];
-            return (
-              finalMessage.slice(0, currentIndex) +
-              newChar +
-              prev.slice(currentIndex + 1)
-            );
-          });
-          currentIndex++;
-        } else {
-          clearInterval(interval);
-          setIsLoading(false);
-        }
-      }, 50);
-
-      return () => clearInterval(interval);
-    }
-  }, [ankyResponseReady, ankyResponses]);
-
-  return (
-    <View style={[styles.container, { backgroundColor: "#ff0000" }]}>
-      <View style={styles.messageContainer}>
-        <Text
-          style={[
-            styles.message,
-            isLoading && {
-              textShadowColor: "rgba(255,255,255,0.5)",
-              textShadowOffset: { width: 2, height: 2 },
-              textShadowRadius: 10,
-            },
-          ]}
-        >
-          {displayText}
-        </Text>
-      </View>
-      <TouchableOpacity style={styles.button} onPress={onRetry}>
-        <Text style={styles.buttonText}>Try Again</Text>
-      </TouchableOpacity>
-    </View>
-  );
-};
-
-// Screen for completed sessions (>= 8 minutes)
-export const CompleteSessionScreen: React.FC<SessionScreenProps> = ({
-  sessionData,
-  onNextStep,
-  ankyReflection,
-}) => {
-  // Comment: Need a celebratory animation showing sparkles and confetti bursting from center
-  // Prompt for AI: "Create a celebratory animation with gold and white sparkles and confetti
-  // bursting from the center in a circular pattern, lasting 3 seconds with easing"
-  const [step, setStep] = useState<"stats" | "anky-reflection">("stats");
-  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
-  console.log("elapsedTime", sessionData);
+  onNextStep: () => void;
+  writingSession: WritingSession;
+}> = ({ sessionData, onNextStep, writingSession }) => {
+  const { setWritingSession } = useAnky();
   return (
     <View className="flex-1 items-center justify-center bg-black p-5">
-      {step === "stats" ? (
-        <>
-          <View className="w-full items-center mb-8">
-            <Text className="text-5xl font-bold text-white">
-              {sessionData.wordCount}
-            </Text>
-            <Text className="text-sm text-gray-400 mt-1">TOTAL WORDS</Text>
-          </View>
+      <View className="w-full items-center mb-8">
+        <Text className="text-5xl font-bold text-white">
+          {sessionData.wordCount}
+        </Text>
+        <Text className="text-sm text-gray-400 mt-1">TOTAL WORDS</Text>
+      </View>
 
-          <View className="w-full items-center mb-8">
-            <Text className="text-4xl font-bold text-white">
-              {Math.floor(sessionData.totalDuration / 1000 / 60)}
-            </Text>
-            <Text className="text-sm text-gray-400 mt-1">MINUTES TODAY</Text>
-          </View>
+      <View className="w-full items-center mb-8">
+        <Text className="text-4xl font-bold text-white">
+          {Math.floor(sessionData.totalDuration / 1000 / 60)}:
+          {Math.floor((sessionData.totalDuration / 1000) % 60)
+            .toString()
+            .padStart(2, "0")}
+        </Text>
+        <Text className="text-sm text-gray-400 mt-1">TIME</Text>
+      </View>
 
-          <View className="w-full items-center mb-8">
-            <View className="flex-row gap-2 mb-2">
-              {[1, 2, 3, 4, 5, 6, 7].map((day) => (
-                <View
-                  key={day}
-                  className={`w-4 h-4 rounded-full ${
-                    day <= 5 ? "bg-green-500" : "bg-gray-700"
-                  }`}
-                />
-              ))}
-            </View>
-            <Text className="text-sm text-gray-400">5 SESSIONS THIS WEEK</Text>
-          </View>
+      <View className="w-full items-center mb-8">
+        <Text className="text-4xl font-bold text-white">
+          {Math.round(sessionData.averageWPM)}
+        </Text>
+        <Text className="text-sm text-gray-400 mt-1">AVERAGE WPM</Text>
+      </View>
 
-          <TouchableOpacity
-            onPress={() => setStep("anky-reflection")}
-            className="w-full bg-white rounded-lg py-4 mb-4"
-          >
-            <Text className="text-black text-center font-bold text-lg">
-              Continue
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            onPress={() => setIsShareModalOpen(true)}
-            className="w-full border border-white rounded-lg py-4"
-          >
-            <Text className="text-white text-center font-bold text-lg">
-              Share
-            </Text>
-          </TouchableOpacity>
-        </>
-      ) : (
-        <>
-          <View className="w-full items-center mb-8">
-            <Text className="text-2xl text-white text-center">
-              ನಿಮ್ಮ ಅಂಕಿ ನಿಮ್ಮ ಬರವಣಿಗೆಯನ್ನು ಪ್ರತಿಬಿಂಬಿಸುತ್ತಿದೆ...
-            </Text>
-          </View>
-
-          <TouchableOpacity
-            onPress={onNextStep}
-            className="w-full bg-white rounded-lg py-4 mb-4"
-          >
-            <Text className="text-black text-center font-bold text-lg">
-              Continue to Profile
-            </Text>
-          </TouchableOpacity>
-        </>
+      {!writingSession.is_anky && (
+        <TouchableOpacity
+          onPress={onNextStep}
+          className="w-full flex-row items-center justify-center bg-white rounded-lg py-4 mb-4"
+        >
+          <MaterialCommunityIcons name="reload" size={24} color="black" />
+          <Text className="text-black text-center font-bold text-lg ml-2">
+            Try Again
+          </Text>
+        </TouchableOpacity>
       )}
     </View>
   );
@@ -303,9 +234,13 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderColor: "#000",
   },
-  progressBar: {
-    height: "100%",
+  lifeBar: {
+    height: "20%",
   },
+  progressBar: {
+    height: "80%",
+  },
+
   timerContainer: {
     width: 100,
     height: 100,

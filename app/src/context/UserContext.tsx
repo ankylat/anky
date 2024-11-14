@@ -1,29 +1,46 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useMemo,
+} from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { Cast } from "../types/Cast";
 import * as Device from "expo-device";
-import { UserMetadata, AnkyUser } from "../types/User";
+import { UserMetadata, AnkyUser, FarcasterAccount } from "../types/User";
 import { Anky, WritingSession } from "../types/Anky";
-import { useQuilibrium } from "./QuilibriumContext";
 import { getLocales } from "expo-localization";
 import { v4 as uuidv4 } from "uuid";
 import { Dimensions, Platform } from "react-native";
 import { registerAnonUser } from "../api";
 import { prettyLog } from "../app/lib/logs";
-import { getUserLocalWritingSessions } from "../app/lib/writingGame";
+import {
+  fetchWritingSessionFromId,
+  getUserLocalCollectedAnkys,
+  getUserLocalWritingSessions,
+} from "../app/lib/writingGame";
+import { usePrivy } from "@privy-io/expo";
 
 interface UserContextType {
-  ankys: Anky[];
-  drafts: WritingSession[];
-  setAnkys: (ankys: Anky[]) => void;
-  setDrafts: (drafts: WritingSession[]) => void;
+  ankyUser: AnkyUser | null;
+
+  userAnkys: WritingSession[];
+  userDrafts: WritingSession[];
+  userCollectedAnkys: WritingSession[];
+
+  upcomingPrompt: string | null;
+
+  setAnkyUser: (user: AnkyUser | null) => void;
+  setUserAnkys: (ankys: WritingSession[]) => void;
+  setUserDrafts: (drafts: WritingSession[]) => void;
+  setUserCollectedAnkys: (collectedAnkys: WritingSession[]) => void;
+
+  setUpcomingPrompt: (prompt: string | null) => void;
+
   isLoading: boolean;
   error: string | null;
-  refreshUserData: () => Promise<void>;
-  collectedAnkys: WritingSession[];
-  setCollectedAnkys: (collectedAnkys: WritingSession[]) => void;
-  anonymousId: string | null;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -39,15 +56,126 @@ export const useUser = () => {
 export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const [ankys, setAnkys] = useState<Anky[]>([]);
-  const [drafts, setDrafts] = useState<WritingSession[]>([]);
-  const [collectedAnkys, setCollectedAnkys] = useState<WritingSession[]>([]);
+  const [dataLoaded, setDataLoaded] = useState<boolean>(false);
+  const [userAnkys, setUserAnkys] = useState<WritingSession[]>([]);
+  const [userDrafts, setUserDrafts] = useState<WritingSession[]>([]);
+  const [userCollectedAnkys, setUserCollectedAnkys] = useState<
+    WritingSession[]
+  >([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [anonymousId, setAnonymousId] = useState<string>("");
-  const { user, isReady } = useQuilibrium();
+  const [ankyUser, setAnkyUser] = useState<AnkyUser | null>(null);
+  const [upcomingPrompt, setUpcomingPrompt] = useState<string | null>(null);
+
+  const { user: privy_user, isReady } = usePrivy();
 
   const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;
+
+  const firstUserSetup = async () => {
+    const newAnonymousId = uuidv4();
+    const newAnonUser: AnkyUser = {
+      id: newAnonymousId,
+      settings: {},
+      walletAddress: "",
+      createdAt: new Date().toISOString(),
+      streak: 0,
+      jwt: "",
+    };
+    const metadata = await collectUserMetadata();
+    newAnonUser.metadata = metadata;
+    const registeredUser = await registerAnonUser(newAnonUser);
+    prettyLog(registeredUser, "Registered anon user on the backend database");
+    if (registeredUser) {
+      await AsyncStorage.setItem("user_jwt_token", registeredUser.jwt);
+      await AsyncStorage.setItem("user_id", newAnonymousId);
+      newAnonUser.settings = {};
+      newAnonUser.walletAddress = registeredUser.walletAddress;
+      setAnkyUser(newAnonUser);
+      await AsyncStorage.setItem("anky_user", JSON.stringify(newAnonUser));
+      prettyLog(newAnonUser, "New Anky User Registered and stored locally");
+    }
+  };
+
+  const loadInitialData = async () => {
+    try {
+      const anky_user_data = await AsyncStorage.getItem("anky_user");
+      if (anky_user_data) {
+        setAnkyUser(JSON.parse(anky_user_data));
+      } else {
+        await firstUserSetup();
+      }
+
+      const promptData = await AsyncStorage.getItem("upcoming_prompt");
+      if (promptData) {
+        setUpcomingPrompt(JSON.parse(promptData));
+      } else {
+        setUpcomingPrompt("tell me who you are");
+      }
+    } catch (error) {
+      console.error("Error loading initial data:", error);
+    } finally {
+      setIsLoading(false);
+      fetchUserData();
+      setDataLoaded(true);
+    }
+  };
+
+  const fetchUserData = async () => {
+    if (!isReady || isLoading) return;
+    setError(null);
+    try {
+      // Get writing sessions from writingGame.ts helper
+      const writingSessionsIds = await getUserLocalWritingSessions();
+      const user_collected_ankys = await getUserLocalCollectedAnkys();
+
+      if (writingSessionsIds.length > 0) {
+        // Sort all sessions by timestamp and take latest 50
+        const latestSessions = writingSessionsIds
+          .sort(
+            (a, b) =>
+              new Date(b?.starting_timestamp ?? "").getTime() -
+              new Date(a?.starting_timestamp ?? "").getTime()
+          )
+          .slice(0, 50);
+
+        // Fetch full session data for all 50 sessions in parallel
+        const sessionPromises = latestSessions.map((session) =>
+          fetchWritingSessionFromId(session.session_id!)
+        );
+        const fullSessions = await Promise.all(sessionPromises);
+        const validSessions = fullSessions.filter(
+          (session): session is WritingSession => session !== null
+        );
+
+        // Split into regular drafts and ankys
+        const regularDrafts = validSessions.filter(
+          (session) => !session.is_anky
+        );
+        const ankyDrafts = validSessions.filter((session) => session.is_anky);
+
+        setUserDrafts(regularDrafts);
+        setUserAnkys(ankyDrafts);
+        setUserCollectedAnkys(user_collected_ankys);
+        console.log(
+          "Writing sessions loaded:",
+          `${regularDrafts.length} drafts, ${ankyDrafts.length} Ankys, ${user_collected_ankys.length} collected Ankys`
+        );
+      } else {
+        console.log("No writing sessions found");
+        setUserAnkys([]);
+        setUserDrafts([]);
+        setUserCollectedAnkys([]);
+      }
+
+      console.log("User data fetched successfully");
+    } catch (err) {
+      setError("Failed to fetch user data");
+      console.error("Error fetching user data:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const collectUserMetadata = async (): Promise<UserMetadata> => {
     const { width, height } = Dimensions.get("window");
@@ -71,130 +199,39 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   };
 
-  const initializeAnonymousUser = async () => {
-    try {
-      console.log("Removing anonymousId from local storage");
-      await AsyncStorage.removeItem("anonymousId");
-      await AsyncStorage.removeItem("anky_onboarding_responses");
-      // Check if we already have an anonymous ID
-      const storedAnonymousId = await AsyncStorage.getItem("anonymousId");
-      console.log("CHECKING IF ANONYMOUS ID EXISTS", storedAnonymousId);
-
-      if (!storedAnonymousId) {
-        const newAnonymousId = uuidv4();
-        const metadata = await collectUserMetadata();
-        console.log("Metadata collected", metadata);
-
-        const newAnonUser: AnkyUser = {
-          id: newAnonymousId,
-          settings: {},
-          walletAddress: "",
-          createdAt: new Date().toISOString(),
-        };
-
-        // Register anonymous user with backend
-        const registeredUser = await registerAnonUser(newAnonUser);
-        prettyLog(
-          registeredUser,
-          "Registered anon user on the backend database"
-        );
-
-        if (registeredUser) {
-          await AsyncStorage.setItem(
-            "user_jwt_token",
-            registeredUser?.jwt || ""
-          );
-          await AsyncStorage.setItem("user_id", newAnonymousId);
-          await AsyncStorage.setItem("userMetadata", JSON.stringify(metadata));
-          setAnonymousId(newAnonymousId);
-          console.log("NEW Anonymous user registered successfully");
-        }
-      }
-    } catch (err) {
-      console.error("Error initializing anonymous user:", err);
-      setError("Failed to initialize anonymous user");
-    }
-  };
-
-  const fetchUserData = async () => {
-    if (!isReady) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      // Initialize anonymous user if no authenticated user
-      await AsyncStorage.removeItem("user_id");
-
-      const userLocal = await AsyncStorage.getItem("user_id");
-      if (!user || !userLocal) {
-        await AsyncStorage.removeItem("writing_attempts");
-        await initializeAnonymousUser();
-      }
-
-      // Get writing sessions from writingGame.ts helper
-      const writingSessions = await getUserLocalWritingSessions();
-
-      if (writingSessions.length > 0) {
-        // Filter regular drafts (not Ankys)
-        const regularDrafts = writingSessions
-          .filter((session) => !session.is_anky)
-          .sort(
-            (a, b) =>
-              new Date(b.starting_timestamp).getTime() -
-              new Date(a.starting_timestamp).getTime()
-          )
-          .slice(0, 50);
-        setDrafts(regularDrafts);
-
-        // Filter Anky sessions
-        const ankyDrafts = writingSessions
-          .filter((session) => session.is_anky)
-          .sort(
-            (a, b) =>
-              new Date(b.starting_timestamp).getTime() -
-              new Date(a.starting_timestamp).getTime()
-          );
-        setCollectedAnkys(ankyDrafts);
-
-        console.log(
-          "Writing sessions loaded:",
-          `${regularDrafts.length} drafts, ${ankyDrafts.length} Ankys`
-        );
-      } else {
-        console.log("No writing sessions found");
-        setDrafts([]);
-        setCollectedAnkys([]);
-      }
-
-      console.log("User data fetched successfully");
-    } catch (err) {
-      setError("Failed to fetch user data");
-      console.error("Error fetching user data:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   useEffect(() => {
-    fetchUserData();
-  }, [isReady, user]);
+    if (!dataLoaded) {
+      loadInitialData();
+    }
+  }, [ankyUser]);
 
-  const refreshUserData = async () => {
-    console.log("Refreshing user data...");
-    await fetchUserData();
-  };
-
-  const value = {
-    ankys,
-    setAnkys,
-    drafts,
-    setDrafts,
-    collectedAnkys,
-    setCollectedAnkys,
-    isLoading,
-    error,
-    refreshUserData,
-    anonymousId,
-  };
+  const value = useMemo(
+    () => ({
+      userAnkys,
+      setUserAnkys,
+      userDrafts,
+      setUserDrafts,
+      userCollectedAnkys,
+      setUserCollectedAnkys,
+      isLoading,
+      error,
+      anonymousId,
+      ankyUser,
+      setAnkyUser,
+      upcomingPrompt,
+      setUpcomingPrompt,
+    }),
+    [
+      userAnkys,
+      userDrafts,
+      userCollectedAnkys,
+      isLoading,
+      error,
+      anonymousId,
+      ankyUser,
+      upcomingPrompt,
+    ]
+  );
 
   return <UserContext.Provider value={value}>{children}</UserContext.Provider>;
 };

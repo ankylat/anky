@@ -1,11 +1,8 @@
-import { Cast } from "./Cast";
-import { Keystroke } from "./WritingGame";
-
 export interface WritingSession {
   session_id: string | null;
   session_index_for_user?: number | null;
   user_id?: string | null;
-  starting_timestamp: Date;
+  starting_timestamp?: Date;
   ending_timestamp?: Date | null;
   prompt?: string;
   writing?: string | null;
@@ -24,8 +21,25 @@ export interface WritingSession {
   anky_id?: string | null;
   anky?: Anky | null;
 
+  session_data?: SessionData;
+}
+
+export interface SessionData {
+  text: string;
+  startTime: number;
+  keystrokes: Keystroke[];
+  totalDuration: number;
+  longestPause: number;
+  wordCount: number;
+  averageWPM: number;
   writing_patterns?: WritingPatterns;
-  keystroke_data?: Keystroke[];
+}
+
+export interface Keystroke {
+  session_id: string;
+  key?: string;
+  timestamp?: number;
+  time_delta?: number;
 }
 
 export interface Anky {

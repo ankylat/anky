@@ -1,12 +1,9 @@
 import { View, Text } from "react-native";
 import React from "react";
+import { useAnky } from "@/src/context/AnkyContext";
 
-const Write = () => {
-  return (
-    <View>
-      <Text>Write</Text>
-    </View>
-  );
+const WritingGameScreen = () => {
+  return <View></View>;
 };
 
-export default Write;
+export default WritingGameScreen;

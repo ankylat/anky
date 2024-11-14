@@ -2,7 +2,6 @@ import { v4 as uuidv4 } from "uuid";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import axios from "axios";
 import { User as PrivyUser } from "@privy-io/expo";
-import { GameState, SessionData } from "@/src/types/WritingGame";
 import { prettyLog } from "./logs";
 import { Anky, WritingSession } from "@/src/types/Anky";
 
@@ -99,22 +98,6 @@ async function sendWritingToAnky(
 //   return writingSession;
 // }
 
-export function fromGameStateToWritingSession(gameState: GameState) {
-  return {
-    id: gameState.session_id,
-    session_index_for_user: gameState.session_index_for_user,
-    user_id: gameState.user_id,
-    starting_timestamp: gameState.starting_timestamp,
-    ending_timestamp: gameState.ending_timestamp || null,
-    writing: gameState.text,
-    time_spent: gameState.time_spent,
-    is_onboarding: gameState.is_onboarding,
-    status: gameState.status,
-    prompt: gameState.prompt,
-    words_written: gameState.words_written,
-  };
-}
-
 export async function storeNewDraftLocally(
   newDraft: WritingSession
 ): Promise<WritingSession[]> {
@@ -187,10 +170,36 @@ export async function storeUserWritingSessionLocally(
 
 export async function getUserLocalWritingSessions(): Promise<WritingSession[]> {
   try {
-    const existing_sessions = await AsyncStorage.getItem("writing_sessions");
+    const existing_sessions = await AsyncStorage.getItem(
+      "writing_sessions_ids"
+    );
     return existing_sessions ? JSON.parse(existing_sessions) : [];
   } catch (error) {
     console.error("Error getting user writing sessions:", error);
+    return [];
+  }
+}
+
+export async function fetchWritingSessionFromId(
+  session_id: string
+): Promise<WritingSession | null> {
+  try {
+    const this_writing_session = await AsyncStorage.getItem(
+      `session_${session_id}`
+    );
+    return this_writing_session ? JSON.parse(this_writing_session) : null;
+  } catch (error) {
+    console.error("Error fetching writing session:", error);
+    return null;
+  }
+}
+
+export async function getUserLocalCollectedAnkys() {
+  try {
+    const user_collected_ankys = await AsyncStorage.getItem("collected_ankys");
+    return user_collected_ankys ? JSON.parse(user_collected_ankys) : [];
+  } catch (error) {
+    console.error("Error getting user collected ankys:", error);
     return [];
   }
 }
@@ -211,7 +220,6 @@ export async function getUserLocalWritingSessions(): Promise<WritingSession[]> {
 //   parent_anky_id?: string | null;
 //   writing_patterns?: WritingPatterns;
 //   keystroke_data?: KeystrokeEvent[];
-//   is_onboarding?: boolean | null;
 
 //   status?: string | null;
 
