@@ -42,7 +42,12 @@ export interface AnkyUser {
   fid?: number | null;
   settings: any;
   walletAddress: string;
+  jwt: string;
   createdAt: string;
+  streak: number;
+  farcaster_account?: FarcasterAccount;
+  privy_user?: PrivyUserType;
+  metadata?: UserMetadata;
 }
 
 export interface UserMetadata {

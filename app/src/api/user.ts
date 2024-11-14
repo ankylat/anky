@@ -1,5 +1,5 @@
 import axios from "axios";
-import { User } from "@/src/types/User";
+import { AnkyUser } from "@/src/types/User";
 import { Cast } from "@/src/types/Cast";
 
 const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;
@@ -7,7 +7,7 @@ const POIESIS_API_KEY = process.env.POIESIS_API_KEY;
 
 export const getUserProfile = async (
   fid: string
-): Promise<{ user: User; casts: Cast[] }> => {
+): Promise<{ user: AnkyUser; casts: Cast[] }> => {
   console.log(`Attempting to fetch user profile for fid: ${fid}`);
   try {
     let endpoint = `${API_URL}/farcaster/user/${fid}`;
@@ -37,7 +37,7 @@ export const getUserProfile = async (
   }
 };
 
-export const registerAnonUser = async (user: User): Promise<User> => {
+export const registerAnonUser = async (user: AnkyUser): Promise<AnkyUser> => {
   console.info("[POST] /users/register-anon-user");
   const endpoint = `${API_URL}/users/register-anon-user`;
   console.log("Endpoint constructed | registering anon user", endpoint, user);

@@ -1,12 +1,12 @@
 import { View, Text, TouchableOpacity, Image, Alert } from "react-native";
 import React, { useEffect } from "react";
-import { useQuilibrium } from "@/src/context/QuilibriumContext";
 import { Feather } from "@expo/vector-icons";
 import Animated, {
   useAnimatedStyle,
   withTiming,
   useSharedValue,
 } from "react-native-reanimated";
+import { useUser } from "@/src/context/UserContext";
 
 interface TopNavBarProps {
   sessionStarted: boolean;
@@ -17,7 +17,7 @@ const TopNavBar: React.FC<TopNavBarProps> = ({
   sessionStarted,
   setGameOver,
 }) => {
-  const { user } = useQuilibrium();
+  const { user } = useUser();
   const height = useSharedValue(112); // 28rem = 112px
 
   const handleDrawerPress = () => {

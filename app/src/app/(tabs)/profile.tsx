@@ -16,7 +16,6 @@ import { useUser } from "../../context/UserContext";
 
 import ProfileGrid from "../../components/Profile/ProfileGrid";
 import DraftsGrid from "../../components/Profile/DraftsGrid";
-import { useQuilibrium } from "@/src/context/QuilibriumContext";
 
 import {
   useEmbeddedWallet,
@@ -40,7 +39,7 @@ const ProfileScreen = ({
   const [viewMode, setViewMode] = useState<"ankys" | "drafts" | "collected">(
     "ankys"
   );
-  const { ankyUser, isReady } = useQuilibrium();
+  const { ankyUser } = useUser();
   const { userStreak, userAnkys, userDrafts, userCollectedAnkys } = useAnky();
   console.log("THE USER IS: ", JSON.stringify(ankyUser, null, 2));
   const { logout } = usePrivy();
@@ -49,7 +48,6 @@ const ProfileScreen = ({
   const [drafts, setDrafts] = useState<WritingSession[]>([]);
   const [doesUserHaveProfile, setDoesUserHaveProfile] = useState(false);
 
-  const { casts, userMintedAnkys } = useUser();
   const screenWidth = Dimensions.get("window").width;
   const itemSize = screenWidth / 3;
 
@@ -65,20 +63,12 @@ const ProfileScreen = ({
     getDrafts();
   }, []);
 
-  if (!isReady) {
-    return (
-      <View className="flex-1 justify-center items-center">
-        <Text>Loading...</Text>
-      </View>
-    );
-  }
-
   return (
     <View className="flex-1 bg-white pt-10">
       <View className="items-center p-5 ">
         <View className="flex flex-row justify-between w-full">
           <Text className="text-2xl font-bold mr-auto pl-2 mb-2">
-            @{ankyUser?.username || "ಹನುಮಂತ"}
+            @{ankyUser?.farcaster_account?.username || "ಹನುಮಂತ"}
           </Text>
 
           <View className="flex flex-row gap-4">
@@ -153,10 +143,11 @@ const ProfileScreen = ({
         </View>
 
         <Text className="text-left text-2xl mt-2 w-full font-bold mb-1">
-          {ankyUser?.display_name || "ಹನುಮಂತ"}
+          {ankyUser?.farcaster_account?.display_name || "ಹನುಮಂತ"}
         </Text>
         <Text className="text-xl mb-1 w-full text-left">
-          {ankyUser?.profile?.bio?.text || "ಪವನಸುತ | ಭಕ್ತಿ ಯೋಧ | ರಾಮ ಸೇವಕ"}
+          {ankyUser?.farcaster_account?.profile?.bio?.text ||
+            "ಪವನಸುತ | ಭಕ್ತಿ ಯೋಧ | ರಾಮ ಸೇವಕ"}
         </Text>
 
         <View className="flex-row mt-2">
