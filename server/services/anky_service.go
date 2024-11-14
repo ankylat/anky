@@ -575,7 +575,3 @@ func getOnboardingStage(duration int) string {
 		return "Unknown"
 	}
 }
-
-func (s *AnkyService) CreateUserProfile(ctx context.Context, userID uuid.UUID) (string, error) {
-	return "123", nil
-}

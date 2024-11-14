@@ -28,7 +28,7 @@ func main() {
 	log.Println("Successfully connected to database")
 
 	// Initialize API server
-	port := ":8080"
+	port := ":8888"
 	server, err := api.NewAPIServer(port, store)
 	if err != nil {
 		log.Fatalf("Failed to create API server: %v", err)
