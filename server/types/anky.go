@@ -376,6 +376,7 @@ type LLMRequest struct {
 	Messages []Message `json:"messages"`
 	Stream   bool      `json:"stream"`
 	Format   string    `json:"format"`
+	Prompt   string    `json:"prompt"`
 }
 
 type StreamResponse struct {

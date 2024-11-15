@@ -286,6 +286,50 @@ func (s *AnkyService) GenerateAnkyReflection(session *types.WritingSession) (map
 	}, nil
 }
 
+func (s *AnkyService) SimplePrompt(ctx context.Context, prompt string) (string, error) {
+	llmService := NewLLMService()
+	responseChan, err := llmService.SendSimpleRequest(prompt)
+	if err != nil {
+		return "", fmt.Errorf("error sending simple request: %v", err)
+	}
+
+	var fullResponse string
+	for partialResponse := range responseChan {
+		fullResponse += partialResponse
+	}
+
+	return fullResponse, nil
+}
+
+func (s *AnkyService) MessagesPromptRequest(messages []string) (string, error) {
+	llmService := NewLLMService()
+
+	// Convert string messages to Message structs
+	chatMessages := make([]types.Message, len(messages))
+	for i, msg := range messages {
+		chatMessages[i] = types.Message{
+			Role:    "user",
+			Content: msg,
+		}
+	}
+
+	chatRequest := types.ChatRequest{
+		Messages: chatMessages,
+	}
+
+	responseChan, err := llmService.SendChatRequest(chatRequest, false)
+	if err != nil {
+		return "", fmt.Errorf("error sending chat request: %v", err)
+	}
+
+	var fullResponse string
+	for partialResponse := range responseChan {
+		fullResponse += partialResponse
+	}
+
+	return fullResponse, nil
+}
+
 func generateImageWithMidjourney(prompt string) (string, error) {
 	data := map[string]interface{}{
 		"prompt": prompt,

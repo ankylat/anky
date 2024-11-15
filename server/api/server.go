@@ -77,6 +77,8 @@ func (s *APIServer) Run() error {
 	router.HandleFunc("/users/{userId}/ankys", makeHTTPHandleFunc(s.handleGetAnkysByUserID)).Methods("GET")
 	router.HandleFunc("/anky/onboarding/{userId}", makeHTTPHandleFunc(s.handleProcessUserOnboarding)).Methods("POST")
 	router.HandleFunc("/anky/edit-cast", makeHTTPHandleFunc(s.handleEditCast)).Methods("POST")
+	router.HandleFunc("/anky/simple-prompt", makeHTTPHandleFunc(s.handleSimplePrompt)).Methods("POST")
+	router.HandleFunc("/anky/messages-prompt", makeHTTPHandleFunc(s.handleMessagesPrompt)).Methods("POST")
 
 	// Badge routes
 	router.HandleFunc("/users/{userId}/badges", makeHTTPHandleFunc(s.handleGetUserBadges)).Methods("GET")
@@ -709,6 +711,56 @@ func (s *APIServer) handleEditCast(w http.ResponseWriter, r *http.Request) error
 	response, err := ankyService.EditCast(ctx, editCastRequest.Text, editCastRequest.UserFid)
 	if err != nil {
 		return fmt.Errorf("error editing cast: %v", err)
+	}
+
+	return WriteJSON(w, http.StatusOK, map[string]string{
+		"response": response,
+	})
+}
+
+func (s *APIServer) handleSimplePrompt(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	var singlePromptRequest struct {
+		Prompt string `json:"prompt"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&singlePromptRequest); err != nil {
+		return fmt.Errorf("error decoding request body: %v", err)
+	}
+	fmt.Printf("Decoded request body: %+v\n", singlePromptRequest)
+	ankyService, err := services.NewAnkyService(s.store)
+	if err != nil {
+		return fmt.Errorf("error creating anky service: %v", err)
+	}
+
+	response, err := ankyService.SimplePrompt(ctx, singlePromptRequest.Prompt)
+	if err != nil {
+		return fmt.Errorf("error processing simple prompt: %v", err)
+	}
+
+	return WriteJSON(w, http.StatusOK, map[string]string{
+		"response": response,
+	})
+}
+
+func (s *APIServer) handleMessagesPrompt(w http.ResponseWriter, r *http.Request) error {
+	var messagesPromptRequest struct {
+		Messages []string `json:"messages"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&messagesPromptRequest); err != nil {
+		return fmt.Errorf("error decoding request body: %v", err)
+	}
+	fmt.Printf("Decoded request body: %+v\n", messagesPromptRequest)
+
+	ankyService, err := services.NewAnkyService(s.store)
+	if err != nil {
+		return fmt.Errorf("error creating anky service: %v", err)
+	}
+
+	response, err := ankyService.MessagesPromptRequest(messagesPromptRequest.Messages)
+	if err != nil {
+		return fmt.Errorf("error processing messages prompt: %v", err)
 	}
 
 	return WriteJSON(w, http.StatusOK, map[string]string{
