@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/ankylat/anky/server/types"
@@ -20,11 +21,85 @@ func NewLLMService() *LLMService {
 	}
 }
 
+func (s *LLMService) SendSimpleRequest(prompt string) (<-chan string, error) {
+	fmt.Println("=== SendSimpleRequest START ===")
+	fmt.Println("Input prompt:", prompt)
+
+	llmRequest := types.LLMRequest{
+		Model:  "llama3.2",
+		Prompt: prompt,
+	}
+	fmt.Println("Created LLMRequest object:", llmRequest)
+
+	jsonData, err := json.Marshal(llmRequest)
+	if err != nil {
+		fmt.Println("ERROR: Failed to marshal LLMRequest:", err)
+		return nil, err
+	}
+	fmt.Println("Successfully marshaled request to JSON:", string(jsonData))
+
+	req, err := http.NewRequest("POST", "http://localhost:11434/api/generate", bytes.NewBuffer(jsonData))
+	if err != nil {
+		fmt.Println("ERROR: Failed to create HTTP request:", err)
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	fmt.Println("Created HTTP request with headers:", req.Header)
+
+	fmt.Println("Sending HTTP request...")
+	resp, err := s.client.Do(req)
+	if err != nil {
+		fmt.Println("ERROR: Failed to send HTTP request:", err)
+		return nil, fmt.Errorf("failed to send HTTP request: %v", err)
+	}
+	fmt.Println("Received response with status:", resp.Status)
+
+	if resp.StatusCode != http.StatusOK {
+		fmt.Println("ERROR: Unexpected status code:", resp.StatusCode)
+		return nil, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
+
+	fmt.Println("Creating response channel...")
+	responseChan := make(chan string)
+
+	go func() {
+		fmt.Println("Starting goroutine to process response...")
+		defer func() {
+			fmt.Println("Closing response body and channel...")
+			resp.Body.Close()
+			close(responseChan)
+		}()
+
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			fmt.Println("ERROR: Failed to read response body:", err)
+			return
+		}
+		fmt.Println("Successfully read response body:", string(body))
+
+		// Parse the JSON response to get just the "response" field
+		var llmResponse struct {
+			Response string `json:"response"`
+		}
+		if err := json.Unmarshal(body, &llmResponse); err != nil {
+			fmt.Println("ERROR: Failed to unmarshal response:", err)
+			return
+		}
+
+		fmt.Println("Sending response through channel...")
+		responseChan <- llmResponse.Response
+		fmt.Println("Response sent through channel")
+	}()
+
+	fmt.Println("=== SendSimpleRequest END ===")
+	return responseChan, nil
+}
+
 func (s *LLMService) SendChatRequest(chatRequest types.ChatRequest, jsonFormatting bool) (<-chan string, error) {
 	fmt.Println("SendChatRequest called with:", chatRequest)
 
 	llmRequest := types.LLMRequest{
-		Model:    "llama3.1",
+		Model:    "llama3.2",
 		Messages: chatRequest.Messages,
 		Stream:   false,
 	}
