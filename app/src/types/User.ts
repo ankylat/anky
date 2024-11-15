@@ -41,9 +41,9 @@ export interface AnkyUser {
   privy_did?: string;
   fid?: number | null;
   settings: any;
-  walletAddress: string;
+  wallet_address: string;
   jwt: string;
-  createdAt: string;
+  created_at: string;
   streak: number;
   farcaster_account?: FarcasterAccount;
   privy_user?: PrivyUserType;

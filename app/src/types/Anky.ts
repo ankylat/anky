@@ -36,10 +36,8 @@ export interface SessionData {
 }
 
 export interface Keystroke {
-  session_id: string;
   key?: string;
   timestamp?: number;
-  time_delta?: number;
 }
 
 export interface Anky {

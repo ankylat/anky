@@ -36,6 +36,10 @@ import { router } from "expo-router";
 import { prettyLog } from "@/src/app/lib/logs";
 import { storeUserWritingSessionLocally } from "@/src/app/lib/writingGame";
 import { getCurrentAnkyverseDay } from "@/src/app/lib/ankyverse";
+import {
+  addWritingSessionToLocalStorageSimple,
+  updateWritingSessionOnLocalStorageSimple,
+} from "@/src/app/lib/simple_writing_game";
 
 const { width, height } = Dimensions.get("window");
 
@@ -58,12 +62,16 @@ const WritingGame = () => {
   const [newAnkyPrompt, setNewAnkyPrompt] = useState<string | null>(null);
 
   // Writing game elements
-  const [keystrokes, setKeystrokes] = useState<Keystroke[]>([]);
+  const [keystrokes, setKeystrokes] = useState<string>("");
   const [keyboardHeight, setKeyboardHeight] = useState(0);
   const cursorOpacity = useSharedValue(1);
   const [ankyResponseReady, setAnkyResponseReady] = useState(false);
   const [timeSinceLastKeystroke, setTimeSinceLastKeystroke] = useState(0);
   const [sessionData, setSessionData] = useState<SessionData | null>(null);
+  const [writingSessionId, setWritingSessionId] = useState<string>("");
+  const [sessionLongString, setSessionLongString] = useState<string>("");
+  const keystrokeQueue = useRef<Keystroke[]>([]);
+  const processingRef = useRef(false);
 
   const textInputRef = useRef<TextInput>(null);
   const lastKeystrokeTime = useRef<number | null>(null);
@@ -73,44 +81,7 @@ const WritingGame = () => {
 
   const CHAR_DELAY = 50;
   const TIMEOUT_DURATION = 8000;
-  const MAX_SESSION_DURATION = 20000;
-
-  useEffect(() => {
-    if (writingSession?.status === "anky-prompt") {
-      // Cursor blink animation (existing)
-      cursorOpacity.value = withRepeat(
-        withSequence(
-          withTiming(0, { duration: 500 }),
-          withTiming(1, { duration: 500 })
-        ),
-        -1,
-        true
-      );
-
-      // Add pulsing glow effect
-      glowIntensity.value = withRepeat(
-        withSequence(
-          withTiming(1.5, {
-            duration: 1500,
-            easing: Easing.inOut(Easing.ease),
-          }),
-          withTiming(1, {
-            duration: 1500,
-            easing: Easing.inOut(Easing.ease),
-          })
-        ),
-        -1,
-        true
-      );
-
-      // Subtle scale animation
-      scaleText.value = withRepeat(
-        withSequence(withSpring(1.05), withSpring(1)),
-        -1,
-        true
-      );
-    }
-  }, [writingSession]);
+  const MAX_SESSION_DURATION = 40000;
 
   useEffect(() => {
     const keyboardDidShow = Keyboard.addListener("keyboardDidShow", (e) => {
@@ -126,31 +97,6 @@ const WritingGame = () => {
       keyboardDidHide.remove();
     };
   }, []);
-
-  const animatedTextStyle = useAnimatedProps(() => ({
-    transform: [{ scale: scaleText.value }],
-    textShadowColor: `rgba(255,255,255,${interpolate(
-      glowIntensity.value,
-      [1, 1.5],
-      [0.75, 0.9]
-    )})`,
-    textShadowRadius: interpolate(glowIntensity.value, [1, 1.5], [10, 20]),
-  }));
-
-  useEffect(() => {
-    console.log("IN HERE");
-    Vibration.vibrate([100, 50, 200, 50, 300, 50, 400]); // Increasing intensity pattern to build excitement
-    if (writingSession?.status === "anky-prompt") {
-      cursorOpacity.value = withRepeat(
-        withSequence(
-          withTiming(0, { duration: 500 }),
-          withTiming(1, { duration: 500 })
-        ),
-        -1,
-        true
-      );
-    }
-  }, [writingSession]);
 
   useEffect(() => {
     if (writingSession?.status === "writing") {
@@ -168,13 +114,14 @@ const WritingGame = () => {
   }, [writingSession]);
 
   useEffect(() => {
-    if (writingSession?.status === "anky-prompt") {
+    const streamPrompt = async () => {
       let currentIndex = 0;
+      let prompt =
+        (await AsyncStorage.getItem("upcoming_prompt")) ??
+        "tell me who you are";
       const interval = setInterval(() => {
-        if (currentIndex < (writingSession?.prompt ?? "").length) {
-          setAnkyPromptStreaming(
-            (writingSession?.prompt ?? "").slice(0, currentIndex + 1)
-          );
+        if (prompt && currentIndex < prompt.length) {
+          setAnkyPromptStreaming(prompt.slice(0, currentIndex + 1));
           currentIndex++;
         } else {
           clearInterval(interval);
@@ -182,93 +129,52 @@ const WritingGame = () => {
       }, CHAR_DELAY);
 
       return () => clearInterval(interval);
-    }
-  }, [writingSession]);
-
-  const calculateStats = (
-    currentText: string,
-    keystrokes: Keystroke[]
-  ): Partial<SessionData> => {
-    const words = currentText.trim().split(/\s+/).filter(Boolean).length;
-    const duration = Date.now() - sessionStartTime.current!;
-    const minutes = duration / 60000;
-
-    return {
-      wordCount: words,
-      averageWPM: Math.round(words / minutes),
-      totalDuration: duration,
-      longestPause: Math.max(...keystrokes.map((k) => k.time_delta ?? 0)),
-      keystrokes: keystrokes,
     };
-  };
 
-  const handleSessionEnded = async (data: SessionData) => {
+    streamPrompt();
+  }, []);
+
+  const handleSessionEnded = async () => {
     try {
-      const endedWritingSession = {
+      setWritingSession({
         ...writingSession,
         status: "completed",
-        words_written: data.wordCount,
-        time_spent: data.totalDuration,
-        writing: data.text,
-        ending_timestamp: new Date(),
-        is_anky: data.totalDuration >= MAX_SESSION_DURATION ? true : false,
-        keystroke_data: keystrokes,
-        anky_id: data.totalDuration > MAX_SESSION_DURATION ? uuidv4() : null,
-      };
-      setWritingSession(endedWritingSession as WritingSession);
-      prettyLog(endedWritingSession, "The ended session data is: ");
-
-      let newWritingSessions: WritingSession[] = [];
-
-      if (!endedWritingSession.is_anky) {
-        newWritingSessions = await storeUserWritingSessionLocally(
-          endedWritingSession as WritingSession
-        );
-        prettyLog(newWritingSessions, "THE NEW DRAFTS ARE: ");
-      }
-
+      } as WritingSession);
       console.log("****************************************************");
       console.log("****************************************************");
       console.log("****************************************************");
       console.log("****************************************************");
       console.log("****************************************************");
       console.log("****************************************************");
-      console.log("****************************************************");
-
-      if (endedWritingSession.is_anky) {
-        console.log("Duration >= 480, user is ready");
-        prettyLog(
-          endedWritingSession,
-          "THE USER IS READY, MOVE ON TO THE NEXT PHASE"
-        );
-        const newAnky = [
-          {
-            id: endedWritingSession.anky_id,
-            user_id: ankyUser?.id,
-            writing_session_id: endedWritingSession.session_id,
-            prompt: endedWritingSession.prompt,
-            anky_reflection: "",
-            image_url: "@/assets/images/anky.png",
-            status: "sent-to-backend",
-          } as Anky,
-        ];
-      } else {
-        console.log("Duration < 480, user not ready");
-        prettyLog(
-          endedWritingSession,
-          "THE USER IS NOT READY, KEEP THEM IN THE GAME"
-        );
-        console.log("Writing session ended");
-        await getAnkyResponse(newWritingSessions);
-      }
-      // const response = await endWritingSession(
-      //   endedWritingSession,
-      //   "ENDING THE WRITING SESSION"
-      // );
-      // prettyLog(response, "THE RESPONSE FROM ENDING THE WRITING SESSION IS: ");
     } catch (error) {
       console.error("Error in handleSessionEnded:", error);
       throw error;
+    }
+  };
+
+  const processKeystrokeQueue = async () => {
+    if (processingRef.current || keystrokeQueue.current.length === 0) {
+      return;
+    }
+
+    processingRef.current = true;
+
+    const keystroke = keystrokeQueue.current.shift();
+    if (keystroke && keystroke.key && keystroke.timestamp) {
+      setSessionLongString((prev) => {
+        const newString =
+          prev + "\n" + keystroke.key + " " + keystroke.timestamp;
+        updateWritingSessionOnLocalStorageSimple(writingSessionId, newString);
+        return newString;
+      });
+    }
+
+    console.log("Setting processing flag to false");
+    processingRef.current = false;
+
+    if (keystrokeQueue.current.length > 0) {
+      console.log("More keystrokes in queue, processing next");
+      processKeystrokeQueue();
     }
   };
 
@@ -305,57 +211,39 @@ const WritingGame = () => {
     }
   };
 
-  const handleTimeout = () => {
-    if (text.length > 0) {
-      const stats = calculateStats(text, keystrokes);
-
-      const sessionStats: SessionData = {
-        text,
-        startTime: sessionStartTime.current!,
-        keystrokes: keystrokes,
-        totalDuration: stats.totalDuration ?? 0,
-        longestPause: stats.longestPause ?? 0,
-        wordCount: stats.wordCount ?? 0,
-        averageWPM: stats.averageWPM ?? 0,
-      };
-      setSessionData(sessionStats);
-
-      handleSessionEnded(sessionStats);
-    } else {
-      alert("you didn't write anything wtf");
-    }
-  };
-
-  const handleScreenTap = () => {
+  const handleScreenTap = async () => {
     setAnkyResponseReady(false);
-    if (writingSession?.status !== "writing") {
-      try {
-        writingSession!.starting_timestamp = new Date();
-
-        console.log("STARTING A NEW WRITING SESSION");
-        prettyLog(writingSession, "THE WRITING SESSION BEFORE STARTING");
-        startWritingSession(writingSession as WritingSession, "");
-        prettyLog(writingSession, "STARTING A NEW WRITING SESSION");
-        sessionStartTime.current = Date.now();
-        lastKeystrokeTime.current = Date.now();
-        setWritingSession({
-          ...writingSession,
-          starting_timestamp: new Date(),
-          status: "writing",
-        } as WritingSession);
-        setTimeSinceLastKeystroke(0);
-        setKeystrokes([]); // Reset keystrokes for new session
-
-        if (Platform.OS === "ios" || Platform.OS === "android") {
-          Keyboard.dismiss();
-          setTimeout(() => {
-            textInputRef.current?.focus();
-          }, 100);
-        } else {
+    if (!writingSession) {
+      // this means the writing session is starting
+      const prompt =
+        (await AsyncStorage.getItem("upcoming_prompt")) ||
+        "tell me who you are";
+      const session_id = uuidv4();
+      const now = new Date();
+      let newSessionLongString = `${session_id}\n${prompt}\n${now.getTime()}\n`;
+      setSessionLongString(newSessionLongString);
+      await addWritingSessionToLocalStorageSimple(session_id);
+      await updateWritingSessionOnLocalStorageSimple(
+        session_id,
+        sessionLongString
+      );
+      setWritingSessionId(session_id);
+      // TODO: send the new session to the backend
+      sessionStartTime.current = now.getTime();
+      lastKeystrokeTime.current = now.getTime();
+      setTimeSinceLastKeystroke(0);
+      setWritingSession({
+        session_id: session_id,
+        starting_timestamp: now,
+        status: "writing",
+      } as WritingSession);
+      if (Platform.OS === "ios" || Platform.OS === "android") {
+        Keyboard.dismiss();
+        setTimeout(() => {
           textInputRef.current?.focus();
-        }
-      } catch (error) {
-        console.error("The writing session failed to start: MAYDAY", error);
+        }, 100);
+      } else {
+        textInputRef.current?.focus();
       }
     }
   };
@@ -375,22 +263,16 @@ const WritingGame = () => {
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
-    timeoutRef.current = setTimeout(handleTimeout, TIMEOUT_DURATION);
-
-    const timeDelta = lastKeystrokeTime.current
-      ? currentTime - lastKeystrokeTime.current
-      : 0;
+    timeoutRef.current = setTimeout(handleSessionEnded, TIMEOUT_DURATION);
 
     lastKeystrokeTime.current = currentTime;
 
-    const keystrokeEvent: Keystroke = {
-      session_id: writingSession?.session_id ?? "",
+    keystrokeQueue.current.push({
       key: e.nativeEvent.key,
       timestamp: currentTime,
-      time_delta: timeDelta,
-    };
+    });
 
-    setKeystrokes((prev) => [...prev, keystrokeEvent]);
+    processKeystrokeQueue();
   };
 
   const resetAllWritingGameState = () => {
@@ -399,7 +281,7 @@ const WritingGame = () => {
     setSessionData(null);
     setAnkyResponses([]);
     setNewAnkyPrompt(null);
-    setKeystrokes([]);
+    setKeystrokes("");
     setAnkyResponseReady(false);
     setTimeSinceLastKeystroke(0);
     lastKeystrokeTime.current = null;
@@ -425,21 +307,21 @@ const WritingGame = () => {
     console.log(writingSession);
     console.log("RENDERING CONTENT");
     console.log("RENDERING CONTENT");
-    switch (writingSession?.status) {
-      case "anky-prompt":
-        return (
-          <TouchableWithoutFeedback onPress={handleScreenTap}>
-            <View className="flex-1 items-center justify-center px-10 pb-[100px] android:pb-20">
-              <Animated.Text className="text-white text-3xl font-righteous text-center">
-                {ankyPromptStreaming}
-                <Animated.Text className="text-white text-3xl font-righteous">
-                  |
-                </Animated.Text>
+    if (!writingSession) {
+      return (
+        <TouchableWithoutFeedback onPress={handleScreenTap}>
+          <View className="flex-1 items-center justify-center px-10 pb-[100px] android:pb-20">
+            <Animated.Text className="text-white text-3xl font-righteous text-center">
+              {ankyPromptStreaming}
+              <Animated.Text className="text-white text-3xl font-righteous">
+                |
               </Animated.Text>
-            </View>
-          </TouchableWithoutFeedback>
-        );
-
+            </Animated.Text>
+          </View>
+        </TouchableWithoutFeedback>
+      );
+    }
+    switch (writingSession?.status) {
       case "writing":
         return (
           <KeyboardAvoidingView
@@ -454,6 +336,7 @@ const WritingGame = () => {
               />
             )}
             <TextInput
+              autoCorrect={false}
               ref={textInputRef}
               className="flex-1 w-full text-white text-2xl font-righteous p-2"
               style={{
@@ -475,7 +358,7 @@ const WritingGame = () => {
       case "completed":
         return (
           <SessionEndScreen
-            sessionData={sessionData!}
+            session_id={writingSessionId}
             onNextStep={() => {
               prettyLog(writingSession, "THIS IS THE WRITING SESSION");
               if (writingSession.is_anky) {
@@ -523,12 +406,18 @@ const WritingGame = () => {
                 });
               }
             }}
-            writingSession={writingSession}
           />
         );
     }
   };
-
+  if (!ankyUser) {
+    console.log("THERE IS NO ANKY USER");
+    return (
+      <View className="flex-1 bg-black">
+        <Text>Loading...</Text>
+      </View>
+    );
+  }
   return (
     <SafeAreaView className="flex-1 bg-black">{renderContent()}</SafeAreaView>
   );

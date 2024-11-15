@@ -24,7 +24,7 @@ import {
 } from "@privy-io/expo";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import CollectedGrid from "@/src/components/Profile/CollectedGrid";
-import { WritingSession } from "@/src/types/Anky";
+import { Anky, WritingSession } from "@/src/types/Anky";
 import { useAnky } from "@/src/context/AnkyContext";
 import UserAnkysGrid from "@/src/components/Profile/UserAnkysGrid";
 import UserDraftsGrid from "@/src/components/Profile/UserDraftsGrid";
@@ -149,70 +149,124 @@ const ProfileScreen = ({
           {ankyUser?.farcaster_account?.profile?.bio?.text ||
             "ಪವನಸುತ | ಭಕ್ತಿ ಯೋಧ | ರಾಮ ಸೇವಕ"}
         </Text>
-
-        <View className="flex-row mt-2">
-          <TouchableOpacity
-            className={`border-b-2 ${
-              viewMode === "ankys" ? "border-gray-300" : "border-transparent"
-            } px-4 py-2 mr-4`}
-            onPress={() => setViewMode("ankys")}
-          >
-            <Text
-              className={`${
-                viewMode === "ankys"
-                  ? "text-gray-700 font-medium"
-                  : "text-gray-500"
-              }`}
-            >
-              Ankys
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            className={`border-b-2 ${
-              viewMode === "drafts" ? "border-gray-300" : "border-transparent"
-            } px-4 py-2 mr-4`}
-            onPress={() => setViewMode("drafts")}
-          >
-            <Text
-              className={`${
-                viewMode === "drafts"
-                  ? "text-gray-700 font-medium"
-                  : "text-gray-500"
-              }`}
-            >
-              Drafts
-            </Text>
-          </TouchableOpacity>
-
-          <TouchableOpacity
-            className={`border-b-2 ${
-              viewMode === "collected"
-                ? "border-gray-300"
-                : "border-transparent"
-            } px-4 py-2`}
-            onPress={() => setViewMode("collected")}
-          >
-            <Text
-              className={`${
-                viewMode === "collected"
-                  ? "text-gray-700 font-medium"
-                  : "text-gray-500"
-              }`}
-            >
-              Collected
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-      <ScrollView className="flex-1">
-        {viewMode === "ankys" && <UserAnkysGrid userAnkys={userAnkys} />}
-        {viewMode === "drafts" && <UserDraftsGrid userDrafts={userDrafts} />}
-        {viewMode === "collected" && (
-          <UsersCollectedDisplay userCollectedAnkys={userCollectedAnkys} />
+        {ankyUser?.farcaster_account?.fid ? (
+          <ElementsOfProfile viewMode={viewMode} setViewMode={setViewMode} />
+        ) : (
+          <CreateProfileButton />
         )}
-      </ScrollView>
+      </View>
+      {ankyUser?.farcaster_account?.fid && (
+        <ElementsOfProfileContent
+          viewMode={viewMode}
+          userAnkys={userAnkys}
+          userDrafts={userDrafts}
+          userCollectedAnkys={userCollectedAnkys}
+        />
+      )}
     </View>
   );
 };
 
 export default ProfileScreen;
+
+const ElementsOfProfile = ({
+  viewMode,
+  setViewMode,
+}: {
+  viewMode: "ankys" | "drafts" | "collected";
+  setViewMode: (viewMode: "ankys" | "drafts" | "collected") => void;
+}) => {
+  return (
+    <View className="flex-row mt-2">
+      <TouchableOpacity
+        className={`border-b-2 ${
+          viewMode === "ankys" ? "border-gray-300" : "border-transparent"
+        } px-4 py-2 mr-4`}
+        onPress={() => setViewMode("ankys")}
+      >
+        <Text
+          className={`${
+            viewMode === "ankys" ? "text-gray-700 font-medium" : "text-gray-500"
+          }`}
+        >
+          Ankys
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        className={`border-b-2 ${
+          viewMode === "drafts" ? "border-gray-300" : "border-transparent"
+        } px-4 py-2 mr-4`}
+        onPress={() => setViewMode("drafts")}
+      >
+        <Text
+          className={`${
+            viewMode === "drafts"
+              ? "text-gray-700 font-medium"
+              : "text-gray-500"
+          }`}
+        >
+          Drafts
+        </Text>
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        className={`border-b-2 ${
+          viewMode === "collected" ? "border-gray-300" : "border-transparent"
+        } px-4 py-2`}
+        onPress={() => setViewMode("collected")}
+      >
+        <Text
+          className={`${
+            viewMode === "collected"
+              ? "text-gray-700 font-medium"
+              : "text-gray-500"
+          }`}
+        >
+          Collected
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
+
+const ElementsOfProfileContent = ({
+  viewMode,
+  userAnkys,
+  userDrafts,
+  userCollectedAnkys,
+}: {
+  viewMode: "ankys" | "drafts" | "collected";
+  userAnkys: Anky[];
+  userDrafts: WritingSession[];
+  userCollectedAnkys: Anky[];
+}) => {
+  return (
+    <ScrollView className="flex-1">
+      {viewMode === "ankys" && <UserAnkysGrid userAnkys={userAnkys} />}
+      {viewMode === "drafts" && <UserDraftsGrid userDrafts={userDrafts} />}
+      {viewMode === "collected" && (
+        <UsersCollectedDisplay userCollectedAnkys={userCollectedAnkys} />
+      )}
+    </ScrollView>
+  );
+};
+
+const CreateProfileButton = () => {
+  const { setCreateAccountModalVisible } = useUser();
+  const createProfileFunction = async () => {
+    setCreateAccountModalVisible(true);
+  };
+  return (
+    <TouchableOpacity
+      className="flex-1 items-center justify-center bg-purple-600 rounded-xl mx-4 my-8 py-6 shadow-lg"
+      activeOpacity={0.7}
+      onPress={createProfileFunction}
+    >
+      <View className="items-center">
+        <Text className="text-black text-2xl font-bold mb-2">
+          Create Your Profile
+        </Text>
+      </View>
+    </TouchableOpacity>
+  );
+};

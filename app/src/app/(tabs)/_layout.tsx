@@ -23,6 +23,8 @@ import ProfileIcon from "@/assets/icons/profile.svg";
 import PouchIcon from "@/assets/icons/pouch.svg";
 import Playground from "@/assets/icons/playground.svg";
 import Scroll from "@/assets/icons/scroll.svg";
+import CreateAccountModal from "@/src/components/Profile/CreateAccountModal";
+import { useUser } from "@/src/context/UserContext";
 
 export default function TabLayout() {
   const { user } = usePrivy();
@@ -43,6 +45,7 @@ export default function TabLayout() {
     didUserWriteToday,
     isUserWriting,
   } = useAnky();
+  const { createAccountModalVisible, setCreateAccountModalVisible } = useUser();
 
   const [writingSession, setWritingSession] = useState<
     WritingSession | undefined
@@ -247,6 +250,10 @@ export default function TabLayout() {
           </TouchableOpacity>
         </View>
       )}
+      <CreateAccountModal
+        isVisible={createAccountModalVisible}
+        onClose={() => setCreateAccountModalVisible(false)}
+      />
     </View>
   );
 }
