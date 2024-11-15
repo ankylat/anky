@@ -44,8 +44,7 @@ export const useAnky = () => {
 export const AnkyProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
-  const { ankyUser, setAnkyUser, upcomingPrompt, isLoading } = useUser();
-  console.log("ON HEREEEEEEE THE ANKY USER IS", ankyUser);
+  const { ankyUser, setAnkyUser, isLoading } = useUser();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isWritingGameVisible, setIsWritingGameVisible] = useState(true);
@@ -82,37 +81,22 @@ export const AnkyProvider: React.FC<{ children: React.ReactNode }> = ({
 
   useEffect(() => {
     const checkDayAndWritingStatus = async () => {
-      if (!ankyUser) return console.log("WTF, THERE IS NO ANKY USER");
+      console.log("CHECKING DAY AND WRITING STATUS", ankyUser);
       const today = new Date();
       const lastWritingDay = await AsyncStorage.getItem("last_user_wrote");
       const currentAnkyverseDay = getAnkyverseDay(today);
       const today_on_ankyverse = `S${currentAnkyverseDay.currentSojourn}W${currentAnkyverseDay.wink}`;
       if (!lastWritingDay || lastWritingDay !== today_on_ankyverse) {
+        console.log("USER DID NOT WRITE TODAY");
         setDidUserWriteToday(false);
-        return;
+      } else {
+        console.log("USER WROTE TODAY");
+        setDidUserWriteToday(true);
       }
-      setDidUserWriteToday(true);
-      setWritingSession({
-        session_id: uuidv4(),
-        session_index_for_user: null,
-        user_id: ankyUser?.id,
-        starting_timestamp: undefined,
-        ending_timestamp: undefined,
-        prompt: upcomingPrompt || "tell me who you are",
-        writing: "",
-        words_written: 0,
-        newen_earned: 0,
-        time_spent: null,
-        is_anky: false,
-        parent_anky_id: null,
-        anky_response: null,
-        status: "anky-prompt",
-        anky_id: null,
-        anky: null,
-      });
     };
-    if (!isLoading) checkDayAndWritingStatus();
-  }, [isLoading]);
+    console.log("THE IS LOADING IS", isLoading);
+    if (ankyUser) checkDayAndWritingStatus();
+  }, [ankyUser]);
 
   const value = {
     checkAnkyStatus,

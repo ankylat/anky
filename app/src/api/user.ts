@@ -37,7 +37,9 @@ export const getUserProfile = async (
   }
 };
 
-export const registerAnonUser = async (user: AnkyUser): Promise<AnkyUser> => {
+export const registerAnonUser = async (
+  user: AnkyUser
+): Promise<{ user: AnkyUser; jwt: string }> => {
   console.info("[POST] /users/register-anon-user");
   const endpoint = `${API_URL}/users/register-anon-user`;
   console.log("Endpoint constructed | registering anon user", endpoint, user);
@@ -52,7 +54,7 @@ export const registerAnonUser = async (user: AnkyUser): Promise<AnkyUser> => {
     });
     console.log("IN HERE, the registered user is", response.data);
 
-    return response.data;
+    return { user: response.data.user, jwt: response.data.jwt };
   } catch (err: any) {
     console.error("Error registering anonymous user:", err);
     console.log("The error is", err.response.data);

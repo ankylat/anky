@@ -25,51 +25,11 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import LinearGradient from "react-native-svg/lib/typescript/elements/LinearGradient";
 import { WritingSession } from "@/src/types/Anky";
 import { useAnky } from "@/src/context/AnkyContext";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { clearAllUserDataFromLocalStorage } from "@/src/app/lib/development";
+import { router } from "expo-router";
 
 const { height, width } = Dimensions.get("window");
-
-interface SessionData {
-  text: string;
-  totalDuration: number;
-  wordCount: number;
-  averageWPM: number;
-}
-
-interface SessionScreenProps {
-  sessionData: SessionData;
-  onNextStep: () => void;
-  ankyResponseReady: boolean;
-  elapsedTime: number;
-  ankyReflection: string;
-}
-
-// Common animated timer component
-const AnimatedTimer = ({ duration }: { duration: number }) => {
-  const rotation = useSharedValue(0);
-  const scale = useSharedValue(1);
-
-  useEffect(() => {
-    rotation.value = withRepeat(
-      withTiming(360, { duration: 2000, easing: Easing.linear }),
-      -1
-    );
-    scale.value = withRepeat(
-      withSequence(withSpring(1.2), withSpring(1)),
-      -1,
-      true
-    );
-  }, []);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ rotate: `${rotation.value}deg` }, { scale: scale.value }],
-  }));
-
-  return (
-    <Animated.View style={[styles.timerContainer, animatedStyle]}>
-      <Text style={styles.timerText}>{Math.round(duration / 1000)}s</Text>
-    </Animated.View>
-  );
-};
 
 // Writing progress bar component
 const WritingProgressBar = ({
@@ -154,24 +114,58 @@ interface SessionData {
 
 // Screen for both complete and incomplete sessions
 export const SessionEndScreen: React.FC<{
-  sessionData: SessionData;
+  session_id: string;
   onNextStep: () => void;
-  writingSession: WritingSession;
-}> = ({ sessionData, onNextStep, writingSession }) => {
-  const { setWritingSession } = useAnky();
+}> = ({ session_id, onNextStep }) => {
+  console.log("SESSION ID", session_id);
+  const {
+    writingSession,
+    setWritingSession,
+    setIsWritingGameVisible,
+    setDidUserWriteToday,
+  } = useAnky();
+  async function funFunction() {
+    const writingSession = await AsyncStorage.getItem(`${session_id}.txt`);
+    console.log("THIS IS THE WRITING SESSION:::::::");
+    console.log("THIS IS THE WRITING SESSION:::::::");
+    console.log("THIS IS THE WRITING SESSION:::::::");
+    console.log("THIS IS THE WRITING SESSION:::::::");
+    console.log("THIS IS THE WRITING SESSION:::::::");
+    console.log(writingSession);
+    console.log("THIS IS THE WRITING SESSION:::::::");
+    console.log("THIS IS THE WRITING SESSION:::::::");
+    console.log("THIS IS THE WRITING SESSION:::::::");
+    console.log("THIS IS THE WRITING SESSION:::::::");
+    console.log("THIS IS THE WRITING SESSION:::::::");
+  }
+  async function printLocalStorage() {
+    // Get all keys from AsyncStorage
+    const allKeys = await AsyncStorage.getAllKeys();
+    console.log("All AsyncStorage Keys:", allKeys);
+
+    // Print each key-value pair
+    for (const key of allKeys) {
+      const value = await AsyncStorage.getItem(key);
+      console.log(`Key: ${key}`);
+      console.log(`Value: ${value}`);
+      console.log("-------------------");
+    }
+
+    // Also specifically log writing sessions file
+    const writingSessions = await AsyncStorage.getItem("writing_sessions.txt");
+    console.log("Writing Sessions File:", writingSessions);
+  }
   return (
     <View className="flex-1 items-center justify-center bg-black p-5">
       <View className="w-full items-center mb-8">
-        <Text className="text-5xl font-bold text-white">
-          {sessionData.wordCount}
-        </Text>
+        <Text className="text-5xl font-bold text-white">123871293</Text>
         <Text className="text-sm text-gray-400 mt-1">TOTAL WORDS</Text>
       </View>
 
       <View className="w-full items-center mb-8">
         <Text className="text-4xl font-bold text-white">
-          {Math.floor(sessionData.totalDuration / 1000 / 60)}:
-          {Math.floor((sessionData.totalDuration / 1000) % 60)
+          {Math.floor(555555 / 1000 / 60)}:
+          {Math.floor((682873 / 1000) % 60)
             .toString()
             .padStart(2, "0")}
         </Text>
@@ -179,23 +173,54 @@ export const SessionEndScreen: React.FC<{
       </View>
 
       <View className="w-full items-center mb-8">
-        <Text className="text-4xl font-bold text-white">
-          {Math.round(sessionData.averageWPM)}
-        </Text>
+        <Text className="text-4xl font-bold text-white">{222}</Text>
         <Text className="text-sm text-gray-400 mt-1">AVERAGE WPM</Text>
       </View>
 
-      {!writingSession.is_anky && (
-        <TouchableOpacity
-          onPress={onNextStep}
-          className="w-full flex-row items-center justify-center bg-white rounded-lg py-4 mb-4"
-        >
-          <MaterialCommunityIcons name="reload" size={24} color="black" />
-          <Text className="text-black text-center font-bold text-lg ml-2">
-            Try Again
-          </Text>
-        </TouchableOpacity>
-      )}
+      <TouchableOpacity
+        //onPress={onNextStep
+        onPress={funFunction}
+        className="w-full flex-row items-center justify-center bg-white rounded-lg py-4 mb-4"
+      >
+        <MaterialCommunityIcons name="reload" size={24} color="black" />
+        <Text className="text-black text-center font-bold text-lg ml-2">
+          Try Again
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        //onPress={onNextStep
+        onPress={printLocalStorage}
+        className="w-full flex-row items-center justify-center bg-white rounded-lg py-4 mb-4"
+      >
+        <MaterialCommunityIcons name="reload" size={24} color="black" />
+        <Text className="text-black text-center font-bold text-lg ml-2">
+          printttt
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        //onPress={onNextStep
+        onPress={clearAllUserDataFromLocalStorage}
+        className="w-full flex-row items-center justify-center bg-white rounded-lg py-4 mb-4"
+      >
+        <MaterialCommunityIcons name="reload" size={24} color="black" />
+        <Text className="text-black text-center font-bold text-lg ml-2">
+          delete it all
+        </Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        //onPress={onNextStep
+        onPress={() => {
+          setIsWritingGameVisible(false);
+          setDidUserWriteToday(true);
+          router.push("/(tabs)/anky");
+        }}
+        className="w-full flex-row items-center justify-center bg-white rounded-lg py-4 mb-4"
+      >
+        <MaterialCommunityIcons name="reload" size={24} color="black" />
+        <Text className="text-black text-center font-bold text-lg ml-2">
+          tabs
+        </Text>
+      </TouchableOpacity>
     </View>
   );
 };

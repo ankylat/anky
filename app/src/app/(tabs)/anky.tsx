@@ -182,6 +182,11 @@ const AnkyverseDialog = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
 
+      {/* Coming Soon Overlay */}
+      <View style={styles.comingSoonOverlay}>
+        <Text style={styles.comingSoonText}>COMING SOON</Text>
+      </View>
+
       {/* Header */}
       <View style={styles.header}>
         <Text style={styles.headerText}>{currentDay}</Text>
@@ -258,6 +263,20 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: "#1a1a1a",
+  },
+  comingSoonOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 1000,
+  },
+  comingSoonText: {
+    color: "#fff",
+    fontSize: 48,
+    transform: [{ rotate: "-16deg" }],
+    fontWeight: "bold",
+    textAlign: "center",
   },
   header: {
     padding: 16,

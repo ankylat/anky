@@ -22,6 +22,7 @@ import {
   getUserLocalWritingSessions,
 } from "../app/lib/writingGame";
 import { usePrivy } from "@privy-io/expo";
+import { clearAllUserDataFromLocalStorage } from "../app/lib/development";
 
 interface UserContextType {
   ankyUser: AnkyUser | null;
@@ -30,14 +31,13 @@ interface UserContextType {
   userDrafts: WritingSession[];
   userCollectedAnkys: WritingSession[];
 
-  upcomingPrompt: string | null;
-
   setAnkyUser: (user: AnkyUser | null) => void;
   setUserAnkys: (ankys: WritingSession[]) => void;
   setUserDrafts: (drafts: WritingSession[]) => void;
   setUserCollectedAnkys: (collectedAnkys: WritingSession[]) => void;
 
-  setUpcomingPrompt: (prompt: string | null) => void;
+  createAccountModalVisible: boolean;
+  setCreateAccountModalVisible: (visible: boolean) => void;
 
   isLoading: boolean;
   error: string | null;
@@ -66,31 +66,32 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
   const [error, setError] = useState<string | null>(null);
   const [anonymousId, setAnonymousId] = useState<string>("");
   const [ankyUser, setAnkyUser] = useState<AnkyUser | null>(null);
-  const [upcomingPrompt, setUpcomingPrompt] = useState<string | null>(null);
-
+  const [createAccountModalVisible, setCreateAccountModalVisible] =
+    useState<boolean>(false);
   const { user: privy_user, isReady } = usePrivy();
 
   const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;
-
+  // clearAllUserDataFromLocalStorage();
   const firstUserSetup = async () => {
+    await AsyncStorage.setItem("upcoming_prompt", "tell me who you are");
     const newAnonymousId = uuidv4();
     const newAnonUser: AnkyUser = {
       id: newAnonymousId,
       settings: {},
-      walletAddress: "",
-      createdAt: new Date().toISOString(),
+      wallet_address: "",
+      created_at: new Date().toISOString(),
       streak: 0,
       jwt: "",
     };
     const metadata = await collectUserMetadata();
     newAnonUser.metadata = metadata;
-    const registeredUser = await registerAnonUser(newAnonUser);
-    prettyLog(registeredUser, "Registered anon user on the backend database");
-    if (registeredUser) {
-      await AsyncStorage.setItem("user_jwt_token", registeredUser.jwt);
+    const { user, jwt } = await registerAnonUser(newAnonUser);
+    prettyLog(user, "Registered anon user on the backend database");
+    if (user) {
+      await AsyncStorage.setItem("user_jwt_token", jwt);
       await AsyncStorage.setItem("user_id", newAnonymousId);
       newAnonUser.settings = {};
-      newAnonUser.walletAddress = registeredUser.walletAddress;
+      newAnonUser.wallet_address = user.wallet_address;
       setAnkyUser(newAnonUser);
       await AsyncStorage.setItem("anky_user", JSON.stringify(newAnonUser));
       prettyLog(newAnonUser, "New Anky User Registered and stored locally");
@@ -100,23 +101,17 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
   const loadInitialData = async () => {
     try {
       const anky_user_data = await AsyncStorage.getItem("anky_user");
+      console.log("ANKY USER DATA", anky_user_data);
       if (anky_user_data) {
         setAnkyUser(JSON.parse(anky_user_data));
       } else {
         await firstUserSetup();
       }
-
-      const promptData = await AsyncStorage.getItem("upcoming_prompt");
-      if (promptData) {
-        setUpcomingPrompt(JSON.parse(promptData));
-      } else {
-        setUpcomingPrompt("tell me who you are");
-      }
     } catch (error) {
       console.error("Error loading initial data:", error);
     } finally {
       setIsLoading(false);
-      fetchUserData();
+      await fetchUserData();
       setDataLoaded(true);
     }
   };
@@ -200,10 +195,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
   };
 
   useEffect(() => {
-    if (!dataLoaded) {
-      loadInitialData();
-    }
-  }, [ankyUser]);
+    loadInitialData();
+  }, []);
 
   const value = useMemo(
     () => ({
@@ -218,8 +211,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
       anonymousId,
       ankyUser,
       setAnkyUser,
-      upcomingPrompt,
-      setUpcomingPrompt,
+      createAccountModalVisible,
+      setCreateAccountModalVisible,
     }),
     [
       userAnkys,
@@ -229,7 +222,8 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
       error,
       anonymousId,
       ankyUser,
-      upcomingPrompt,
+      createAccountModalVisible,
+      setCreateAccountModalVisible,
     ]
   );
 
