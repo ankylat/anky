@@ -80,6 +80,9 @@ func (s *APIServer) Run() error {
 	router.HandleFunc("/anky/simple-prompt", makeHTTPHandleFunc(s.handleSimplePrompt)).Methods("POST")
 	router.HandleFunc("/anky/messages-prompt", makeHTTPHandleFunc(s.handleMessagesPrompt)).Methods("POST")
 
+	// newen routes
+	router.HandleFunc("/newen/transactions/{userId}", makeHTTPHandleFunc(s.handleGetUserTransactions)).Methods("GET")
+
 	// Badge routes
 	router.HandleFunc("/users/{userId}/badges", makeHTTPHandleFunc(s.handleGetUserBadges)).Methods("GET")
 
@@ -246,6 +249,30 @@ func (s *APIServer) handleCreateUserProfile(w http.ResponseWriter, r *http.Reque
 		"123": "123",
 	})
 
+}
+
+func (s *APIServer) handleGetUserTransactions(w http.ResponseWriter, r *http.Request) error {
+	// Extract user ID and wallet address from URL params
+	vars := mux.Vars(r)
+	userID := vars["userId"]
+
+	if userID == "" {
+		return fmt.Errorf("missing required parameters: userId and walletAddress")
+	}
+
+	// Create newen service
+	newenService, err := services.NewNewenService(s.store)
+	if err != nil {
+		return fmt.Errorf("error creating newen service: %v", err)
+	}
+
+	// Process transaction
+	transactions, err := newenService.GetUserTransactions(userID)
+	if err != nil {
+		return fmt.Errorf("error processing transaction: %v", err)
+	}
+
+	return WriteJSON(w, http.StatusOK, transactions)
 }
 
 // ***************** PRIVY ROUTES *****************
