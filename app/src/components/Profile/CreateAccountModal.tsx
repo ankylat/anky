@@ -1,15 +1,21 @@
-import { useState, useRef } from "react";
-import { Pressable, View, Text, Modal, TextInput } from "react-native";
+import { useState, useRef, useEffect } from "react";
+import { Pressable, View, Text, Modal, TextInput, Linking } from "react-native";
 import { MaterialIcons, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import {
   usePrivy,
-  useEmbeddedWallet,
   isNotCreated,
   useLoginWithFarcaster,
   useLoginWithEmail,
   hasError,
+  useLoginWithSMS,
+  useEmbeddedWallet,
+  isConnected,
+  needsRecovery,
 } from "@privy-io/expo";
+
+import axios from "axios";
+import { prettyLog } from "@/src/app/lib/logs";
 
 type Props = {
   isVisible: boolean;
@@ -17,32 +23,27 @@ type Props = {
 };
 
 export default function CreateAccountModal({ isVisible, onClose }: Props) {
-  const [step, setStep] = useState(0);
-  const [email, setEmail] = useState("");
+  const [step, setStep] = useState(1);
+  const [phone, setPhone] = useState("");
   const [pinCode, setPinCode] = useState("");
   const [error, setError] = useState("");
+  const [loggedIn, setLoggedIn] = useState(false);
 
   const { user, isReady } = usePrivy();
   const wallet = useEmbeddedWallet();
   const emailRef = useRef<TextInput>(null);
 
-  const { loginWithFarcaster } = useLoginWithFarcaster({
-    onSuccess(user, isNewUser) {
-      wallet.create({ recoveryMethod: "privy" });
-    },
-    onError(error) {
-      console.log("there was an error logging in the user", error);
-    },
-  });
-
-  const { sendCode, loginWithCode, state } = useLoginWithEmail({
-    onSendCodeSuccess({ email }) {
-      console.log("Code sent successfully to", email);
+  const { sendCode, loginWithCode, state } = useLoginWithSMS({
+    onSendCodeSuccess({ phone }) {
+      console.log("Code sent successfully to", phone);
       handleNextPress(2);
     },
     onLoginSuccess(user, isNewUser) {
       console.log("Logged in successfully", { user, isNewUser });
       wallet.create({ recoveryMethod: "privy" });
+
+      setLoggedIn(true);
+      handleNextPress(3);
     },
     onError(error) {
       setError(error.message);
@@ -53,162 +54,241 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
     setStep(nextStep);
   };
 
-  const handleEmailSubmit = async () => {
-    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+  const handlePhoneSubmit = async () => {
+    if (/^\d+$/.test(phone)) {
       try {
-        await sendCode({ email });
+        await sendCode({ phone: `+${phone}` });
       } catch (err) {
         setError("Failed to send verification code");
       }
     } else {
-      setError("Please enter a valid email address");
+      setError("Please enter a valid phone number");
     }
   };
 
   const handlePinSubmit = async () => {
     if (pinCode.length === 6) {
       try {
-        await loginWithCode({ code: pinCode, email });
+        console.log("IN HEREEEE", pinCode, phone);
+        await loginWithCode({
+          code: pinCode,
+          phone: `+${phone}`,
+        });
       } catch (err) {
         setError("Invalid verification code");
       }
     }
   };
 
+  useEffect(() => {
+    if (user) {
+      console.log("The user is ", user);
+      console.log("The wallet is ", wallet);
+      prettyLog(wallet, "the wallet is");
+      if (needsRecovery(wallet)) {
+        console.log("THE WALLET NEEDS RECOVERY");
+      }
+      handleNextPress(3);
+    }
+  }, [isReady]);
+
   const renderStep = () => {
     switch (step) {
-      case 0:
-        return (
-          <View className="space-y-4">
-            <Pressable
-              className="bg-blue-500 py-4 rounded-xl active:opacity-80"
-              onPress={async () => {
-                try {
-                  await loginWithFarcaster({
-                    relyingParty: "https://www.anky.bot",
-                  });
-                } catch (error) {
-                  console.log("Error logging in with farcaster", error);
-                }
-              }}
-            >
-              <Text className="text-center text-lg font-semibold text-white">
-                Login with Warpcast
-              </Text>
-            </Pressable>
-
-            <Text className="text-center">- or -</Text>
-
-            <Pressable
-              className="bg-purple-500 py-4 rounded-xl active:opacity-80"
-              onPress={() => handleNextPress(1)}
-            >
-              <Text className="text-center text-lg font-semibold text-white">
-                Continue with Email
-              </Text>
-            </Pressable>
-          </View>
-        );
-
       case 1:
         return (
-          <View className="space-y-4">
-            <TextInput
-              ref={emailRef}
-              className="border-2 border-gray-300 rounded-lg p-3"
-              placeholder="Enter your email"
-              keyboardType="email-address"
-              autoCapitalize="none"
-              value={email}
-              onChangeText={setEmail}
-              inputMode="email"
-              editable={state.status !== "sending-code"}
-            />
-            {error && <Text className="text-red-500">{error}</Text>}
-
-            <Pressable
-              className="bg-blue-500 py-4 rounded-xl active:opacity-80"
-              onPress={handleEmailSubmit}
-              disabled={state.status === "sending-code"}
-            >
-              <Text className="text-center text-lg font-semibold text-white">
-                {state.status === "sending-code"
-                  ? "Sending Code..."
-                  : "Send Code"}
+          <View className="space-y-6">
+            <View className="flex-row items-center space-x-2">
+              <TextInput
+                className="flex-1 border-2 border-purple-400 rounded-2xl p-4 bg-purple-100/30 text-purple-900 text-center text-xl"
+                placeholder="Enter your phone number"
+                value={phone}
+                onChangeText={setPhone}
+                keyboardType="number-pad"
+                maxLength={15}
+              />
+              <Pressable
+                onPress={() => setPhone(phone.slice(0, -1))}
+                className="bg-purple-400 p-4 rounded-2xl active:bg-purple-500"
+              >
+                <Text className="text-white text-xl">⌫</Text>
+              </Pressable>
+            </View>
+            {error && (
+              <Text className="text-pink-500 text-center font-bold">
+                {error}
               </Text>
-            </Pressable>
+            )}
+
+            <View className="space-y-4">
+              <Text className="text-center text-sm text-purple-800">
+                By continuing, you agree to our{" "}
+                <Text
+                  className="text-purple-600 underline"
+                  onPress={() => Linking.openURL("https://terms.anky.bot")}
+                >
+                  terms
+                </Text>{" "}
+                and{" "}
+                <Text
+                  className="text-purple-600 underline"
+                  onPress={() => Linking.openURL("https://privacy.anky.bot")}
+                >
+                  privacy policy
+                </Text>
+              </Text>
+
+              <Pressable
+                className="bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500 py-4 rounded-2xl active:scale-95 transform transition-all duration-200 shadow-xl"
+                onPress={handlePhoneSubmit}
+                disabled={state.status === "sending-code"}
+              >
+                <Text className="text-center text-xl font-bold text-black">
+                  {state.status === "sending-code"
+                    ? "✨ Sending Magic Code..."
+                    : "✨ Send Magic Code"}
+                </Text>
+              </Pressable>
+            </View>
           </View>
         );
 
       case 2:
         return (
-          <View className="space-y-4">
-            <Text className="text-center font-semibold">
-              Enter the verification code sent to:
+          <View className="space-y-6">
+            <Text className="text-center font-bold text-lg text-purple-800">
+              Enter the magic code sent to:
             </Text>
-            <Text className="text-center text-blue-600 font-bold">{email}</Text>
-
-            <View className="flex-row justify-center mb-4">
-              {Array.from({ length: 6 }).map((_, index) => (
-                <View
-                  key={index}
-                  className={`w-4 h-4 mx-1 rounded-full ${
-                    pinCode.length > index ? "bg-blue-500" : "bg-gray-300"
-                  }`}
-                />
-              ))}
-            </View>
-
-            <View className="flex-row flex-wrap justify-center">
-              {[...Array(9)].map((_, i) => (
-                <Pressable
-                  key={i + 1}
-                  className="w-12 h-12 m-1 rounded-full bg-blue-500 items-center justify-center"
-                  onPress={() => {
-                    if (pinCode.length < 6) {
-                      const newPin = pinCode + (i + 1);
-                      setPinCode(newPin);
-                      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                      if (newPin.length === 6) {
-                        handlePinSubmit();
-                      }
-                    }
-                  }}
-                  disabled={state.status === "submitting-code"}
-                >
-                  <Text className="text-white font-bold">{i + 1}</Text>
-                </Pressable>
-              ))}
+            <Text className="text-center text-pink-600 font-bold text-xl">
+              +{phone}
+            </Text>
+            <View className="flex-row items-center space-x-2">
+              <TextInput
+                className="flex-1 border-2 border-purple-400 rounded-2xl p-4 bg-purple-100/30 text-purple-900 text-center text-xl"
+                placeholder="Enter 6-digit code"
+                value={pinCode}
+                onChangeText={setPinCode}
+                keyboardType="number-pad"
+                maxLength={6}
+              />
               <Pressable
-                className="w-12 h-12 m-1 rounded-full bg-blue-500 items-center justify-center"
-                onPress={() => {
-                  if (pinCode.length < 6) {
-                    const newPin = pinCode + "0";
-                    setPinCode(newPin);
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                    if (newPin.length === 6) {
-                      handlePinSubmit();
-                    }
-                  }
-                }}
-                disabled={state.status === "submitting-code"}
-              >
-                <Text className="text-white font-bold">0</Text>
-              </Pressable>
-              <Pressable
-                className="w-12 h-12 m-1 rounded-full bg-gray-200 items-center justify-center"
                 onPress={() => setPinCode(pinCode.slice(0, -1))}
-                disabled={state.status === "submitting-code"}
+                className="bg-purple-400 p-4 rounded-2xl active:bg-purple-500"
               >
-                <Ionicons name="backspace-outline" size={24} color="black" />
+                <Text className="text-white text-xl">⌫</Text>
               </Pressable>
             </View>
+
+            {pinCode.length == 6 && (
+              <Pressable
+                className="bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500 py-4 rounded-2xl active:scale-95 transform transition-all duration-200 shadow-xl"
+                onPress={handlePinSubmit}
+              >
+                <Text className="text-center text-xl font-bold text-black">
+                  Verify Code
+                </Text>
+              </Pressable>
+            )}
 
             {state.status === "submitting-code" && (
-              <Text className="text-center text-blue-500">
-                Verifying code...
+              <Text className="text-center text-lg font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent animate-pulse">
+                ✨ Verifying your magic code...
               </Text>
             )}
+          </View>
+        );
+      case 3:
+        console.log("Rendering step 3");
+        return (
+          <View className="space-y-6">
+            <View className="space-y-6">
+              <Text className="text-center font-bold text-2xl text-purple-800">
+                Create your Farcaster account
+              </Text>
+              <Pressable
+                className="bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500 py-4 rounded-2xl active:scale-95 transform transition-all duration-200 shadow-xl"
+                onPress={async () => {
+                  console.log("Create Farcaster account button pressed");
+                  try {
+                    console.log("Checking wallet connection...", wallet);
+                    prettyLog(user, "the uyser is");
+                    if (!isConnected(wallet)) {
+                      console.log("Wallet not connected");
+                      setError("Wallet not connected");
+                      return;
+                    }
+
+                    if (needsRecovery(wallet)) {
+                      console.log("Wallet needs recovery");
+                      setError("Wallet needs recovery");
+                      return;
+                    }
+
+                    console.log("Getting wallet address...");
+                    // Get wallet address
+                    const accounts = await wallet.provider.request({
+                      method: "eth_requestAccounts",
+                    });
+                    console.log("Got wallet address:", accounts[0]);
+
+                    console.log("Getting new FID and signing params...");
+                    // Get new FID and signing params
+                    const { data: params } = await axios.post(
+                      "https://farcaster.anky.bot/create-new-fid",
+                      {
+                        user_wallet_address: accounts[0],
+                      }
+                    );
+                    console.log("Got FID params:", params);
+
+                    console.log("Creating message to sign...");
+                    // Sign message with provider
+                    const message = {
+                      fid: params.new_fid,
+                      to: params.address,
+                      nonce: params.nonce,
+                      deadline: params.deadline,
+                    };
+                    console.log("Message to sign:", message);
+
+                    console.log("Requesting signature...");
+                    const signature = await wallet.provider.request({
+                      method: "personal_sign",
+                      params: [JSON.stringify(message), accounts[0]],
+                    });
+                    console.log("Got signature:", signature);
+
+                    console.log("Registering with signature...");
+                    // Register with signature
+                    const res = await axios.post(
+                      "https://farcaster.anky.bot/create-new-fid-signed-message",
+                      {
+                        deadline: params.deadline,
+                        address: params.address,
+                        fid: params.new_fid,
+                        signature,
+                        fname: `anky${params.new_fid}`,
+                      }
+                    );
+                    console.log("Registration successful:", res.data);
+
+                    onClose();
+                  } catch (error) {
+                    console.error("Error creating Farcaster account:", error);
+                    setError("Failed to create Farcaster account");
+                  }
+                }}
+              >
+                <Text className="text-center p-4 bg-purple-500 rounded-full text-4xl font-bold text-black">
+                  CREATE ANKY
+                </Text>
+              </Pressable>
+
+              {error && (
+                <Text className="text-center text-red-500 font-bold">
+                  {error}
+                </Text>
+              )}
+            </View>
           </View>
         );
 
@@ -224,16 +304,7 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
           onPress={(e) => e.stopPropagation()}
           className="bg-white rounded-t-3xl border-t border-black p-6 h-2/3"
         >
-          <View className="flex-col space-y-6">
-            <View className="flex-row justify-between items-center">
-              <Text className="text-xl font-bold">Welcome to Anky</Text>
-              <Pressable onPress={onClose} className="p-2">
-                <MaterialIcons name="close" color="#000" size={22} />
-              </Pressable>
-            </View>
-
-            {renderStep()}
-          </View>
+          <View className="flex-col space-y-6">{renderStep()}</View>
         </Pressable>
       </Pressable>
     </Modal>

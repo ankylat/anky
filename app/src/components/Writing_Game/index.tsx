@@ -10,6 +10,7 @@ import {
   Platform,
   KeyboardAvoidingView,
   Vibration,
+  TouchableOpacity,
 } from "react-native";
 import Animated, {
   useAnimatedProps,
@@ -40,6 +41,7 @@ import {
   addWritingSessionToLocalStorageSimple,
   updateWritingSessionOnLocalStorageSimple,
 } from "@/src/app/lib/simple_writing_game";
+import MusicIcon from "@/assets/icons/music.svg";
 
 const { width, height } = Dimensions.get("window");
 
@@ -53,6 +55,7 @@ const WritingGame = () => {
     setWritingSession,
     setIsWritingGameVisible,
     setDidUserWriteToday,
+    musicButtonPressed,
   } = useAnky();
   const { ankyUser } = useUser();
 
@@ -160,10 +163,9 @@ const WritingGame = () => {
     processingRef.current = true;
 
     const keystroke = keystrokeQueue.current.shift();
-    if (keystroke && keystroke.key && keystroke.timestamp) {
+    if (keystroke && keystroke.key && keystroke.delta) {
       setSessionLongString((prev) => {
-        const newString =
-          prev + "\n" + keystroke.key + " " + keystroke.timestamp;
+        const newString = prev + "\n" + keystroke.key + " " + keystroke.delta;
         updateWritingSessionOnLocalStorageSimple(writingSessionId, newString);
         return newString;
       });
@@ -248,29 +250,19 @@ const WritingGame = () => {
     }
   };
 
-  // the user writes
-  // the writing session ends
-  // we check if the writing session is more than 8 minutes
-  // we ask anky on the background for a reflection and a new prompt to the user
-  // we display the ending stats
-  // we display the anky reflection
-  // if it is less than 8 minutes, we display the anky reflection
-
   const handleKeyPress = (e: any) => {
     const currentTime = Date.now();
     setTimeSinceLastKeystroke(0);
-
+    keystrokeQueue.current.push({
+      key: e.nativeEvent.key,
+      delta: currentTime - (lastKeystrokeTime.current ?? 0),
+    });
     if (timeoutRef.current) {
       clearTimeout(timeoutRef.current);
     }
     timeoutRef.current = setTimeout(handleSessionEnded, TIMEOUT_DURATION);
 
     lastKeystrokeTime.current = currentTime;
-
-    keystrokeQueue.current.push({
-      key: e.nativeEvent.key,
-      timestamp: currentTime,
-    });
 
     processKeystrokeQueue();
   };
@@ -312,11 +304,23 @@ const WritingGame = () => {
         <TouchableWithoutFeedback onPress={handleScreenTap}>
           <View className="flex-1 items-center justify-center px-10 pb-[100px] android:pb-20">
             <Animated.Text className="text-white text-3xl font-righteous text-center">
-              {ankyPromptStreaming}
+              {ankyPromptStreaming.split("").map((letter, index) => (
+                <Animated.Text key={index} className="text-white">
+                  {letter}
+                </Animated.Text>
+              ))}
               <Animated.Text className="text-white text-3xl font-righteous">
                 |
               </Animated.Text>
             </Animated.Text>
+            <View className="absolute bottom-8 flex-row items-center justify-center space-x-4">
+              <TouchableOpacity
+                onPress={musicButtonPressed}
+                className="p-4 rounded-full shadow-lg active:scale-110 transition-transform"
+              >
+                <MusicIcon width={64} height={64} />
+              </TouchableOpacity>
+            </View>
           </View>
         </TouchableWithoutFeedback>
       );
