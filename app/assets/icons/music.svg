@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <!-- Music note base shape -->
+  <g id="music-note">
+    <!-- Note head -->
+    <circle cx="12" cy="22" r="4" fill="currentColor"/>
+    
+    <!-- Note stem -->
+    <path d="M16 22V8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    
+    <!-- Flag -->
+    <path d="M16 8C16 8 20 10 20 14" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none"/>
+    
+    <!-- Sound waves (visible when music is on) -->
+    <g id="waves" class="waves">
+      <path d="M22 14C24 14 26 18 26 22" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <animate
+          attributeName="opacity"
+          values="1;0.3;1"
+          dur="2s"
+          repeatCount="indefinite"
+        />
+      </path>
+      <path d="M24 12C27 12 30 18 30 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+        <animate
+          attributeName="opacity"
+          values="1;0.3;1"
+          dur="2.5s"
+          repeatCount="indefinite"
+        />
+      </path>
+    </g>
+    
+    <!-- Slash for muted state (visible when music is off) -->
+    <g id="muted" class="muted" opacity="0">
+      <line x1="6" y1="6" x2="26" y2="26" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+    </g>
+  </g>
+  
+  <style>
+    svg {
+      color: #2A9FD6;
+    }
+    .waves {
+      opacity: 1;
+      transition: opacity 0.3s ease;
+    }
+    .muted {
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    /* States for music on/off */
+    svg[data-playing="false"] .waves {
+      opacity: 0;
+    }
+    svg[data-playing="false"] .muted {
+      opacity: 1;
+    }
+  </style>
+</svg>

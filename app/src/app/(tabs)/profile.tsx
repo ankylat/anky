@@ -263,9 +263,7 @@ const CreateProfileButton = () => {
       onPress={createProfileFunction}
     >
       <View className="items-center">
-        <Text className="text-black text-2xl font-bold mb-2">
-          Create Your Profile
-        </Text>
+        <Text className="text-white text-2xl mb-2">LOGIN</Text>
       </View>
     </TouchableOpacity>
   );

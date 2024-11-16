@@ -65,7 +65,14 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [anonymousId, setAnonymousId] = useState<string>("");
-  const [ankyUser, setAnkyUser] = useState<AnkyUser | null>(null);
+  const [ankyUser, setAnkyUser] = useState<AnkyUser | null>({
+    id: "",
+    settings: {},
+    wallet_address: "",
+    created_at: "",
+    streak: 0,
+    jwt: "",
+  });
   const [createAccountModalVisible, setCreateAccountModalVisible] =
     useState<boolean>(false);
   const { user: privy_user, isReady } = usePrivy();

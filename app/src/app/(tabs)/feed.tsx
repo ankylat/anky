@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useCallback } from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
   Text,
@@ -7,108 +7,90 @@ import {
   Dimensions,
   Animated,
   TouchableOpacity,
-  PanResponder,
-  NativeScrollEvent,
-  NativeSyntheticEvent,
-  ActivityIndicator,
+  Modal,
 } from "react-native";
-import { useUser } from "../../context/UserContext";
-import CastElement from "../../components/Cast";
-import { useQuery } from "@tanstack/react-query";
-import { getLandingFeed } from "@/src/api/feed";
-import { usePrivy } from "@privy-io/expo";
+
+import Anky0 from "../../assets/ankys/0.png";
+import Anky1 from "../../assets/ankys/1.png";
+import Anky2 from "../../assets/ankys/2.png";
+import Anky3 from "../../assets/ankys/3.png";
+import Anky4 from "../../assets/ankys/4.png";
+import Anky5 from "../../assets/ankys/5.png";
+import Anky6 from "../../assets/ankys/6.png";
+import Anky7 from "../../assets/ankys/7.png";
+import Anky8 from "../../assets/ankys/8.png";
+import Anky9 from "../../assets/ankys/9.png";
+import Anky10 from "../../assets/ankys/10.png";
+import Anky11 from "../../assets/ankys/11.png";
 
 const BACKGROUND_IMAGE = require("@/assets/images/bg.png");
 
+const ANKY_IMAGES = [
+  Anky0,
+  Anky1,
+  Anky2,
+  Anky3,
+  Anky4,
+  Anky5,
+  Anky6,
+  Anky7,
+  Anky8,
+  Anky9,
+  Anky10,
+  Anky11,
+];
+
 export default function HomeScreen() {
-  const { user } = usePrivy();
-  const userFid =
-    user?.linked_accounts?.find((account) => account.type === "farcaster")
-      ?.fid || 18350;
-
-  const {
-    data: casts,
-    isLoading,
-    error,
-  } = useQuery({
-    queryKey: ["getLandingFeed", userFid],
-    queryFn: () => getLandingFeed(userFid),
-  });
-
-  const scrollY = useRef(new Animated.Value(0)).current;
-  const [contentHeight, setContentHeight] = useState(0);
+  const [selectedAnky, setSelectedAnky] = useState<number | null>(null);
   const { height: screenHeight, width: screenWidth } = Dimensions.get("window");
-  const [showFeed, setShowFeed] = useState(true);
-  const [scale, setScale] = useState(new Animated.Value(1));
-  const [pan, setPan] = useState(new Animated.ValueXY());
+  const scaleAnim = useRef(new Animated.Value(1)).current;
 
-  const [showTabBar, setShowTabBar] = useState(false);
+  const handleAnkyPress = (ankyId: number) => {
+    setSelectedAnky(ankyId);
+    Animated.spring(scaleAnim, {
+      toValue: 1.2,
+      useNativeDriver: true,
+    }).start();
+  };
 
-  useEffect(() => {
-    setContentHeight(Math.max(screenHeight, (casts?.length || 1) * 200 + 100));
-  }, [casts, screenHeight]);
+  const handleCloseModal = () => {
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      useNativeDriver: true,
+    }).start(() => {
+      setSelectedAnky(null);
+    });
+  };
 
-  const panResponder = PanResponder.create({
-    onStartShouldSetPanResponder: () => true,
-    onPanResponderMove: (evt, gestureState) => {
-      if (evt.nativeEvent.touches.length === 2) {
-        let dx = Math.abs(
-          evt.nativeEvent.touches[0].pageX - evt.nativeEvent.touches[1].pageX
-        );
-        let dy = Math.abs(
-          evt.nativeEvent.touches[0].pageY - evt.nativeEvent.touches[1].pageY
-        );
-        let distance = Math.sqrt(dx * dx + dy * dy);
-        setScale(new Animated.Value(distance / 150));
-      } else {
-        Animated.event([null, { dx: pan.x, dy: pan.y }], {
-          useNativeDriver: false,
-        })(evt, gestureState);
-      }
-    },
-    onPanResponderRelease: () => {
-      pan.flattenOffset();
-    },
-  });
-
-  const handleScroll = useCallback(
-    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
-      const { layoutMeasurement, contentOffset, contentSize } =
-        event.nativeEvent;
-      const paddingToBottom = 20;
-      if (
-        layoutMeasurement.height + contentOffset.y >=
-        contentSize.height - paddingToBottom
-      ) {
-        setShowTabBar(true);
-      }
-    },
-    []
-  );
-
-  if (isLoading) {
-    return (
-      <View className="flex-1 justify-center items-center">
-        <ActivityIndicator size="large" />
-      </View>
-    );
-  }
-
-  if (error) {
-    return (
-      <View className="flex-1 justify-center items-center">
-        <Text>Error: {error.message}</Text>
-      </View>
-    );
-  }
-
-  if (casts?.length === 0) {
-    return (
-      <View className="flex-1 justify-center items-center">
-        <Text>No casts found</Text>
-      </View>
-    );
-  }
+  const renderAnkyGrid = () => {
+    const itemsPerRow = 3;
+    const rows = [];
+    for (let i = 0; i < ANKY_IMAGES.length; i += itemsPerRow) {
+      const rowItems = ANKY_IMAGES.slice(i, i + itemsPerRow);
+      rows.push(
+        <View key={i} className="flex-row justify-between mb-2">
+          {rowItems.map((image, index) => (
+            <TouchableOpacity
+              key={i + index}
+              className="flex-1 mx-1"
+              onPress={() => handleAnkyPress(i + index)}
+            >
+              <Image
+                source={image}
+                style={{
+                  width: "100%",
+                  aspectRatio: 1,
+                  borderRadius: 12,
+                }}
+                resizeMode="cover"
+              />
+            </TouchableOpacity>
+          ))}
+        </View>
+      );
+    }
+    return rows;
+  };
 
   return (
     <View className="flex-1">
@@ -122,24 +104,41 @@ export default function HomeScreen() {
         }}
         resizeMode="cover"
       />
-      <Animated.ScrollView
-        className="flex-1"
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true, listener: handleScroll }
-        )}
-        scrollEventThrottle={16}
-        contentContainerStyle={{ minHeight: contentHeight }}
+
+      <ScrollView className="flex-1 p-4">{renderAnkyGrid()}</ScrollView>
+
+      <Modal
+        visible={selectedAnky !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={handleCloseModal}
       >
-        {casts?.slice(0, 5).map((cast, index) => (
-          <View
-            key={index}
-            className="bg-white bg-opacity-80 rounded-lg m-4 shadow-md"
+        <TouchableOpacity
+          className="flex-1 bg-black/50 justify-center items-center p-4"
+          activeOpacity={1}
+          onPress={handleCloseModal}
+        >
+          <Animated.View
+            className="bg-white rounded-xl p-4 w-[90%]"
+            style={{
+              transform: [{ scale: scaleAnim }],
+            }}
           >
-            <CastElement cast={cast} />
-          </View>
-        ))}
-      </Animated.ScrollView>
+            {selectedAnky !== null && (
+              <Image
+                source={ANKY_IMAGES[selectedAnky]}
+                style={{
+                  width: "100%",
+                  height: screenWidth * 0.8,
+                  borderRadius: 12,
+                  marginBottom: 12,
+                }}
+                resizeMode="contain"
+              />
+            )}
+          </Animated.View>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }

@@ -37,7 +37,7 @@ export interface SessionData {
 
 export interface Keystroke {
   key?: string;
-  timestamp?: number;
+  delta?: number;
 }
 
 export interface Anky {
@@ -90,4 +90,11 @@ export interface KeystrokeEvent {
   character: string;
   time_delta: number;
   position: number;
+}
+
+export interface NewenTransaction {
+  hash: string;
+  amount: number;
+  timestamp: Date;
+  details: string;
 }
