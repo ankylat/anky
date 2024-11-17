@@ -16,6 +16,7 @@ import (
 	"github.com/ankylat/anky/server/utils"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/gorilla/websocket"
 )
 
 func WriteJSON(w http.ResponseWriter, status int, v any) error {
@@ -41,13 +42,158 @@ func makeHTTPHandleFunc(f apiFunc) http.HandlerFunc {
 type APIServer struct {
 	listenAddr string
 	store      *storage.PostgresStore
+	hub        *Hub
+}
+
+var upgrader = websocket.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	CheckOrigin: func(r *http.Request) bool {
+		return true // Be careful with this in production
+	},
+}
+
+type WritingMessage struct {
+	Type    string `json:"type"`
+	Content string `json:"content"`
+	UserID  string `json:"userId"`
+}
+
+// Add WebSocket message types
+type WSMessage struct {
+	Type    string      `json:"type"`
+	Payload interface{} `json:"payload"`
+}
+
+// Add WebSocket client structure
+type Client struct {
+	conn *websocket.Conn
+	send chan []byte
+}
+
+// Add WebSocket hub to manage connections
+type Hub struct {
+	clients    map[*Client]bool
+	broadcast  chan []byte
+	register   chan *Client
+	unregister chan *Client
+}
+
+func newHub() *Hub {
+	return &Hub{
+		clients:    make(map[*Client]bool),
+		broadcast:  make(chan []byte),
+		register:   make(chan *Client),
+		unregister: make(chan *Client),
+	}
 }
 
 func NewAPIServer(listenAddr string, store *storage.PostgresStore) (*APIServer, error) {
 	return &APIServer{
 		listenAddr: listenAddr,
 		store:      store,
+		hub:        newHub(),
 	}, nil
+}
+
+func (s *APIServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("Error upgrading to WebSocket: %v", err)
+		return
+	}
+
+	client := &Client{
+		conn: conn,
+		send: make(chan []byte, 256),
+	}
+	s.hub.register <- client
+
+	// Start goroutines for reading and writing
+	go client.writePump(s.hub)
+	go client.readPump(s.hub, s)
+}
+
+func (c *Client) writePump(hub *Hub) {
+	defer func() {
+		c.conn.Close()
+	}()
+
+	for {
+		select {
+		case message, ok := <-c.send:
+			if !ok {
+				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				return
+			}
+
+			w, err := c.conn.NextWriter(websocket.TextMessage)
+			if err != nil {
+				return
+			}
+			w.Write(message)
+
+			if err := w.Close(); err != nil {
+				return
+			}
+		}
+	}
+}
+
+func (s *APIServer) handleWSMessage(msg WSMessage) (*WSMessage, error) {
+	switch msg.Type {
+	case "writing":
+		// Handle writing message
+		return &WSMessage{
+			Type:    "writing_response",
+			Payload: msg.Payload,
+		}, nil
+	default:
+		return nil, fmt.Errorf("unknown message type: %s", msg.Type)
+	}
+}
+
+func (c *Client) readPump(hub *Hub, s *APIServer) {
+	defer func() {
+		hub.unregister <- c
+		c.conn.Close()
+	}()
+
+	for {
+		_, message, err := c.conn.ReadMessage()
+		if err != nil {
+			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+				log.Printf("WebSocket error: %v", err)
+			}
+			break
+		}
+
+		// Handle incoming message
+		var wsMessage WSMessage
+		if err := json.Unmarshal(message, &wsMessage); err != nil {
+			log.Printf("Error unmarshaling message: %v", err)
+			continue
+		}
+
+		// Handle different message types
+		response, err := s.handleWSMessage(wsMessage)
+		if err != nil {
+			log.Printf("Error handling message: %v", err)
+			errorResponse := WSMessage{
+				Type: "error",
+				Payload: map[string]string{
+					"error": err.Error(),
+				},
+			}
+			responseBytes, _ := json.Marshal(errorResponse)
+			c.send <- responseBytes
+			continue
+		}
+
+		// Send response back to client
+		responseBytes, _ := json.Marshal(response)
+		c.send <- responseBytes
+	}
 }
 
 func (s *APIServer) Run() error {
@@ -85,6 +231,9 @@ func (s *APIServer) Run() error {
 
 	// Badge routes
 	router.HandleFunc("/users/{userId}/badges", makeHTTPHandleFunc(s.handleGetUserBadges)).Methods("GET")
+
+	// WebSocket routes
+	router.HandleFunc("/ws/writing", s.handleWebSocket)
 
 	log.Println("Server running on port:", s.listenAddr)
 	return http.ListenAndServe(s.listenAddr, router)
