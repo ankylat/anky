@@ -1,55 +1,71 @@
-import React, { useRef, useState } from "react";
+import React, { useRef, useState, useCallback } from "react";
 import {
   View,
   Text,
-  ScrollView,
+  FlatList,
   Image,
   Dimensions,
   Animated,
   TouchableOpacity,
   Modal,
+  Platform,
 } from "react-native";
+import { useQuery } from "@tanstack/react-query";
+import { getLandingFeed } from "@/src/api/feed";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AdvancedImage } from "cloudinary-react-native";
+import { Cloudinary, CloudinaryImage } from "@cloudinary/url-gen";
+import { scale } from "@cloudinary/url-gen/actions/resize";
+import { quality, format } from "@cloudinary/url-gen/actions/delivery";
+import { auto } from "@cloudinary/url-gen/qualifiers/quality";
+import { auto as autoFormat } from "@cloudinary/url-gen/qualifiers/format";
+import MasonryList from "reanimated-masonry-list";
+import { Cast } from "@/src/types/Cast";
+import { useTranslation } from "react-i18next";
+import { Ionicons } from "@expo/vector-icons";
 
-import Anky0 from "../../assets/ankys/0.png";
-import Anky1 from "../../assets/ankys/1.png";
-import Anky2 from "../../assets/ankys/2.png";
-import Anky3 from "../../assets/ankys/3.png";
-import Anky4 from "../../assets/ankys/4.png";
-import Anky5 from "../../assets/ankys/5.png";
-import Anky6 from "../../assets/ankys/6.png";
-import Anky7 from "../../assets/ankys/7.png";
-import Anky8 from "../../assets/ankys/8.png";
-import Anky9 from "../../assets/ankys/9.png";
-import Anky10 from "../../assets/ankys/10.png";
-import Anky11 from "../../assets/ankys/11.png";
-
-const BACKGROUND_IMAGE = require("@/assets/images/bg.png");
-
-const ANKY_IMAGES = [
-  Anky0,
-  Anky1,
-  Anky2,
-  Anky3,
-  Anky4,
-  Anky5,
-  Anky6,
-  Anky7,
-  Anky8,
-  Anky9,
-  Anky10,
-  Anky11,
-];
+// Initialize Cloudinary instance
+const cld = new Cloudinary({
+  cloud: {
+    cloudName: process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME,
+  },
+  url: {
+    secure: true, // Setting secure URLs like in image_services.go
+  },
+});
 
 export default function HomeScreen() {
   const [selectedAnky, setSelectedAnky] = useState<number | null>(null);
-  const { height: screenHeight, width: screenWidth } = Dimensions.get("window");
+  const [activeTab, setActiveTab] = useState<"todos" | "followed">("todos");
+  const { width: screenWidth } = Dimensions.get("window");
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const viewer_fid = AsyncStorage.getItem("anky_user_fid");
+  const { t } = useTranslation();
+
+  const { data: ankyFeed, isLoading } = useQuery({
+    queryKey: ["ankyFeed", activeTab],
+    queryFn: async () => {
+      const fid = await viewer_fid;
+      return getLandingFeed({
+        fid: Number(fid),
+        viewer_fid: Number(fid),
+        cursor: "",
+        limit: activeTab === "todos" ? 24 : 12,
+      });
+    },
+  });
+
+  const handleTabPress = (tab: "todos" | "followed") => {
+    setActiveTab(tab);
+  };
 
   const handleAnkyPress = (ankyId: number) => {
     setSelectedAnky(ankyId);
     Animated.spring(scaleAnim, {
       toValue: 1.2,
       useNativeDriver: true,
+      tension: 40,
+      friction: 7,
     }).start();
   };
 
@@ -57,55 +73,120 @@ export default function HomeScreen() {
     Animated.spring(scaleAnim, {
       toValue: 1,
       useNativeDriver: true,
+      tension: 40,
+      friction: 7,
     }).start(() => {
       setSelectedAnky(null);
     });
   };
 
-  const renderAnkyGrid = () => {
-    const itemsPerRow = 3;
-    const rows = [];
-    for (let i = 0; i < ANKY_IMAGES.length; i += itemsPerRow) {
-      const rowItems = ANKY_IMAGES.slice(i, i + itemsPerRow);
-      rows.push(
-        <View key={i} className="flex-row justify-between mb-2">
-          {rowItems.map((image, index) => (
-            <TouchableOpacity
-              key={i + index}
-              className="flex-1 mx-1"
-              onPress={() => handleAnkyPress(i + index)}
-            >
-              <Image
-                source={image}
-                style={{
-                  width: "100%",
-                  aspectRatio: 1,
-                  borderRadius: 12,
-                }}
-                resizeMode="cover"
-              />
-            </TouchableOpacity>
-          ))}
-        </View>
-      );
-    }
-    return rows;
+  const getOptimizedImage = (url: string, width: number): CloudinaryImage => {
+    const publicId = url.split("/").pop()?.split(".")[0];
+    if (!publicId) return cld.image("default");
+
+    return cld
+      .image(publicId)
+      .resize(scale().width(width))
+      .delivery(quality(auto()))
+      .delivery(format(autoFormat()));
   };
 
-  return (
-    <View className="flex-1">
-      <Image
-        source={BACKGROUND_IMAGE}
-        style={{
-          position: "absolute",
-          width: screenWidth,
-          height: screenHeight,
-          opacity: 0.7,
-        }}
-        resizeMode="cover"
-      />
+  const getLayoutPattern = (index: number) => {
+    const patterns = [
+      { span: 1, height: screenWidth / 3 },
+      { span: 2, height: (screenWidth / 3) * 2 },
+      { span: 3, height: screenWidth },
+      { span: 2, height: screenWidth / 2 },
+    ];
+    return patterns[index % patterns.length];
+  };
 
-      <ScrollView className="flex-1 p-4">{renderAnkyGrid()}</ScrollView>
+  const renderItem = useCallback(
+    ({ item, index }: { item: Cast; index: number }) => {
+      const pattern = getLayoutPattern(index);
+      const imageWidth =
+        (screenWidth / 3) * pattern.span - (pattern.span > 1 ? 8 : 4);
+
+      return (
+        <TouchableOpacity
+          onPress={() => handleAnkyPress(index)}
+          style={{
+            width: imageWidth,
+            height: pattern.height,
+            margin: 2,
+          }}
+        >
+          <AdvancedImage
+            cldImg={getOptimizedImage(item.embeds[0].url, imageWidth * 2)}
+            style={{
+              flex: 1,
+              borderRadius: 12,
+            }}
+          />
+        </TouchableOpacity>
+      );
+    },
+    [screenWidth]
+  );
+
+  if (isLoading) {
+    return (
+      <View className="flex-1 justify-center items-center">
+        <Text className="text-lg">Loading your beautiful feed...</Text>
+      </View>
+    );
+  }
+
+  if (!ankyFeed?.casts.length) {
+    return (
+      <View className="flex-1 justify-center items-center">
+        <Text className="text-lg">No ankys found</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View className="flex-1 bg-black">
+      <View className="flex-row justify-center space-x-8 py-2 bg-black/90">
+        <TouchableOpacity
+          onPress={() => handleTabPress("todos")}
+          className={`px-4 py-2 ${
+            activeTab === "todos" ? "border-b border-white" : ""
+          }`}
+        >
+          <Text
+            className={`text-white text-lg ${
+              activeTab === "todos" ? "opacity-100" : "opacity-70"
+            }`}
+          >
+            {t("todos")}
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => handleTabPress("followed")}
+          className={`px-4 py-2 ${
+            activeTab === "followed" ? "border-b border-white" : ""
+          }`}
+        >
+          <Text
+            className={`text-white text-lg ${
+              activeTab === "followed" ? "opacity-100" : "opacity-70"
+            }`}
+          >
+            {t("followed")}
+          </Text>
+        </TouchableOpacity>
+      </View>
+
+      <MasonryList
+        data={ankyFeed.casts}
+        renderItem={renderItem}
+        numColumns={3}
+        contentContainerStyle={{ padding: 2 }}
+        showsVerticalScrollIndicator={false}
+        estimatedItemSize={200}
+        refreshing={isLoading}
+      />
 
       <Modal
         visible={selectedAnky !== null}
@@ -114,27 +195,65 @@ export default function HomeScreen() {
         onRequestClose={handleCloseModal}
       >
         <TouchableOpacity
-          className="flex-1 bg-black/50 justify-center items-center p-4"
+          className="flex-1 bg-black/80 justify-center items-center p-4"
           activeOpacity={1}
           onPress={handleCloseModal}
         >
           <Animated.View
-            className="bg-white rounded-xl p-4 w-[90%]"
+            className="bg-black rounded-xl p-4 w-full"
             style={{
               transform: [{ scale: scaleAnim }],
             }}
           >
-            {selectedAnky !== null && (
-              <Image
-                source={ANKY_IMAGES[selectedAnky]}
-                style={{
-                  width: "100%",
-                  height: screenWidth * 0.8,
-                  borderRadius: 12,
-                  marginBottom: 12,
-                }}
-                resizeMode="contain"
-              />
+            {selectedAnky !== null && ankyFeed && (
+              <View>
+                <AdvancedImage
+                  cldImg={getOptimizedImage(
+                    ankyFeed.casts[selectedAnky].embeds[0].url,
+                    screenWidth * 2
+                  )}
+                  style={{
+                    width: "100%",
+                    height: screenWidth * 0.8,
+                    borderRadius: 12,
+                  }}
+                />
+
+                <View className="flex-row justify-between mt-4">
+                  <View className="flex-row space-x-6">
+                    <TouchableOpacity>
+                      <Ionicons name="heart-outline" size={24} color="white" />
+                    </TouchableOpacity>
+                    <TouchableOpacity>
+                      <Ionicons name="sync-outline" size={24} color="white" />
+                    </TouchableOpacity>
+                    <TouchableOpacity>
+                      <Ionicons
+                        name="chatbubble-outline"
+                        size={24}
+                        color="white"
+                      />
+                    </TouchableOpacity>
+                  </View>
+
+                  <View className="flex-row space-x-4">
+                    <TouchableOpacity>
+                      <Ionicons
+                        name="diamond-outline"
+                        size={24}
+                        color="white"
+                      />
+                    </TouchableOpacity>
+                    <TouchableOpacity>
+                      <Ionicons name="share-outline" size={24} color="white" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <Text className="text-white mt-4">
+                  {ankyFeed.casts[selectedAnky].text}
+                </Text>
+              </View>
             )}
           </Animated.View>
         </TouchableOpacity>

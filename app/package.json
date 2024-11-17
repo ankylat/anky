@@ -31,6 +31,7 @@
     "date-fns": "^4.1.0",
     "expo": "~51.0.28",
     "expo-application": "~5.9.1",
+    "expo-asset": "~10.0.10",
     "expo-av": "~14.0.7",
     "expo-blur": "~13.0.2",
     "expo-clipboard": "~6.0.3",
@@ -38,6 +39,7 @@
     "expo-crypto": "~13.0.2",
     "expo-dev-client": "~4.0.28",
     "expo-device": "~6.0.2",
+    "expo-file-system": "~17.0.1",
     "expo-font": "~12.0.9",
     "expo-haptics": "~13.0.1",
     "expo-image-picker": "~15.0.7",
@@ -57,6 +59,7 @@
     "nativewind": "^4.0.1",
     "react": "18.2.0",
     "react-dom": "18.2.0",
+    "react-i18next": "^15.1.1",
     "react-native": "0.74.5",
     "react-native-actions-sheet": "^0.9.7",
     "react-native-gesture-handler": "~2.16.1",
@@ -69,8 +72,8 @@
     "react-native-web": "~0.19.10",
     "react-native-webview": "13.8.6",
     "react-syntax-highlighter": "^15.6.1",
-    "expo-file-system": "~17.0.1",
-    "expo-asset": "~10.0.10"
+    "socket.io-client": "^4.8.1",
+    "undefined": "react-native-seoul/masonry-list"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",

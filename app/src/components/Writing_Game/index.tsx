@@ -32,6 +32,8 @@ import {
   SessionEndScreen,
 } from "./onboarding/SessionScreens";
 import { endWritingSession, startWritingSession } from "@/src/api/game";
+import { useTranslation } from "react-i18next";
+
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { router } from "expo-router";
 import { prettyLog } from "@/src/app/lib/logs";
@@ -82,6 +84,8 @@ const WritingGame = () => {
   const sessionTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const sessionStartTime = useRef<number | null>(null);
 
+  const { t } = useTranslation("self-inquiry");
+
   const CHAR_DELAY = 50;
   const TIMEOUT_DURATION = 8000;
   const MAX_SESSION_DURATION = 40000;
@@ -121,7 +125,7 @@ const WritingGame = () => {
       let currentIndex = 0;
       let prompt =
         (await AsyncStorage.getItem("upcoming_prompt")) ??
-        "tell me who you are";
+        t("self-inquiry:upcoming_prompt");
       const interval = setInterval(() => {
         if (prompt && currentIndex < prompt.length) {
           setAnkyPromptStreaming(prompt.slice(0, currentIndex + 1));
@@ -219,7 +223,7 @@ const WritingGame = () => {
       // this means the writing session is starting
       const prompt =
         (await AsyncStorage.getItem("upcoming_prompt")) ||
-        "tell me who you are";
+        t("self-inquiry:upcoming_prompt");
       const session_id = uuidv4();
       const now = new Date();
       let newSessionLongString = `${session_id}\n${prompt}\n${now.getTime()}\n`;
@@ -313,14 +317,6 @@ const WritingGame = () => {
                 |
               </Animated.Text>
             </Animated.Text>
-            <View className="absolute bottom-8 flex-row items-center justify-center space-x-4">
-              <TouchableOpacity
-                onPress={musicButtonPressed}
-                className="p-4 rounded-full shadow-lg active:scale-110 transition-transform"
-              >
-                <MusicIcon width={64} height={64} />
-              </TouchableOpacity>
-            </View>
           </View>
         </TouchableWithoutFeedback>
       );
@@ -415,7 +411,6 @@ const WritingGame = () => {
     }
   };
   if (!ankyUser) {
-    console.log("THERE IS NO ANKY USER");
     return (
       <View className="flex-1 bg-black">
         <Text>Loading...</Text>

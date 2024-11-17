@@ -3,6 +3,7 @@ import { Pressable, View, Text, Modal, Image, ScrollView } from "react-native";
 import { MaterialIcons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system";
 import { Asset } from "expo-asset";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 type Props = {
   isVisible: boolean;
@@ -27,7 +28,15 @@ export default function MusicModal({ isVisible, onClose }: Props) {
   useEffect(() => {
     const loadMetadata = async () => {
       try {
-        console.log("Loading music metadata...");
+        // Try to get cached data first
+        const cachedData = await AsyncStorage.getItem("musicMetadata");
+        if (cachedData) {
+          console.log("Loading music metadata from cache...");
+          setTrackMetadata(JSON.parse(cachedData));
+          return;
+        }
+
+        console.log("No cached data found, loading from asset...");
         // Load the asset using require
         const asset = Asset.fromModule(require("/music_metadata/index.txt"));
         // Ensure the asset is downloaded/available
@@ -37,7 +46,7 @@ export default function MusicModal({ isVisible, onClose }: Props) {
           asset.localUri!
         );
 
-        // Rest of your existing parsing logic
+        // Parse the track data
         const trackRegex = /^(.*?)\n(.*?)\n(.*?)\n(.*?)\n(\d+)\n(\d+)$/gm;
         const tracks: Track[] = [];
         let match;
@@ -54,18 +63,28 @@ export default function MusicModal({ isVisible, onClose }: Props) {
             year: match[5],
             duration: parseInt(match[6]),
           };
-          console.log("Parsed track:", track);
           tracks.push(track);
         }
 
         console.log("Total tracks parsed:", tracks.length);
+
+        // Cache the parsed data
+        await AsyncStorage.setItem("musicMetadata", JSON.stringify(tracks));
+        console.log("Music metadata cached successfully");
+
         setTrackMetadata(tracks);
       } catch (error) {
         console.error("Error loading music metadata:", error);
-        console.error(
-          "Error details:",
-          error instanceof Error ? error.message : error
-        );
+        // Try to load from cache as fallback if loading from asset fails
+        try {
+          const cachedData = await AsyncStorage.getItem("musicMetadata");
+          if (cachedData) {
+            console.log("Loading from cache after error...");
+            setTrackMetadata(JSON.parse(cachedData));
+          }
+        } catch (cacheError) {
+          console.error("Error loading from cache:", cacheError);
+        }
       }
     };
 
