@@ -24,7 +24,6 @@ import PouchIcon from "@/assets/icons/pouch.svg";
 import Playground from "@/assets/icons/playground.svg";
 import Scroll from "@/assets/icons/scroll.svg";
 import CreateAccountModal from "@/src/components/Profile/CreateAccountModal";
-import MusicModal from "@/src/components/music/MusicModal";
 import { useUser } from "@/src/context/UserContext";
 
 export default function TabLayout() {
@@ -45,8 +44,6 @@ export default function TabLayout() {
     setIsWritingGameVisible,
     didUserWriteToday,
     isUserWriting,
-    openMusicModal,
-    setOpenMusicModal,
   } = useAnky();
   const { createAccountModalVisible, setCreateAccountModalVisible } = useUser();
 
@@ -256,10 +253,6 @@ export default function TabLayout() {
       <CreateAccountModal
         isVisible={createAccountModalVisible}
         onClose={() => setCreateAccountModalVisible(false)}
-      />
-      <MusicModal
-        isVisible={openMusicModal}
-        onClose={() => setOpenMusicModal(false)}
       />
     </View>
   );

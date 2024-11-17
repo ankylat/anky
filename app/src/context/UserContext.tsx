@@ -23,6 +23,7 @@ import {
 } from "../app/lib/writingGame";
 import { usePrivy } from "@privy-io/expo";
 import { clearAllUserDataFromLocalStorage } from "../app/lib/development";
+import i18n, { getLocalizedPrompt } from "../app/lib/localization";
 
 interface UserContextType {
   ankyUser: AnkyUser | null;
@@ -79,8 +80,12 @@ export const UserProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;
   // clearAllUserDataFromLocalStorage();
+  const translated_welcoming_self_inquiry = getLocalizedPrompt();
   const firstUserSetup = async () => {
-    await AsyncStorage.setItem("upcoming_prompt", "tell me who you are");
+    await AsyncStorage.setItem(
+      "upcoming_prompt",
+      translated_welcoming_self_inquiry
+    );
     const newAnonymousId = uuidv4();
     const newAnonUser: AnkyUser = {
       id: newAnonymousId,
