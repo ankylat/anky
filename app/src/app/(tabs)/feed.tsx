@@ -19,7 +19,6 @@ import { scale } from "@cloudinary/url-gen/actions/resize";
 import { quality, format } from "@cloudinary/url-gen/actions/delivery";
 import { auto } from "@cloudinary/url-gen/qualifiers/quality";
 import { auto as autoFormat } from "@cloudinary/url-gen/qualifiers/format";
-import MasonryList from "reanimated-masonry-list";
 import { Cast } from "@/src/types/Cast";
 import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
@@ -178,14 +177,14 @@ export default function HomeScreen() {
         </TouchableOpacity>
       </View>
 
-      <MasonryList
+      <FlatList
         data={ankyFeed.casts}
         renderItem={renderItem}
         numColumns={3}
         contentContainerStyle={{ padding: 2 }}
         showsVerticalScrollIndicator={false}
-        estimatedItemSize={200}
         refreshing={isLoading}
+        keyExtractor={(item) => item.hash}
       />
 
       <Modal
