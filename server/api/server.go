@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -225,6 +226,7 @@ func (s *APIServer) Run() error {
 	router.HandleFunc("/anky/edit-cast", makeHTTPHandleFunc(s.handleEditCast)).Methods("POST")
 	router.HandleFunc("/anky/simple-prompt", makeHTTPHandleFunc(s.handleSimplePrompt)).Methods("POST")
 	router.HandleFunc("/anky/messages-prompt", makeHTTPHandleFunc(s.handleMessagesPrompt)).Methods("POST")
+	router.HandleFunc("/anky/raw-writing-session", makeHTTPHandleFunc(s.handleRawWritingSession)).Methods("POST")
 
 	// newen routes
 	router.HandleFunc("/newen/transactions/{userId}", makeHTTPHandleFunc(s.handleGetUserTransactions)).Methods("GET")
@@ -695,6 +697,143 @@ func (s *APIServer) handleGetWritingSession(w http.ResponseWriter, r *http.Reque
 	}
 
 	return WriteJSON(w, http.StatusOK, session)
+}
+func (s *APIServer) handleRawWritingSession(w http.ResponseWriter, r *http.Request) error {
+	log.Println("Starting handleRawWritingSession...")
+	log.Printf("Request method: %s", r.Method)
+	log.Printf("Request headers: %+v", r.Header)
+
+	// Read and decode JSON request
+	var requestData struct {
+		WritingString string `json:"writingString"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&requestData); err != nil {
+		log.Printf("Error decoding JSON request: %v", err)
+		return err
+	}
+	defer r.Body.Close()
+
+	log.Printf("Raw writing string: %s", requestData.WritingString)
+
+	// Split the writing string into lines
+	lines := strings.Split(requestData.WritingString, "\n")
+	log.Printf("Number of lines split from writing string: %d", len(lines))
+
+	if len(lines) < 4 {
+		log.Printf("Invalid format - insufficient lines. Got %d lines, expected at least 4", len(lines))
+		return fmt.Errorf("invalid writing session format: insufficient lines (got %d, need at least 4)", len(lines))
+	}
+
+	// Extract metadata from first 4 lines
+	userId := strings.TrimSpace(lines[0])
+	sessionId := strings.TrimSpace(lines[1])
+	prompt := strings.TrimSpace(lines[2])
+	startingTimestamp := strings.TrimSpace(lines[3])
+
+	log.Printf("Extracted metadata:")
+	log.Printf("- User ID (length: %d): '%s'", len(userId), userId)
+	log.Printf("- Session ID (length: %d): '%s'", len(sessionId), sessionId)
+	log.Printf("- Prompt (length: %d): '%s'", len(prompt), prompt)
+	log.Printf("- Starting Timestamp (length: %d): '%s'", len(startingTimestamp), startingTimestamp)
+
+	// Get writing content (remaining lines)
+	writingContent := strings.Join(lines[4:], "\n")
+	log.Printf("Writing content length: %d bytes", len(writingContent))
+	log.Printf("First 100 chars of writing content: %s", writingContent[:min(100, len(writingContent))])
+
+	// Create data directory structure if it doesn't exist
+	userDir := fmt.Sprintf("data/writing_sessions/%s", userId)
+	if err := os.MkdirAll(userDir, 0755); err != nil {
+		log.Printf("Error creating directory structure: %v", err)
+		return err
+	}
+
+	// Save individual writing session file
+	sessionFilePath := fmt.Sprintf("%s/%s.txt", userDir, sessionId)
+	if err := os.WriteFile(sessionFilePath, []byte(requestData.WritingString), 0644); err != nil {
+		log.Printf("Error writing session file: %v", err)
+		return err
+	}
+
+	// Update all_writing_sessions.txt
+	allSessionsPath := fmt.Sprintf("%s/all_writing_sessions.txt", userDir)
+	f, err := os.OpenFile(allSessionsPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Printf("Error opening all_writing_sessions.txt: %v", err)
+		return err
+	}
+	defer f.Close()
+
+	// Add newline before new session ID if file is not empty
+	fileInfo, err := f.Stat()
+	if err != nil {
+		log.Printf("Error getting file info: %v", err)
+		return err
+	}
+
+	if fileInfo.Size() > 0 {
+		if _, err := f.WriteString("\n"); err != nil {
+			log.Printf("Error writing newline: %v", err)
+			return err
+		}
+	}
+
+	if _, err := f.WriteString(sessionId); err != nil {
+		log.Printf("Error writing session ID: %v", err)
+		return err
+	}
+
+	response := map[string]interface{}{
+		"userId":            userId,
+		"sessionId":         sessionId,
+		"prompt":            prompt,
+		"startingTimestamp": startingTimestamp,
+		"writingContent":    writingContent,
+	}
+
+	log.Println("Preparing to send response...")
+	log.Printf("Response object: %+v", response)
+
+	err = WriteJSON(w, http.StatusOK, response)
+	if err != nil {
+		log.Printf("Error writing JSON response: %v", err)
+		return err
+	}
+
+	log.Println("Successfully completed handleRawWritingSession")
+	// Get feedback from Anky about the writing session
+	ankyService, err := services.NewAnkyService(s.store)
+	if err != nil {
+		log.Printf("Error creating AnkyService: %v", err)
+		return err
+	}
+
+	// Create writing session object for feedback
+	writingSession := &types.WritingSession{
+		ID:        uuid.MustParse(sessionId),
+		UserID:    userId,
+		Writing:   writingContent,
+		TimeSpent: int(time.Since(startingTimestamp).Seconds()),
+	}
+
+	feedback, err := ankyService.OnboardingConversation(ctx, userId, []*types.WritingSession{writingSession}, []string{})
+	if err != nil {
+		log.Printf("Error getting Anky feedback: %v", err)
+		return err
+	}
+
+	// Update response with feedback
+	response["ankyFeedback"] = feedback
+
+	// Send updated response
+	err = WriteJSON(w, http.StatusOK, response)
+	if err != nil {
+		log.Printf("Error writing JSON response with feedback: %v", err)
+		return err
+	}
+
+	return nil
 }
 
 func (s *APIServer) handleGetUserWritingSessions(w http.ResponseWriter, r *http.Request) error {
