@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -12,250 +12,313 @@ import {
 } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { getLandingFeed } from "@/src/api/feed";
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { AdvancedImage } from "cloudinary-react-native";
-import { Cloudinary, CloudinaryImage } from "@cloudinary/url-gen";
-import { scale } from "@cloudinary/url-gen/actions/resize";
-import { quality, format } from "@cloudinary/url-gen/actions/delivery";
-import { auto } from "@cloudinary/url-gen/qualifiers/quality";
-import { auto as autoFormat } from "@cloudinary/url-gen/qualifiers/format";
-import { Cast } from "@/src/types/Cast";
-import { useTranslation } from "react-i18next";
 import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
+import { Cast } from "@/src/types/Cast";
+import { useUser } from "@/src/context/UserContext";
+import { useAnky } from "@/src/context/AnkyContext";
+import { Link } from "expo-router";
 
-// Initialize Cloudinary instance
-const cld = new Cloudinary({
-  cloud: {
-    cloudName: process.env.EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME,
-  },
-  url: {
-    secure: true, // Setting secure URLs like in image_services.go
-  },
-});
+const AnimatedTouchableOpacity =
+  Animated.createAnimatedComponent(TouchableOpacity);
+
+interface ActionButtonProps {
+  icon: keyof typeof Ionicons.glyphMap;
+  onPress?: () => void;
+}
 
 export default function HomeScreen() {
   const [selectedAnky, setSelectedAnky] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<"todos" | "followed">("todos");
   const { width: screenWidth } = Dimensions.get("window");
-  const scaleAnim = useRef(new Animated.Value(1)).current;
-  const viewer_fid = AsyncStorage.getItem("anky_user_fid");
   const { t } = useTranslation();
+  const { ankyUser, createAccountModalVisible, setCreateAccountModalVisible } =
+    useUser();
+
+  // Animation values
+  const modalScale = useRef(new Animated.Value(0)).current;
+  const modalOpacity = useRef(new Animated.Value(0)).current;
+  const gridItemScale = useRef<{ [key: number]: Animated.Value }>({}).current;
 
   const { data: ankyFeed, isLoading } = useQuery({
     queryKey: ["ankyFeed", activeTab],
     queryFn: async () => {
-      const fid = await viewer_fid;
       return getLandingFeed({
-        fid: Number(fid),
-        viewer_fid: Number(fid),
+        fid: 18350,
+        viewer_fid: undefined,
         cursor: "",
         limit: activeTab === "todos" ? 24 : 12,
       });
     },
   });
 
-  const handleTabPress = (tab: "todos" | "followed") => {
-    setActiveTab(tab);
-  };
-
-  const handleAnkyPress = (ankyId: number) => {
+  const handleAnkyPress = useCallback((ankyId: number) => {
     setSelectedAnky(ankyId);
-    Animated.spring(scaleAnim, {
-      toValue: 1.2,
-      useNativeDriver: true,
-      tension: 40,
-      friction: 7,
-    }).start();
-  };
 
-  const handleCloseModal = () => {
-    Animated.spring(scaleAnim, {
-      toValue: 1,
-      useNativeDriver: true,
-      tension: 40,
-      friction: 7,
-    }).start(() => {
+    // Run animations
+    Animated.parallel([
+      Animated.spring(modalScale, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 7,
+      }),
+      Animated.timing(modalOpacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  const handleCloseModal = useCallback(() => {
+    Animated.parallel([
+      Animated.spring(modalScale, {
+        toValue: 0,
+        useNativeDriver: true,
+        tension: 50,
+        friction: 7,
+      }),
+      Animated.timing(modalOpacity, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start(() => {
       setSelectedAnky(null);
     });
-  };
+  }, []);
 
-  const getOptimizedImage = (url: string, width: number): CloudinaryImage => {
-    const publicId = url.split("/").pop()?.split(".")[0];
-    if (!publicId) return cld.image("default");
-
-    return cld
-      .image(publicId)
-      .resize(scale().width(width))
-      .delivery(quality(auto()))
-      .delivery(format(autoFormat()));
-  };
-
-  const getLayoutPattern = (index: number) => {
-    const patterns = [
-      { span: 1, height: screenWidth / 3 },
-      { span: 2, height: (screenWidth / 3) * 2 },
-      { span: 3, height: screenWidth },
-      { span: 2, height: screenWidth / 2 },
-    ];
-    return patterns[index % patterns.length];
-  };
-
-  const renderItem = useCallback(
+  const renderGridItem = useCallback(
     ({ item, index }: { item: Cast; index: number }) => {
-      const pattern = getLayoutPattern(index);
-      const imageWidth =
-        (screenWidth / 3) * pattern.span - (pattern.span > 1 ? 8 : 4);
+      // Calculate dimensions for a perfect square grid
+      const itemWidth = screenWidth / 3 - 4; // 3 columns with 2px margin on each side
+      const itemHeight = itemWidth; // Make it square
+
+      if (!gridItemScale[index]) {
+        gridItemScale[index] = new Animated.Value(1);
+      }
 
       return (
-        <TouchableOpacity
-          onPress={() => handleAnkyPress(index)}
-          style={{
-            width: imageWidth,
-            height: pattern.height,
-            margin: 2,
+        <AnimatedTouchableOpacity
+          onPressIn={() => {
+            Animated.spring(gridItemScale[index], {
+              toValue: 0.95,
+              useNativeDriver: true,
+              tension: 50,
+              friction: 3,
+            }).start();
           }}
+          onPressOut={() => {
+            Animated.spring(gridItemScale[index], {
+              toValue: 1,
+              useNativeDriver: true,
+              tension: 50,
+              friction: 3,
+            }).start();
+          }}
+          onPress={() => handleAnkyPress(index)}
+          style={[
+            {
+              width: itemWidth,
+              height: itemHeight,
+              margin: 2,
+              transform: [{ scale: gridItemScale[index] }],
+            },
+          ]}
         >
-          <AdvancedImage
-            cldImg={getOptimizedImage(item.embeds[0].url, imageWidth * 2)}
+          <Image
+            source={{ uri: item.embeds[0].url }}
             style={{
               flex: 1,
-              borderRadius: 12,
+              borderRadius: 16,
+              backgroundColor: "#2a2a2a",
             }}
           />
-        </TouchableOpacity>
+        </AnimatedTouchableOpacity>
       );
     },
     [screenWidth]
   );
 
+  const handleActionButtonPress = (action: string) => {
+    // Get user state from useUser hook
+    console.log("handleActionButtonPress", action);
+    // Check if user is logged in with Farcaster
+    if (!ankyUser?.farcaster_account?.fid) {
+      console.log("Not logged in");
+      // Show modal to create account if not logged in
+      setCreateAccountModalVisible(true);
+      return;
+    }
+
+    // If logged in, handle the specific action
+    switch (action) {
+      case "like":
+        // Handle like action
+        console.log("Like pressed");
+        break;
+      case "recast":
+        // Handle recast action
+        console.log("Recast pressed");
+        break;
+      case "comment":
+        // Handle comment action
+        console.log("Comment pressed");
+        break;
+      case "mint":
+        // Handle mint action
+        console.log("Mint pressed");
+        break;
+      case "share":
+        // Handle share action
+        console.log("Share pressed");
+        break;
+      default:
+        console.log("Unknown action");
+    }
+  };
+
+  const ActionButton = ({ icon, onPress }: ActionButtonProps) => (
+    <TouchableOpacity onPress={onPress} className="items-center">
+      <Animated.View
+        style={{
+          transform: [{ scale: modalScale }],
+        }}
+      >
+        <Ionicons name={icon} size={28} color="white" />
+      </Animated.View>
+    </TouchableOpacity>
+  );
+
   if (isLoading) {
     return (
-      <View className="flex-1 justify-center items-center">
-        <Text className="text-lg">Loading your beautiful feed...</Text>
-      </View>
-    );
-  }
-
-  if (!ankyFeed?.casts.length) {
-    return (
-      <View className="flex-1 justify-center items-center">
-        <Text className="text-lg">No ankys found</Text>
+      <View className="flex-1 justify-center items-center bg-black">
+        <Text className="text-white text-lg">
+          Loading your beautiful feed...
+        </Text>
       </View>
     );
   }
 
   return (
     <View className="flex-1 bg-black">
-      <View className="flex-row justify-center space-x-8 py-2 bg-black/90">
-        <TouchableOpacity
-          onPress={() => handleTabPress("todos")}
-          className={`px-4 py-2 ${
-            activeTab === "todos" ? "border-b border-white" : ""
-          }`}
-        >
-          <Text
-            className={`text-white text-lg ${
-              activeTab === "todos" ? "opacity-100" : "opacity-70"
+      {/* Tab Navigation */}
+      <View className="flex-row justify-center space-x-8 pt-16 pb-4">
+        {["todos", "followed"].map((tab) => (
+          <TouchableOpacity
+            key={tab}
+            onPress={() => setActiveTab(tab as "todos" | "followed")}
+            className={`px-6 py-2 rounded-full ${
+              activeTab === tab ? "bg-white/10" : ""
             }`}
           >
-            {t("todos")}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => handleTabPress("followed")}
-          className={`px-4 py-2 ${
-            activeTab === "followed" ? "border-b border-white" : ""
-          }`}
-        >
-          <Text
-            className={`text-white text-lg ${
-              activeTab === "followed" ? "opacity-100" : "opacity-70"
-            }`}
-          >
-            {t("followed")}
-          </Text>
-        </TouchableOpacity>
+            <Text
+              className={`text-white text-lg ${
+                activeTab === tab ? "opacity-100" : "opacity-60"
+              }`}
+            >
+              {t(tab)}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
 
+      {/* Grid View */}
       <FlatList
-        data={ankyFeed.casts}
-        renderItem={renderItem}
+        data={ankyFeed?.casts || []}
+        renderItem={renderGridItem}
         numColumns={3}
         contentContainerStyle={{ padding: 2 }}
         showsVerticalScrollIndicator={false}
-        refreshing={isLoading}
         keyExtractor={(item) => item.hash}
       />
 
+      {/* Modal View */}
       <Modal
         visible={selectedAnky !== null}
         transparent={true}
-        animationType="fade"
+        animationType="none"
         onRequestClose={handleCloseModal}
       >
-        <TouchableOpacity
-          className="flex-1 bg-black/80 justify-center items-center p-4"
-          activeOpacity={1}
-          onPress={handleCloseModal}
+        <Animated.View
+          className="flex-1 bg-black/95"
+          style={{ opacity: modalOpacity, zIndex: 1000 }}
         >
-          <Animated.View
-            className="bg-black rounded-xl p-4 w-full"
-            style={{
-              transform: [{ scale: scaleAnim }],
-            }}
+          <TouchableOpacity
+            className="absolute top-12 right-6 z-10"
+            onPress={handleCloseModal}
           >
-            {selectedAnky !== null && ankyFeed && (
-              <View>
-                <AdvancedImage
-                  cldImg={getOptimizedImage(
-                    ankyFeed.casts[selectedAnky].embeds[0].url,
-                    screenWidth * 2
-                  )}
+            <Ionicons name="close" size={32} color="white" />
+          </TouchableOpacity>
+
+          {selectedAnky !== null && ankyFeed && (
+            <Animated.View
+              className="flex-1 justify-center p-4"
+              style={{
+                transform: [{ scale: modalScale }],
+              }}
+            >
+              <View className="mb-2 ml-2 flex">
+                <Image
+                  source={{ uri: ankyFeed.casts[selectedAnky].author.pfp_url }}
                   style={{
-                    width: "100%",
-                    height: screenWidth * 0.8,
-                    borderRadius: 12,
+                    width: 88,
+                    height: 88,
+                    borderRadius: 100,
                   }}
                 />
+                <Link href={`/u/${ankyFeed.casts[selectedAnky].author.fid}`}>
+                  <Text className="text-white text-lg">
+                    @{ankyFeed.casts[selectedAnky].author.username}
+                  </Text>
+                </Link>
+              </View>
+              <Image
+                source={{ uri: ankyFeed.casts[selectedAnky].embeds[0].url }}
+                style={{
+                  width: "100%",
+                  height: screenWidth,
+                  borderRadius: 24,
+                }}
+              />
 
-                <View className="flex-row justify-between mt-4">
-                  <View className="flex-row space-x-6">
-                    <TouchableOpacity>
-                      <Ionicons name="heart-outline" size={24} color="white" />
-                    </TouchableOpacity>
-                    <TouchableOpacity>
-                      <Ionicons name="sync-outline" size={24} color="white" />
-                    </TouchableOpacity>
-                    <TouchableOpacity>
-                      <Ionicons
-                        name="chatbubble-outline"
-                        size={24}
-                        color="white"
-                      />
-                    </TouchableOpacity>
-                  </View>
-
-                  <View className="flex-row space-x-4">
-                    <TouchableOpacity>
-                      <Ionicons
-                        name="diamond-outline"
-                        size={24}
-                        color="white"
-                      />
-                    </TouchableOpacity>
-                    <TouchableOpacity>
-                      <Ionicons name="share-outline" size={24} color="white" />
-                    </TouchableOpacity>
-                  </View>
+              {/* Action Buttons */}
+              <View className="flex-row justify-between mt-6 px-2">
+                <View className="flex-row space-x-8 gap-3 pl-2">
+                  <ActionButton
+                    icon="heart-outline"
+                    onPress={() => handleActionButtonPress("like")}
+                  />
+                  <ActionButton
+                    icon="sync-outline"
+                    onPress={() => handleActionButtonPress("recast")}
+                  />
+                  <ActionButton
+                    icon="chatbubble-outline"
+                    onPress={() => handleActionButtonPress("comment")}
+                  />
                 </View>
 
-                <Text className="text-white mt-4">
-                  {ankyFeed.casts[selectedAnky].text}
-                </Text>
+                <View className="flex-row space-x-8 gap-3 pr-2">
+                  <ActionButton
+                    icon="diamond-outline"
+                    onPress={() => handleActionButtonPress("mint")}
+                  />
+                  <ActionButton
+                    icon="share-outline"
+                    onPress={() => handleActionButtonPress("share")}
+                  />
+                </View>
               </View>
-            )}
-          </Animated.View>
-        </TouchableOpacity>
+
+              {/* Cast Text */}
+              <Text className="text-white text-lg mt-6 px-2 leading-6">
+                {ankyFeed.casts[selectedAnky].text}
+              </Text>
+            </Animated.View>
+          )}
+        </Animated.View>
       </Modal>
     </View>
   );

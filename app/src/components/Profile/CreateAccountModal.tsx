@@ -1,6 +1,15 @@
 import { useState, useRef, useEffect } from "react";
-import { Pressable, View, Text, Modal, TextInput, Linking } from "react-native";
+import {
+  Pressable,
+  View,
+  Text,
+  Modal,
+  TextInput,
+  Linking,
+  Platform,
+} from "react-native";
 import { MaterialIcons, Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import {
   usePrivy,
@@ -24,7 +33,7 @@ type Props = {
 
 export default function CreateAccountModal({ isVisible, onClose }: Props) {
   const [step, setStep] = useState(1);
-  const [phone, setPhone] = useState("");
+  const [email, setEmail] = useState("");
   const [pinCode, setPinCode] = useState("");
   const [error, setError] = useState("");
   const [loggedIn, setLoggedIn] = useState(false);
@@ -33,9 +42,9 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
   const wallet = useEmbeddedWallet();
   const emailRef = useRef<TextInput>(null);
 
-  const { sendCode, loginWithCode, state } = useLoginWithSMS({
-    onSendCodeSuccess({ phone }) {
-      console.log("Code sent successfully to", phone);
+  const { sendCode, loginWithCode, state } = useLoginWithEmail({
+    onSendCodeSuccess({ email }) {
+      console.log("Code sent successfully to", email);
       handleNextPress(2);
     },
     onLoginSuccess(user, isNewUser) {
@@ -54,10 +63,10 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
     setStep(nextStep);
   };
 
-  const handlePhoneSubmit = async () => {
-    if (/^\d+$/.test(phone)) {
+  const handleEmailSubmit = async () => {
+    if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       try {
-        await sendCode({ phone: `+${phone}` });
+        await sendCode({ email });
       } catch (err) {
         setError("Failed to send verification code");
       }
@@ -69,10 +78,10 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
   const handlePinSubmit = async () => {
     if (pinCode.length === 6) {
       try {
-        console.log("IN HEREEEE", pinCode, phone);
+        console.log("IN HEREEEE", pinCode, email);
         await loginWithCode({
           code: pinCode,
-          phone: `+${phone}`,
+          email,
         });
       } catch (err) {
         setError("Invalid verification code");
@@ -100,14 +109,13 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
             <View className="flex-row items-center space-x-2">
               <TextInput
                 className="flex-1 border-2 border-purple-400 rounded-2xl p-4 bg-purple-100/30 text-purple-900 text-center text-xl"
-                placeholder="Enter your phone number"
-                value={phone}
-                onChangeText={setPhone}
-                keyboardType="number-pad"
-                maxLength={15}
+                placeholder="you@anky.bot"
+                value={email}
+                onChangeText={setEmail}
+                keyboardType="email-address"
               />
               <Pressable
-                onPress={() => setPhone(phone.slice(0, -1))}
+                onPress={() => setEmail(email.slice(0, -1))}
                 className="bg-purple-400 p-4 rounded-2xl active:bg-purple-500"
               >
                 <Text className="text-white text-xl">⌫</Text>
@@ -139,7 +147,7 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
 
               <Pressable
                 className="bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500 py-4 rounded-2xl active:scale-95 transform transition-all duration-200 shadow-xl"
-                onPress={handlePhoneSubmit}
+                onPress={handleEmailSubmit}
                 disabled={state.status === "sending-code"}
               >
                 <Text className="text-center text-xl font-bold text-black">
@@ -159,7 +167,7 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
               Enter the magic code sent to:
             </Text>
             <Text className="text-center text-pink-600 font-bold text-xl">
-              +{phone}
+              {email}
             </Text>
             <View className="flex-row items-center space-x-2">
               <TextInput
@@ -170,12 +178,26 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
                 keyboardType="number-pad"
                 maxLength={6}
               />
-              <Pressable
-                onPress={() => setPinCode(pinCode.slice(0, -1))}
-                className="bg-purple-400 p-4 rounded-2xl active:bg-purple-500"
-              >
-                <Text className="text-white text-xl">⌫</Text>
-              </Pressable>
+              {pinCode.length === 0 ? (
+                <Pressable
+                  onPress={async () => {
+                    const text = await Clipboard.getStringAsync();
+                    if (text.length === 6 && /^\d+$/.test(text)) {
+                      setPinCode(text);
+                    }
+                  }}
+                  className="bg-purple-400 p-4 rounded-2xl active:bg-purple-500"
+                >
+                  <Text className="text-white text-xl">📋</Text>
+                </Pressable>
+              ) : (
+                <Pressable
+                  onPress={() => setPinCode(pinCode.slice(0, -1))}
+                  className="bg-purple-400 p-4 rounded-2xl active:bg-purple-500"
+                >
+                  <Text className="text-white text-xl">⌫</Text>
+                </Pressable>
+              )}
             </View>
 
             {pinCode.length == 6 && (
@@ -296,13 +318,32 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
         return null;
     }
   };
-
+  console.log("rendering the modal ", isVisible);
   return (
-    <Modal animationType="slide" transparent={true} visible={isVisible}>
-      <Pressable onPress={onClose} className="flex-1 justify-end bg-black/70">
+    <Modal
+      animationType="slide"
+      transparent={true}
+      visible={isVisible}
+      statusBarTranslucent={true}
+      onRequestClose={onClose}
+      presentationStyle="overFullScreen"
+    >
+      <Pressable
+        onPress={onClose}
+        className="flex-1 justify-end bg-black/70"
+        style={{
+          zIndex: 3000, // Increased z-index
+          elevation: Platform.OS === "android" ? 3000 : 0, // For Android
+        }}
+      >
         <Pressable
           onPress={(e) => e.stopPropagation()}
-          className="bg-white rounded-t-3xl border-t border-black p-6 h-2/3"
+          className="absolute bottom-0 w-full bg-white rounded-t-3xl border-t border-black p-6"
+          style={{
+            zIndex: 3001, // Increased z-index
+            elevation: Platform.OS === "android" ? 3001 : 0,
+            height: "75%", // Changed from h-2/3 for more precise control
+          }}
         >
           <View className="flex-col space-y-6">{renderStep()}</View>
         </Pressable>

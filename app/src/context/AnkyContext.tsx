@@ -67,10 +67,8 @@ export const AnkyProvider: React.FC<{ children: React.ReactNode }> = ({
   const [writingSession, setWritingSession] = useState<WritingSession | null>(
     null
   );
-  const [isPlaying, setIsPlaying] = useState(false);
   const [currentTrack, setCurrentTrack] = useState("1");
-  const [nextTrack, setNextTrack] = useState("2");
-  const [previousTrack, setPreviousTrack] = useState("0");
+
   const [openMusicModal, setOpenMusicModal] = useState(false);
 
   const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;
@@ -143,12 +141,37 @@ export const AnkyProvider: React.FC<{ children: React.ReactNode }> = ({
       console.log("Current Ankyverse day:", currentAnkyverseDay);
       const today_on_ankyverse = `S${currentAnkyverseDay.currentSojourn}W${currentAnkyverseDay.wink}`;
       console.log("Today on Ankyverse:", today_on_ankyverse);
+
       if (!lastWritingDay || lastWritingDay !== today_on_ankyverse) {
         console.log("USER DID NOT WRITE TODAY");
         setDidUserWriteToday(false);
+
+        // Check if streak should be reset
+        if (lastWritingDay) {
+          const [lastSojourn, lastWink] = lastWritingDay
+            .match(/\d+/g)!
+            .map(Number);
+          const isConsecutive =
+            (currentAnkyverseDay.currentSojourn === lastSojourn &&
+              currentAnkyverseDay.wink === lastWink + 1) ||
+            (currentAnkyverseDay.currentSojourn === lastSojourn + 1 &&
+              lastWink === 7 &&
+              currentAnkyverseDay.wink === 1);
+
+          if (!isConsecutive) {
+            console.log("STREAK BROKEN - Resetting to 0");
+            setUserStreak(0);
+          }
+        }
       } else {
         console.log("USER WROTE TODAY");
         setDidUserWriteToday(true);
+        // Increment streak if this is first time writing today
+        const currentStreak =
+          (await AsyncStorage.getItem("user_streak")) || "0";
+        const newStreak = parseInt(currentStreak) + 1;
+        await AsyncStorage.setItem("user_streak", newStreak.toString());
+        setUserStreak(newStreak);
       }
     };
     console.log("THE IS LOADING IS", isLoading);

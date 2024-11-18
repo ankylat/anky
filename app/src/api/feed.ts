@@ -23,18 +23,18 @@ interface FeedOptions {
 let fetchedCastIds = new Set<string>();
 
 export const getLandingFeed = async ({
-  fid = 16098,
-  viewer_fid,
+  fid = 18350,
+  viewer_fid = 18350,
   cursor,
-  limit = 12,
+  limit = 50,
 }: FeedOptions): Promise<FeedResponse> => {
   try {
+    console.log("fetching landing feed", fid, viewer_fid, cursor, limit);
     const options = {
       method: "GET",
       url: `https://api.neynar.com/v2/farcaster/feed/following`,
       params: {
-        fid: fid,
-        viewer_fid: viewer_fid || undefined,
+        fid: 18350,
         cursor: cursor || undefined,
         with_recasts: true,
         limit: limit * 2, // Fetch extra to account for non-image posts
@@ -46,6 +46,7 @@ export const getLandingFeed = async ({
     };
 
     const response = await axios.request(options);
+    console.log("going for the landing feed");
 
     if (response.status !== 200) {
       throw new Error("Failed to fetch feed");

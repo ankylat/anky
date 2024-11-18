@@ -136,7 +136,7 @@ const ProfileScreen = ({
               <Text className="text-xl text-gray-600">ankys</Text>
             </View>
             <View className="items-center">
-              <Text className="text-3xl font-bold">{userStreak || 0}</Text>
+              <Text className="text-3xl font-bold">{userStreak || 1}</Text>
               <Text className="text-xl text-gray-600">sadhana</Text>
             </View>
           </View>
