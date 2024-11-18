@@ -44,6 +44,7 @@ import {
   updateWritingSessionOnLocalStorageSimple,
 } from "@/src/app/lib/simple_writing_game";
 import MusicIcon from "@/assets/icons/music.svg";
+import { sendWritingSessionToAnky } from "@/src/app/lib/anky";
 
 const { width, height } = Dimensions.get("window");
 
@@ -125,7 +126,9 @@ const WritingGame = () => {
       let currentIndex = 0;
       let prompt =
         (await AsyncStorage.getItem("upcoming_prompt")) ??
-        t("self-inquiry:upcoming_prompt");
+        t("self-inquiry:upcoming_prompt", {
+          defaultValue: "tell me who you are",
+        });
       const interval = setInterval(() => {
         if (prompt && currentIndex < prompt.length) {
           setAnkyPromptStreaming(prompt.slice(0, currentIndex + 1));
@@ -151,8 +154,10 @@ const WritingGame = () => {
       console.log("****************************************************");
       console.log("****************************************************");
       console.log("****************************************************");
-      console.log("****************************************************");
-      console.log("****************************************************");
+      setTimeout(() => {
+        console.log(writingSession);
+      }, 1000);
+      await sendWritingSessionToAnky(sessionLongString);
     } catch (error) {
       console.error("Error in handleSessionEnded:", error);
       throw error;
@@ -221,12 +226,16 @@ const WritingGame = () => {
     setAnkyResponseReady(false);
     if (!writingSession) {
       // this means the writing session is starting
-      const prompt =
-        (await AsyncStorage.getItem("upcoming_prompt")) ||
-        t("self-inquiry:upcoming_prompt");
+      let prompt =
+        (await AsyncStorage.getItem("upcoming_prompt")) ??
+        t("self-inquiry:upcoming_prompt", {
+          defaultValue: "tell me who you are",
+        });
       const session_id = uuidv4();
       const now = new Date();
-      let newSessionLongString = `${session_id}\n${prompt}\n${now.getTime()}\n`;
+      let newSessionLongString = `${
+        ankyUser?.id
+      }\n${session_id}\n${prompt}\n${now.getTime()}\n`;
       setSessionLongString(newSessionLongString);
       await addWritingSessionToLocalStorageSimple(session_id);
       await updateWritingSessionOnLocalStorageSimple(
@@ -293,10 +302,6 @@ const WritingGame = () => {
     };
   }, []);
 
-  const animatedCursorProps = useAnimatedProps(() => ({
-    opacity: cursorOpacity.value,
-  }));
-
   const renderContent = () => {
     console.log("RENDERING CONTENT");
     console.log("RENDERING CONTENT");
@@ -359,6 +364,7 @@ const WritingGame = () => {
         return (
           <SessionEndScreen
             session_id={writingSessionId}
+            writingString={sessionLongString}
             onNextStep={() => {
               prettyLog(writingSession, "THIS IS THE WRITING SESSION");
               if (writingSession.is_anky) {
