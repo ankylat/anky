@@ -14,46 +14,51 @@ import {
   StatusBar,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAnky } from "@/src/context/AnkyContext";
+import {
+  extractSessionDataFromLongString,
+  sendWritingSessionConversationToAnky,
+} from "../lib/anky";
 
-// Types
 interface Message {
   id: number;
-  sender: "user" | "ankyverse";
   text: string;
-  type: "greeting" | "response" | "inquiry" | "calendar" | "offering";
+  isAnky: boolean;
   timestamp: string;
 }
 
 const { width } = Dimensions.get("window");
 
 const AnkyverseDialog = () => {
-  const [messages, setMessages] = useState<Message[]>([]);
   const [userText, setUserText] = useState("");
-  const [isWritingComplete, setIsWritingComplete] = useState(false);
-  const [currentDay, setCurrentDay] = useState("");
-  const [isAnkyverseTyping, setIsAnkyverseTyping] = useState(false);
+  const [isAnkyTyping, setIsAnkyTyping] = useState(false);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const flatListRef = useRef<FlatList>(null);
+  const { conversationWithAnky, setConversationWithAnky } = useAnky();
 
-  // Initialize current day in Ankyverse calendar format
-  useEffect(() => {
-    const initializeDialog = async () => {
-      const date = new Date();
-      const week = Math.ceil(date.getDate() / 7);
-      const day = `s${date.getFullYear().toString().slice(2)}w${week
-        .toString()
-        .padStart(2, "0")}d${date.getDate().toString().padStart(2, "0")}`;
-      setCurrentDay(day);
-
-      // Initial greeting
-      addMessage({
-        sender: "ankyverse",
-        text: `Welcome to ${day} of the Ankyverse. You've just completed your writing ritual. Would you like to explore what emerged from your stream of consciousness?`,
-        type: "greeting",
-      });
+  const messages: Message[] = conversationWithAnky.map((text, index) => {
+    const isAnky = index % 2 === 0;
+    let reply_text = text;
+    if (!isAnky) {
+      reply_text = extractSessionDataFromLongString(text).session_text;
+    }
+    return {
+      id: index,
+      text: reply_text,
+      isAnky: index % 2 === 0,
+      timestamp: new Date().toISOString(),
     };
+  });
 
-    initializeDialog();
+  useEffect(() => {
+    if (flatListRef.current && messages.length > 0) {
+      // Small timeout to ensure content is rendered
+      setTimeout(() => {
+        flatListRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  }, [messages]);
+  useEffect(() => {
     animateIn();
   }, []);
 
@@ -65,113 +70,47 @@ const AnkyverseDialog = () => {
     }).start();
   };
 
-  const addMessage = useCallback(
-    (message: Omit<Message, "id" | "timestamp">) => {
-      const newMessage = {
-        id: Date.now(),
-        timestamp: new Date().toISOString(),
-        ...message,
-      };
-
-      setMessages((prev) => [...prev, newMessage]);
-
-      // Scroll to bottom after message is added
-      setTimeout(() => {
-        flatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
-    },
-    []
-  );
-
-  const simulateAnkyverseTyping = useCallback(async () => {
-    setIsAnkyverseTyping(true);
-    await new Promise((resolve) =>
-      setTimeout(resolve, 1500 + Math.random() * 1000)
-    );
-    setIsAnkyverseTyping(false);
-  }, []);
-
   const handleUserResponse = async () => {
     if (!userText.trim()) return;
 
-    // Add user message
-    addMessage({
-      sender: "user",
-      text: userText,
-      type: "response",
-    });
-
+    // Add user's stream of consciousness to conversation
+    setConversationWithAnky((prev) => [...prev, userText]);
     setUserText("");
-    await simulateAnkyverseTyping();
 
-    // Ankyverse response based on conversation stage
-    const messageCount = messages.length;
+    // Simulate Anky typing response
+    setIsAnkyTyping(true);
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    setIsAnkyTyping(false);
 
-    if (messageCount === 1) {
-      addMessage({
-        sender: "ankyverse",
-        text: "I sense both clarity and uncertainty in your words. Let's explore what patterns emerged during your writing. What stood out to you the most?",
-        type: "inquiry",
-      });
-    } else if (messageCount === 3) {
-      addMessage({
-        sender: "ankyverse",
-        text: "The Ankyverse calendar suggests that today's energy aligns with introspection and creative expression. How does this resonate with what you wrote?",
-        type: "calendar",
-      });
-    } else if (messageCount === 5) {
-      addMessage({
-        sender: "ankyverse",
-        text: "Your writing will be preserved in the Ankyverse as a unique timestamp of your journey. Would you like to receive a crystal that captures the essence of today's reflection?",
-        type: "offering",
-      });
-    } else if (messageCount === 7) {
-      setIsWritingComplete(true);
-      // Save dialog to AsyncStorage
-      try {
-        const dialogData = {
-          date: currentDay,
-          messages: messages,
-          completedAt: new Date().toISOString(),
-        };
-        await AsyncStorage.setItem(
-          `dialog_${currentDay}`,
-          JSON.stringify(dialogData)
-        );
-      } catch (error) {
-        console.error("Error saving dialog:", error);
-      }
-    }
+    const ankyResponse = await sendWritingSessionConversationToAnky(
+      conversationWithAnky
+    );
+    setConversationWithAnky((prev) => [...prev, ankyResponse]);
   };
 
   const renderMessage = ({ item }: { item: Message }) => {
-    const isUser = item.sender === "user";
+    const isAnky = item.isAnky;
 
     return (
       <View
         style={[
           styles.messageContainer,
-          isUser
-            ? styles.userMessageContainer
-            : styles.ankyverseMessageContainer,
+          isAnky ? styles.ankyMessageContainer : styles.userMessageContainer,
         ]}
       >
         <View
           style={[
             styles.messageBubble,
-            isUser ? styles.userBubble : styles.ankyverseBubble,
+            isAnky ? styles.ankyBubble : styles.userBubble,
           ]}
         >
           <Text
             style={[
               styles.messageText,
-              isUser ? styles.userMessageText : styles.ankyverseMessageText,
+              isAnky ? styles.ankyMessageText : styles.userMessageText,
             ]}
           >
             {item.text}
-          </Text>
-          <Text style={styles.timestamp}>
-            {new Date(item.timestamp).toLocaleTimeString()}
           </Text>
         </View>
       </View>
@@ -182,16 +121,6 @@ const AnkyverseDialog = () => {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" />
 
-      {/* Coming Soon Overlay */}
-      <View style={styles.comingSoonOverlay}>
-        <Text style={styles.comingSoonText}>COMING SOON</Text>
-      </View>
-
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerText}>{currentDay}</Text>
-      </View>
-
       {/* Messages */}
       <Animated.View style={[styles.messagesContainer, { opacity: fadeAnim }]}>
         <FlatList
@@ -200,94 +129,28 @@ const AnkyverseDialog = () => {
           renderItem={renderMessage}
           keyExtractor={(item) => item.id.toString()}
           contentContainerStyle={styles.messagesList}
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd()}
         />
 
-        {isAnkyverseTyping && (
+        {isAnkyTyping && (
           <View style={styles.typingIndicator}>
-            <View style={styles.typingDot} />
-            <View style={[styles.typingDot, { marginLeft: 4 }]} />
-            <View style={[styles.typingDot, { marginLeft: 4 }]} />
+            <Text style={styles.typingText}>Anky is typing...</Text>
           </View>
         )}
       </Animated.View>
-
       {/* Input Area */}
-      {!isWritingComplete && (
-        <KeyboardAvoidingView
-          behavior={Platform.OS === "ios" ? "padding" : "height"}
-          keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-          style={styles.inputContainer}
-        >
-          <TextInput
-            style={styles.input}
-            value={userText}
-            onChangeText={setUserText}
-            placeholder="Share your thoughts..."
-            placeholderTextColor="#666"
-            onSubmitEditing={handleUserResponse}
-            multiline
-          />
-          <TouchableOpacity
-            style={styles.sendButton}
-            onPress={handleUserResponse}
-            disabled={!userText.trim()}
-          >
-            <Text style={styles.sendButtonText}>Send</Text>
-          </TouchableOpacity>
-        </KeyboardAvoidingView>
-      )}
-
-      {/* Completion Overlay */}
-      {isWritingComplete && (
-        <View style={styles.completionOverlay}>
-          <View style={styles.completionDialog}>
-            <Text style={styles.completionTitle}>Journey Complete</Text>
-            <Text style={styles.completionText}>
-              Your reflection has been preserved in the Ankyverse. A crystal has
-              been generated to commemorate this moment.
-            </Text>
-            <TouchableOpacity
-              style={styles.newJourneyButton}
-              onPress={() => setIsWritingComplete(false)}
-            >
-              <Text style={styles.newJourneyButtonText}>Begin New Journey</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      )}
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  comingSoonText: {
+    color: "#666",
+    fontStyle: "italic",
+  },
   container: {
     flex: 1,
     backgroundColor: "#1a1a1a",
-  },
-  comingSoonOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 1000,
-  },
-  comingSoonText: {
-    color: "#fff",
-    fontSize: 48,
-    transform: [{ rotate: "-16deg" }],
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  header: {
-    padding: 16,
-    backgroundColor: "#2d2d2d",
-    borderBottomWidth: 1,
-    borderBottomColor: "#333",
-  },
-  headerText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
   },
   messagesContainer: {
     flex: 1,
@@ -302,7 +165,7 @@ const styles = StyleSheet.create({
   userMessageContainer: {
     alignSelf: "flex-end",
   },
-  ankyverseMessageContainer: {
+  ankyMessageContainer: {
     alignSelf: "flex-start",
   },
   messageBubble: {
@@ -312,34 +175,25 @@ const styles = StyleSheet.create({
   userBubble: {
     backgroundColor: "#6b46c1",
   },
-  ankyverseBubble: {
+  ankyBubble: {
     backgroundColor: "#2d2d2d",
   },
   messageText: {
     fontSize: 16,
-    marginBottom: 4,
+    lineHeight: 24,
   },
   userMessageText: {
     color: "#fff",
   },
-  ankyverseMessageText: {
+  ankyMessageText: {
     color: "#e9d8fd",
   },
-  timestamp: {
-    fontSize: 12,
-    color: "rgba(255, 255, 255, 0.6)",
-  },
   typingIndicator: {
-    flexDirection: "row",
     padding: 16,
-    alignItems: "center",
   },
-  typingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: "#6b46c1",
-    opacity: 0.6,
+  typingText: {
+    color: "#666",
+    fontStyle: "italic",
   },
   inputContainer: {
     flexDirection: "row",
@@ -355,6 +209,7 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     color: "#fff",
     marginRight: 8,
+    maxHeight: 100,
   },
   sendButton: {
     backgroundColor: "#6b46c1",
@@ -364,43 +219,6 @@ const styles = StyleSheet.create({
   },
   sendButtonText: {
     color: "#fff",
-    fontWeight: "600",
-  },
-  completionOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0, 0, 0, 0.8)",
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 16,
-  },
-  completionDialog: {
-    backgroundColor: "#2d2d2d",
-    borderRadius: 16,
-    padding: 24,
-    width: "90%",
-    alignItems: "center",
-  },
-  completionTitle: {
-    color: "#e9d8fd",
-    fontSize: 24,
-    fontWeight: "600",
-    marginBottom: 16,
-  },
-  completionText: {
-    color: "#fff",
-    textAlign: "center",
-    marginBottom: 24,
-    lineHeight: 24,
-  },
-  newJourneyButton: {
-    backgroundColor: "#6b46c1",
-    borderRadius: 20,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-  },
-  newJourneyButtonText: {
-    color: "#fff",
-    fontSize: 16,
     fontWeight: "600",
   },
 });

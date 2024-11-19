@@ -1,5 +1,6 @@
 import axios from "axios";
 import { WritingSession } from "../types/Anky";
+import { prettyLog } from "../app/lib/logs";
 
 const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;
 const POIESIS_API_KEY = process.env.POIESIS_API_KEY;
@@ -50,16 +51,24 @@ export const processInitialWritingSessions = async (
   }
 };
 
-export const sendWritingStringToAnky = async (
-  writingString: string
-): Promise<{ message: string; streamUrl: string }> => {
-  console.log("Sending writing string to Anky", { writingString });
+export const sendWritingConversationToAnky = async (
+  conversation_so_far: string[]
+): Promise<string> => {
   try {
-    const endpoint = `${API_URL}/anky/raw-writing-session`;
-
+    console.log("****************************************************");
+    console.log("****************************************************");
+    console.log("****************************************************");
+    console.log("****************************************************");
+    prettyLog(conversation_so_far, "the conversation so far is");
+    console.log("****************************************************");
+    console.log("****************************************************");
+    console.log("****************************************************");
+    console.log("****************************************************");
+    const endpoint = `${API_URL}/anky/process-writing-conversation`;
+    console.log("sending the conversation to anky", endpoint);
     const response = await axios.post(
       endpoint,
-      { writingString },
+      { conversation_so_far },
       {
         headers: {
           "api-key": POIESIS_API_KEY!,
@@ -68,23 +77,14 @@ export const sendWritingStringToAnky = async (
         },
       }
     );
+    console.log("the response is", response);
 
     if (response.status !== 200) {
       console.error("Failed to send writing string:", response.status);
       throw new Error("Failed to send writing string");
     }
-
-    const { message, streamUrl, response: ankyResponse } = response.data;
-
-    console.log("Successfully sent writing string", {
-      message,
-      streamUrl,
-    });
-
-    return {
-      message,
-      streamUrl,
-    };
+    prettyLog(response.data, "the response data is:");
+    return response.data.prompt;
   } catch (error) {
     console.error("Error sending writing string:", error);
     throw error;

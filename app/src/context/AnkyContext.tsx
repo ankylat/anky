@@ -29,9 +29,8 @@ interface AnkyContextType {
   setWritingSession: React.Dispatch<
     React.SetStateAction<WritingSession | null>
   >;
-  musicButtonPressed: () => void;
-  openMusicModal: boolean;
-  setOpenMusicModal: React.Dispatch<React.SetStateAction<boolean>>;
+  conversationWithAnky: string[];
+  setConversationWithAnky: React.Dispatch<React.SetStateAction<string[]>>;
 }
 
 const AnkyContext = createContext<AnkyContextType | undefined>(undefined);
@@ -69,6 +68,10 @@ export const AnkyProvider: React.FC<{ children: React.ReactNode }> = ({
   );
   const [currentTrack, setCurrentTrack] = useState("1");
 
+  const [conversationWithAnky, setConversationWithAnky] = useState<string[]>(
+    []
+  );
+
   const [openMusicModal, setOpenMusicModal] = useState(false);
 
   const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;
@@ -90,45 +93,6 @@ export const AnkyProvider: React.FC<{ children: React.ReactNode }> = ({
       setLoading(false);
     }
   };
-
-  async function musicButtonPressed() {
-    console.log("Music button pressed");
-    const [tapStartTime, setTapStartTime] = useState<number | null>(null);
-    const [tapEndTime, setTapEndTime] = useState<number | null>(null);
-    const [audioPlayer, setAudioPlayer] = useState<HTMLAudioElement | null>(
-      null
-    );
-
-    console.log("Tap times:", { tapStartTime, tapEndTime });
-    const tap_intensity =
-      tapStartTime && tapEndTime && tapEndTime - tapStartTime > 500
-        ? "intentional"
-        : "light";
-    console.log("Tap intensity:", tap_intensity);
-
-    // Stop any currently playing audio
-    if (audioPlayer) {
-      console.log("Stopping current audio");
-      audioPlayer.pause();
-      audioPlayer.currentTime = 0;
-    }
-
-    switch (tap_intensity) {
-      case "light":
-        console.log("Light tap - playing track 1");
-        const newAudio = new Audio(`/assets/music/1.mp3`);
-        setAudioPlayer(newAudio);
-        setCurrentTrack("1");
-        newAudio.play().catch((err) => {
-          console.error("Error playing audio:", err);
-        });
-        break;
-      case "intentional":
-        console.log("Intentional tap - opening music modal");
-        setOpenMusicModal(true);
-        break;
-    }
-  }
 
   useEffect(() => {
     const checkDayAndWritingStatus = async () => {
@@ -198,9 +162,8 @@ export const AnkyProvider: React.FC<{ children: React.ReactNode }> = ({
     setDidUserWriteToday,
     writingSession,
     setWritingSession,
-    musicButtonPressed,
-    openMusicModal,
-    setOpenMusicModal,
+    conversationWithAnky,
+    setConversationWithAnky,
   };
 
   console.log("AnkyContext value:", value);

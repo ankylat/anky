@@ -19,6 +19,7 @@ import { SheetProvider } from "react-native-actions-sheet";
 import { useColorScheme } from "@/src/hooks/useColorScheme";
 
 // Contexts
+import { SmartWalletsProvider } from "@privy-io/expo/smart-wallets";
 import { PrivyProvider } from "@privy-io/expo";
 import { AnkyProvider } from "../context/AnkyContext";
 import { UserProvider } from "../context/UserContext";
@@ -26,6 +27,8 @@ import { NetworkProvider } from "../context/NetworkContext";
 import { View } from "react-native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { clearAllUserDataFromLocalStorage } from "./lib/development";
+
+import { base, baseGoerli, optimism } from "viem/chains";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -59,46 +62,39 @@ export default function RootLayout() {
       <PrivyProvider
         appId={process.env.EXPO_PUBLIC_PRIVY_APP_ID!}
         clientId={process.env.EXPO_PUBLIC_PRIVY_CLIENT_ID!}
+        supportedChains={[optimism, base, baseGoerli]}
       >
-        <QueryClientProvider client={queryClient}>
-          <SheetProvider>
-            <UserProvider>
-              <AnkyProvider>
-                <ThemeProvider
-                  value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Stack>
-                      <Stack.Screen
-                        name="index"
-                        options={{ headerShown: false }}
-                      />
-                      <Stack.Screen
-                        name="(tabs)"
-                        options={{ headerShown: false }}
-                      />
+        <SmartWalletsProvider>
+          <QueryClientProvider client={queryClient}>
+            <SheetProvider>
+              <UserProvider>
+                <AnkyProvider>
+                  <ThemeProvider
+                    value={colorScheme === "dark" ? DarkTheme : DefaultTheme}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Stack>
+                        <Stack.Screen
+                          name="index"
+                          options={{ headerShown: false }}
+                        />
+                        <Stack.Screen
+                          name="(tabs)"
+                          options={{ headerShown: false }}
+                        />
 
-                      <Stack.Screen
-                        name="cast/[hash]"
-                        options={{
-                          presentation: "modal",
-                          animation: "slide_from_bottom",
-                          headerShown: false,
-                          headerShadowVisible: false,
-                          contentStyle: { marginTop: 0 },
-                        }}
-                      />
-                      <Stack.Screen
-                        name="+not-found"
-                        options={{ headerShown: false }}
-                      />
-                    </Stack>
-                  </View>
-                </ThemeProvider>
-              </AnkyProvider>
-            </UserProvider>
-          </SheetProvider>
-        </QueryClientProvider>
+                        <Stack.Screen
+                          name="+not-found"
+                          options={{ headerShown: false }}
+                        />
+                      </Stack>
+                    </View>
+                  </ThemeProvider>
+                </AnkyProvider>
+              </UserProvider>
+            </SheetProvider>
+          </QueryClientProvider>
+        </SmartWalletsProvider>
       </PrivyProvider>
     </NetworkProvider>
   );

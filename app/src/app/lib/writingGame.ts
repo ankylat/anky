@@ -6,6 +6,14 @@ import { prettyLog } from "./logs";
 import { Anky, WritingSession } from "@/src/types/Anky";
 
 // Function to send writing to Anky and process the response
+
+export async function calculateNextModalTiming(
+  writing_string_so_far: string
+): Promise<number> {
+  const proposed_time_of_next_modal = 2 * 60 * 1000; // 2 minutes in milliseconds
+  return proposed_time_of_next_modal;
+}
+
 async function sendWritingToAnky(
   text: string,
   user: PrivyUser

@@ -13,18 +13,17 @@ import * as Clipboard from "expo-clipboard";
 import * as Haptics from "expo-haptics";
 import {
   usePrivy,
-  isNotCreated,
-  useLoginWithFarcaster,
   useLoginWithEmail,
-  hasError,
-  useLoginWithSMS,
   useEmbeddedWallet,
   isConnected,
   needsRecovery,
 } from "@privy-io/expo";
+import { useSmartWallets } from "@privy-io/expo/smart-wallets";
+import bigInt from "big-integer";
 
 import axios from "axios";
 import { prettyLog } from "@/src/app/lib/logs";
+import { useUser } from "@/src/context/UserContext";
 
 type Props = {
   isVisible: boolean;
@@ -38,8 +37,10 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
   const [error, setError] = useState("");
   const [loggedIn, setLoggedIn] = useState(false);
 
-  const { user, isReady } = usePrivy();
+  const { ankyUser } = useUser();
+  const { client } = useSmartWallets();
   const wallet = useEmbeddedWallet();
+  const { user, isReady } = usePrivy();
   const emailRef = useRef<TextInput>(null);
 
   const { sendCode, loginWithCode, state } = useLoginWithEmail({
@@ -231,72 +232,67 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
                 onPress={async () => {
                   console.log("Create Farcaster account button pressed");
                   try {
-                    console.log("Checking wallet connection...", wallet);
-                    prettyLog(user, "the uyser is");
-                    if (!isConnected(wallet)) {
-                      console.log("Wallet not connected");
-                      setError("Wallet not connected");
-                      return;
-                    }
+                    if (user && client) {
+                      const smartWallet = user.linked_accounts.find(
+                        (account) => account.type === "smart_wallet"
+                      );
+                      console.log("Found smart wallet:", smartWallet);
 
-                    if (needsRecovery(wallet)) {
-                      console.log("Wallet needs recovery");
-                      setError("Wallet needs recovery");
-                      return;
-                    }
-
-                    console.log("Getting wallet address...");
-                    // Get wallet address
-                    const accounts = await wallet.provider.request({
-                      method: "eth_requestAccounts",
-                    });
-                    console.log("Got wallet address:", accounts[0]);
-
-                    console.log("Getting new FID and signing params...");
-                    // Get new FID and signing params
-                    const { data: params } = await axios.post(
-                      "https://farcaster.anky.bot/create-new-fid",
-                      {
-                        user_wallet_address: accounts[0],
+                      if (!smartWallet?.address) {
+                        throw new Error("Smart wallet not found");
                       }
-                    );
-                    console.log("Got FID params:", params);
 
-                    console.log("Creating message to sign...");
-                    // Sign message with provider
-                    const message = {
-                      fid: params.new_fid,
-                      to: params.address,
-                      nonce: params.nonce,
-                      deadline: params.deadline,
-                    };
-                    console.log("Message to sign:", message);
+                      const { data: payload } = await axios.post(
+                        "https://farcaster.anky.bot/create-new-fid",
+                        {
+                          user_wallet_address: smartWallet?.address,
+                        }
+                      );
 
-                    console.log("Requesting signature...");
-                    const signature = await wallet.provider.request({
-                      method: "personal_sign",
-                      params: [JSON.stringify(message), accounts[0]],
-                    });
-                    console.log("Got signature:", signature);
+                      const signature = await client.signTypedData({
+                        account: client.account,
+                        domain: {
+                          name: "Farcaster ID Registry",
+                          version: "1",
+                          chainId: 10, // Optimism
+                          verifyingContract:
+                            "0x00000000fc6c5f01fc30151999387bb99a9f489b",
+                        },
+                        types: {
+                          Transfer: [
+                            { name: "fid", type: "uint256" },
+                            { name: "to", type: "address" },
+                            { name: "nonce", type: "uint256" },
+                            { name: "deadline", type: "uint256" },
+                          ],
+                        },
+                        message: {
+                          fid: bigInt(payload.new_fid),
+                          to: smartWallet.address,
+                          nonce: bigInt(payload.nonce),
+                          deadline: bigInt(payload.deadline),
+                        },
+                      });
 
-                    console.log("Registering with signature...");
-                    // Register with signature
-                    const res = await axios.post(
-                      "https://farcaster.anky.bot/create-new-fid-signed-message",
-                      {
-                        deadline: params.deadline,
-                        address: params.address,
-                        fid: params.new_fid,
-                        signature,
-                        fname: `anky${params.new_fid}`,
-                      }
-                    );
-                    console.log("Registration successful:", res.data);
+                      const res = await axios.post(
+                        "https://farcaster.anky.bot/create-new-fid-signed-message",
+                        {
+                          deadline: Number(payload.deadline),
+                          address: wallet.account?.address,
+                          fid: payload.new_fid,
+                          signature,
+                          user_id: ankyUser?.id,
+                        }
+                      );
 
-                    onClose();
-                  } catch (error) {
+                      console.log("Registration successful:", res.data);
+                      onClose();
+                    }
+                  } catch (error: any) {
                     console.error("Error creating Farcaster account:", error);
-                    setError("Failed to create Farcaster account");
+                    setError(
+                      error.message || "Failed to create Farcaster account"
+                    );
                   }
                 }}
               >
