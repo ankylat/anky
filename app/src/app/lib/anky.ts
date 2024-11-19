@@ -1,85 +1,127 @@
-import { sendWritingStringToAnky } from "@/src/api/anky";
+import { sendWritingConversationToAnky } from "@/src/api/anky";
 import { prettyLog } from "./logs";
 
-export async function sendWritingSessionToAnky(sessionLongString: string) {
+export async function sendWritingSessionConversationToAnky(
+  conversation_so_far: string[]
+): Promise<string> {
   try {
-    console.log("Starting to process writing session...");
-    prettyLog(sessionLongString, "the session long string is");
-    console.log("Session string length:", sessionLongString.length);
+    prettyLog(conversation_so_far, "the conversation so far is");
 
-    // Split the string into lines
-    const lines = sessionLongString.split("\n");
-    console.log("Number of lines:", lines.length);
-    console.log("THE LINES ARE: ", lines);
+    console.log("sending the conversation to anky");
 
-    // Extract the basic session info from first 3 lines
-    const userId = lines[0];
-    const sessionId = lines[1];
-    const prompt = lines[2];
-    const startingTimestamp = parseInt(lines[3]);
-    console.log("THE STARTING TIMESTAMP IS: ", startingTimestamp);
-    console.log("Session ID:", sessionId);
-    console.log("Prompt:", prompt);
-    console.log("User ID:", userId);
-    console.log(
-      "Starting timestamp:",
-      new Date(startingTimestamp).toISOString()
-    );
+    const new_prompt = await sendWritingConversationToAnky(conversation_so_far);
+    prettyLog(new_prompt, "the anky response is NEW PROMPT:");
 
-    // Process the keystrokes starting from line 3
-    const keystrokes = lines
-      .slice(3)
-      .filter((line) => line.trim().length > 0)
-      .map((line) => {
-        const [key, delta] = line.trim().split(" ");
-        return {
-          key,
-          delta: parseInt(delta),
-        };
-      });
-    console.log("Number of keystrokes:", keystrokes.length);
-
-    // Calculate some useful metrics
-    const totalTime = keystrokes.reduce((sum, stroke) => sum + stroke.delta, 0);
-    const characterCount = keystrokes.filter((k) => k.key.length === 1).length;
-    const backspaces = keystrokes.filter((k) => k.key === "Backspace").length;
-    const spaces = keystrokes.filter((k) => k.key === " ").length;
-    const wordCount = spaces + 1; // Rough estimate of word count based on spaces
-
-    console.log("Session metrics:", {
-      totalTimeMs: totalTime,
-      characterCount,
-      backspaces,
-      wordCount,
-      averageTimeBetweenKeystrokes:
-        keystrokes.reduce((sum, stroke) => sum + stroke.delta, 0) /
-        keystrokes.length,
-    });
-
-    const response = await sendWritingStringToAnky(sessionLongString);
-    console.log("Anky response:", response);
-
-    // Construct the processed session data
-    const processedSession = {
-      sessionId,
-      prompt,
-      startingTimestamp,
-      metrics: {
-        totalTimeMs: totalTime,
-        characterCount,
-        backspaces,
-        wordCount,
-        averageTimeBetweenKeystrokes:
-          keystrokes.reduce((sum, stroke) => sum + stroke.delta, 0) /
-          keystrokes.length,
-      },
-      keystrokes,
-    };
-
-    console.log("Successfully processed writing session");
-    return processedSession;
+    console.log("Successfully processed writing session", new_prompt);
+    return new_prompt;
   } catch (error) {
     console.error("Error processing writing session:", error);
     throw error;
   }
+}
+
+export function extractSessionDataFromLongString(session_long_string: string): {
+  user_id: string;
+  session_id: string;
+  prompt: string;
+  starting_timestamp: number;
+  session_text: string;
+  total_time_written: number;
+  word_count: number;
+  average_wpm: number;
+} {
+  console.log("Extracting session data from long string:", session_long_string);
+
+  const lines = session_long_string.split("\n");
+  const user_id = lines[0];
+  const session_id = lines[1];
+  const prompt = lines[2];
+  const starting_timestamp = parseInt(lines[3]);
+
+  console.log("Initial data:", {
+    user_id,
+    session_id,
+    prompt,
+    starting_timestamp,
+  });
+
+  // Process typing data starting from line 4
+  let session_text = "";
+  let total_time = 0;
+
+  for (let i = 4; i < lines.length; i++) {
+    if (!lines[i].trim()) continue;
+
+    const [char, timeStr] = lines[i].split(/\s+/);
+    const time = parseInt(timeStr);
+
+    console.log(`Processing character at line ${i}:`, { char, time });
+
+    // Handle backspace
+    if (char === "Backspace") {
+      session_text = session_text.slice(0, -1);
+      console.log("Backspace pressed, new text:", session_text);
+    }
+    // Handle special characters
+    else if (char === "Space" || char === "") {
+      session_text += " ";
+      console.log("Space pressed, new text:", session_text);
+    } else if (char === "Enter") {
+      session_text += "\n";
+      console.log("Enter pressed, new text:", session_text);
+    }
+    // Handle regular characters
+    else if (char.length === 1) {
+      session_text += char;
+      console.log("Character added, new text:", session_text);
+    }
+
+    total_time += time;
+    console.log("Running total time:", total_time);
+  }
+
+  // Filter out multiple consecutive spaces and trim
+  session_text = session_text.replace(/\s+/g, " ").trim();
+
+  const word_count = session_text
+    .split(/\s+/)
+    .filter((word) => word.length > 0).length;
+  // Calculate average time between keystrokes
+  const avgKeystrokeTime = total_time / session_text.length; // ms per keystroke
+
+  // Estimate chars per minute based on keystroke timing
+  const estimatedCharsPerMin = 60000 / avgKeystrokeTime; // chars per minute
+
+  // Assume average word length of 5 characters
+  const projectedWordsPerMin = estimatedCharsPerMin / 5;
+
+  // Calculate actual WPM for this session
+  const actualWpm = word_count / (total_time / 60000);
+
+  // Take weighted average of projected and actual WPM
+  // Weight actual WPM more heavily for longer sessions
+  const weightForActual = Math.min(0.8, total_time / 300000); // Max 80% weight after 5 mins
+  const average_wpm = Number(
+    (
+      actualWpm * weightForActual +
+      projectedWordsPerMin * (1 - weightForActual)
+    ).toFixed(2)
+  );
+
+  // Add 8 seconds (8000ms) as per requirement
+  const total_time_written = total_time + 8000;
+
+  const result = {
+    user_id,
+    session_id,
+    prompt,
+    starting_timestamp,
+    session_text,
+    total_time_written,
+    word_count,
+    average_wpm,
+  };
+
+  console.log("Final extracted session data:", result);
+  return result;
 }

@@ -30,45 +30,123 @@ import UserAnkysGrid from "@/src/components/Profile/UserAnkysGrid";
 import UserDraftsGrid from "@/src/components/Profile/UserDraftsGrid";
 import UsersCollectedDisplay from "@/src/components/Profile/UsersCollectedDisplay";
 import { getUserLocalDrafts } from "../lib/writingGame";
+import { getLandingFeed } from "@/src/api/feed";
+import { useQuery } from "@tanstack/react-query";
+import {
+  getUserAnkys,
+  getUserCollectedAnkys,
+  getUserDrafts,
+  getUserProfile,
+} from "@/src/api/user";
+import { prettyLog } from "../lib/logs";
 
 const ProfileScreen = ({
   setShowWritingGame,
 }: {
   setShowWritingGame: (show: boolean) => void;
 }) => {
+  const { logout } = usePrivy();
+  const { ankyUser } = useUser();
+  const fid = ankyUser?.farcaster_account?.fid || 18350;
   const [viewMode, setViewMode] = useState<"ankys" | "drafts" | "collected">(
     "ankys"
   );
-  const { ankyUser } = useUser();
-  const { userStreak, userAnkys, userDrafts, userCollectedAnkys } = useAnky();
-  console.log("THE USER IS: ", JSON.stringify(ankyUser, null, 2));
-  const { logout } = usePrivy();
-  const unlinkFarcaster = useUnlinkFarcaster();
-  const wallet = useEmbeddedWallet();
-  const [drafts, setDrafts] = useState<WritingSession[]>([]);
-  const [doesUserHaveProfile, setDoesUserHaveProfile] = useState(false);
 
-  const screenWidth = Dimensions.get("window").width;
-  const itemSize = screenWidth / 3;
+  const {
+    data: userProfile,
+    isLoading: profileLoading,
+    error: profileError,
+    refetch: refetchProfile,
+  } = useQuery({
+    queryKey: ["userProfile", fid],
+    queryFn: () => {
+      if (!fid) throw new Error("No FID available");
+      return getUserProfile(fid.toString());
+    },
+    enabled: !!fid,
+    retry: 2,
+    staleTime: 5 * 60 * 1000,
+  });
 
-  useEffect(() => {
-    const getDrafts = async () => {
-      const user_drafts = await getUserLocalDrafts();
-      console.log("the user drafts are", user_drafts);
-      if (user_drafts) {
-        setDrafts(user_drafts);
-      }
-    };
+  const { data: userAnkys, isLoading: ankysLoading } = useQuery({
+    queryKey: ["userAnkys", fid],
+    queryFn: () => getUserAnkys(fid.toString()),
+    enabled: !!fid,
+  });
 
-    getDrafts();
-  }, []);
+  const { data: userDrafts, isLoading: draftsLoading } = useQuery({
+    queryKey: ["userDrafts", fid],
+    queryFn: () => getUserDrafts(fid.toString()),
+    enabled: !!fid,
+  });
+
+  const { data: collectedAnkys, isLoading: collectedLoading } = useQuery({
+    queryKey: ["collectedAnkys", fid],
+    queryFn: () => getUserCollectedAnkys(fid.toString()),
+    enabled: !!fid,
+  });
+
+  if (!fid) return <CreateProfileButton />;
+
+  if (profileLoading)
+    return (
+      <View>
+        <Text>Loading profile...</Text>
+      </View>
+    );
+
+  if (profileError) {
+    return (
+      <View>
+        <Text>Error loading profile</Text>
+        <TouchableOpacity onPress={() => refetchProfile()}>
+          <Text>Try Again</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const renderContent = () => {
+    switch (viewMode) {
+      case "ankys":
+        return (
+          <View className="flex-1 p-4">
+            {ankysLoading ? (
+              <Text>Loading ankys...</Text>
+            ) : (
+              <Text>Ankys content here</Text>
+            )}
+          </View>
+        );
+      case "drafts":
+        return (
+          <View className="flex-1 p-4">
+            {draftsLoading ? (
+              <Text>Loading drafts...</Text>
+            ) : (
+              <Text>Drafts content here</Text>
+            )}
+          </View>
+        );
+      case "collected":
+        return (
+          <View className="flex-1 p-4">
+            {collectedLoading ? (
+              <Text>Loading collected ankys...</Text>
+            ) : (
+              <Text>Collected content here</Text>
+            )}
+          </View>
+        );
+    }
+  };
 
   return (
     <View className="flex-1 bg-white pt-10">
-      <View className="items-center p-5 ">
+      <View className="items-center p-5">
         <View className="flex flex-row justify-between w-full">
           <Text className="text-2xl font-bold mr-auto pl-2 mb-2">
-            @{ankyUser?.farcaster_account?.username || "ಹನುಮಂತ"}
+            @{userProfile?.username || "ಹನುಮಂತ"}
           </Text>
 
           <View className="flex flex-row gap-4">
@@ -121,9 +199,9 @@ const ProfileScreen = ({
         </View>
 
         <View className="flex flex-row justify-between w-full items-center">
-          <View className="relative ">
+          <View className="relative">
             <Image
-              source={require("@/assets/images/anky.png")}
+              source={{ uri: userProfile?.pfp_url || "" }}
               className="w-24 h-24 rounded-full mb-2.5"
             />
           </View>
@@ -136,33 +214,28 @@ const ProfileScreen = ({
               <Text className="text-xl text-gray-600">ankys</Text>
             </View>
             <View className="items-center">
-              <Text className="text-3xl font-bold">{userStreak || 1}</Text>
-              <Text className="text-xl text-gray-600">sadhana</Text>
+              <Text className="text-3xl font-bold">
+                {collectedAnkys?.length || 0}
+              </Text>
+              <Text className="text-xl text-gray-600">collected</Text>
             </View>
           </View>
         </View>
 
         <Text className="text-left text-2xl mt-2 w-full font-bold mb-1">
-          {ankyUser?.farcaster_account?.display_name || "ಹನುಮಂತ"}
+          {userProfile?.display_name || "ಹನುಮಂತ"}
         </Text>
-        <Text className="text-xl mb-1 w-full text-left">
-          {ankyUser?.farcaster_account?.profile?.bio?.text ||
-            "ಪವನಸುತ | ಭಕ್ತಿ ಯೋಧ | ರಾಮ ಸೇವಕ"}
+        <Text className="text-lg mb-1 w-full text-left">
+          {userProfile?.profile?.bio?.text || "ಪವನಸುತ | ಭಕ್ತಿ ಯೋಧ | ರಾಮ ಸೇವಕ"}
         </Text>
+
+        <ElementsOfProfile viewMode={viewMode} setViewMode={setViewMode} />
         {ankyUser?.farcaster_account?.fid ? (
-          <ElementsOfProfile viewMode={viewMode} setViewMode={setViewMode} />
+          renderContent()
         ) : (
           <CreateProfileButton />
         )}
       </View>
-      {ankyUser?.farcaster_account?.fid && (
-        <ElementsOfProfileContent
-          viewMode={viewMode}
-          userAnkys={userAnkys}
-          userDrafts={userDrafts}
-          userCollectedAnkys={userCollectedAnkys}
-        />
-      )}
     </View>
   );
 };
@@ -258,12 +331,14 @@ const CreateProfileButton = () => {
   };
   return (
     <TouchableOpacity
-      className="flex-1 items-center justify-center bg-purple-600 rounded-xl mx-4 my-8 py-6 shadow-lg"
+      className="flex-1 items-center justify-center bg-purple-400 rounded-xl mx-4 my-8 py-6 shadow-lg"
       activeOpacity={0.7}
       onPress={createProfileFunction}
     >
       <View className="items-center">
-        <Text className="text-white text-2xl mb-2">LOGIN</Text>
+        <Text className="text-black text-2xl mb-2 font-semibold">
+          Login and Create Account
+        </Text>
       </View>
     </TouchableOpacity>
   );

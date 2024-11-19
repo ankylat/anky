@@ -26,4 +26,18 @@ const config = (() => {
   return updatedConfig;
 })();
 
+const resolveRequestWithPackageExports = (context, moduleName, platform) => {
+  if (moduleName.startsWith("@privy-io/")) {
+    const ctx = {
+      ...context,
+      unstable_enablePackageExports: true,
+    };
+    return ctx.resolveRequest(ctx, moduleName, platform);
+  }
+
+  return context.resolveRequest(context, moduleName, platform);
+};
+
+config.resolver.resolveRequest = resolveRequestWithPackageExports;
+
 module.exports = withNativeWind(config, { input: "./global.css" });

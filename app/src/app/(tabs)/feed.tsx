@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   Modal,
   Platform,
+  ScrollView,
 } from "react-native";
 import { useQuery } from "@tanstack/react-query";
 import { getLandingFeed } from "@/src/api/feed";
@@ -254,7 +255,7 @@ export default function HomeScreen() {
 
           {selectedAnky !== null && ankyFeed && (
             <Animated.View
-              className="flex-1 justify-center p-4"
+              className="h-5/6 flex-1 justify-center p-4"
               style={{
                 transform: [{ scale: modalScale }],
               }}
@@ -268,11 +269,9 @@ export default function HomeScreen() {
                     borderRadius: 100,
                   }}
                 />
-                <Link href={`/u/${ankyFeed.casts[selectedAnky].author.fid}`}>
-                  <Text className="text-white text-lg">
-                    @{ankyFeed.casts[selectedAnky].author.username}
-                  </Text>
-                </Link>
+                <Text className="text-white text-lg">
+                  @{ankyFeed.casts[selectedAnky].author.username}
+                </Text>
               </View>
               <Image
                 source={{ uri: ankyFeed.casts[selectedAnky].embeds[0].url }}
@@ -313,9 +312,9 @@ export default function HomeScreen() {
               </View>
 
               {/* Cast Text */}
-              <Text className="text-white text-lg mt-6 px-2 leading-6">
+              <ScrollView className="text-white text-lg mt-6 px-2 leading-6">
                 {ankyFeed.casts[selectedAnky].text}
-              </Text>
+              </ScrollView>
             </Animated.View>
           )}
         </Animated.View>

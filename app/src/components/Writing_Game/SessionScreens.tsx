@@ -105,21 +105,23 @@ const WritingProgressBar = ({
   );
 };
 
-interface SessionData {
-  text: string;
-  totalDuration: number;
-  wordCount: number;
-  averageWPM: number;
-}
-
 // Screen for both complete and incomplete sessions
 export const SessionEndScreen: React.FC<{
   session_id: string;
+  sessionData?: {
+    user_id: string;
+    session_id: string;
+    prompt: string;
+    starting_timestamp: number;
+    session_text: string;
+    total_time_written: number;
+    word_count: number;
+    average_wpm: number;
+  };
   onNextStep: () => void;
   writingString: string;
-}> = ({ session_id, onNextStep, writingString }) => {
+}> = ({ session_id, onNextStep, writingString, sessionData }) => {
   console.log("SESSION ID", session_id);
-  const [sessionData, setSessionData] = useState<SessionData | null>(null);
   const {
     writingSession,
     setWritingSession,
@@ -133,6 +135,7 @@ export const SessionEndScreen: React.FC<{
     // - Add prompt generation/fetching logic
     // - Add prompt storage/caching
     // - Add prompt selection logic
+    setWritingSession(null);
   }
   async function printLocalStorage() {
     // Get all keys from AsyncStorage
@@ -151,99 +154,38 @@ export const SessionEndScreen: React.FC<{
     const writingSessions = await AsyncStorage.getItem("writing_sessions.txt");
     console.log("Writing Sessions File:", writingSessions);
   }
-  async function getSessionDataFromWritingString() {
-    const lines = writingString.split("\n");
-    console.log("Number of lines:", lines.length);
-    console.log("THE LINES ARE: ", lines);
 
-    // Extract the basic session info from first 4 lines
-    const userId = lines[0];
-    const sessionId = lines[1];
-    const prompt = lines[2];
-    const startingTimestamp = parseInt(lines[3]);
-
-    // Process the keystrokes starting from line 4
-    const keystrokes = lines
-      .slice(4)
-      .filter((line) => line.trim().length > 0)
-      .map((line) => {
-        const [key, delta] = line.trim().split(" ");
-        return {
-          key,
-          delta: parseInt(delta),
-        };
-      });
-
-    // Calculate total time by adding all deltas plus 8 seconds
-    const totalDeltas = keystrokes.reduce(
-      (sum, stroke) => sum + stroke.delta,
-      0
-    );
-    const totalTime = totalDeltas + 8000; // Add 8 seconds (8000ms)
-
-    // Calculate other metrics
-    const characterCount = keystrokes.filter((k) => k.key.length === 1).length;
-    const backspaces = keystrokes.filter((k) => k.key === "Backspace").length;
-    const spaces = keystrokes.filter((k) => k.key === " ").length;
-    const wordCount = spaces + 1;
-
-    console.log("user id", userId);
-    console.log("WORD COUNT:", wordCount);
-    console.log("TOTAL TIME:", totalTime);
-    console.log("AVERAGE WPM:", wordCount / (totalTime / 60000));
-
-    setSessionData({
-      text: writingString,
-      totalDuration: totalTime,
-      wordCount,
-      averageWPM: wordCount / (totalTime / 60000),
-    });
-
-    const processedSession = {
-      sessionId,
-      prompt,
-      startingTimestamp,
-      metrics: {
-        totalTimeMs: totalTime,
-        characterCount,
-        backspaces,
-        wordCount,
-        averageTimeBetweenKeystrokes: totalDeltas / keystrokes.length,
-      },
-      keystrokes,
-    };
-
-    return processedSession;
-  }
   return (
     <View className="flex-1 items-center justify-center bg-black p-5">
-      <View className="w-full items-center mb-8">
-        <Text className="text-5xl font-bold text-white">
-          {sessionData?.wordCount || 0}
-        </Text>
-        <Text className="text-sm text-gray-400 mt-1">TOTAL WORDS</Text>
-      </View>
+      <View className="w-full items-center mb-8 flex-row">
+        <View className="w-1/3 items-center mb-8">
+          <Text className="text-4xl font-bold text-white">
+            {sessionData?.word_count || 0}
+          </Text>
+          <Text className="text-sm text-gray-400 mt-1">TOTAL WORDS</Text>
+        </View>
 
-      <View className="w-full items-center mb-8">
-        <Text className="text-4xl font-bold text-white">
-          {Math.floor((sessionData?.totalDuration || 0) / 1000 / 60)}:
-          {Math.floor(((sessionData?.totalDuration || 0) / 1000) % 60)
-            .toString()
-            .padStart(2, "0")}
-        </Text>
-        <Text className="text-sm text-gray-400 mt-1">TIME</Text>
-      </View>
+        <View className="w-1/3 items-center mb-8">
+          <Text className="text-4xl font-bold text-white">
+            {Math.floor((sessionData?.total_time_written || 0) / 1000 / 60)}:
+            {Math.floor(((sessionData?.total_time_written || 0) / 1000) % 60)
+              .toString()
+              .padStart(2, "0")}
+          </Text>
+          <Text className="text-sm text-gray-400 mt-1">TIME</Text>
+        </View>
 
-      <View className="w-full items-center mb-8">
-        <Text className="text-4xl font-bold text-white">
-          {Math.round(sessionData?.averageWPM || 0)}
-        </Text>
-        <Text className="text-sm text-gray-400 mt-1">AVERAGE WPM</Text>
+        <View className="w-1/3 items-center mb-8">
+          <Text className="text-4xl font-bold text-white">
+            {Math.round(sessionData?.average_wpm || 0)}
+          </Text>
+          <Text className="text-sm text-gray-400 mt-1">AVERAGE WPM</Text>
+        </View>
       </View>
 
       <TouchableOpacity
-        //onPress={onNextStep
-        onPress={funFunction}
+        onPress={onNextStep}
+        //onPress={funFunction}
         className="w-full flex-row items-center justify-center bg-white rounded-lg py-4 mb-4"
       >
         <MaterialCommunityIcons name="reload" size={24} color="black" />

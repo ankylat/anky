@@ -177,20 +177,6 @@ export default function TabLayout() {
             ),
           }}
         />
-        <Tabs.Screen
-          name="u/[fid]"
-          options={{
-            tabBarButton: (props) => null,
-            headerShown: false,
-          }}
-        />
-        {/* <Tabs.Screen
-          name="transactions/[fid]"
-          options={{
-            tabBarButton: (props) => null,
-            title: "$newen transactions",
-          }}
-        /> */}
       </Tabs>
 
       {isWritingGameVisible && (
