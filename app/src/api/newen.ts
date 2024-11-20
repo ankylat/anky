@@ -1,9 +1,13 @@
 import axios from "axios";
 import { NewenTransaction } from "../types/Anky";
 import { transactions } from "../app/lib/transactions";
+import {
+  EXPO_PUBLIC_ANKY_API_URL,
+  EXPO_PUBLIC_POIESIS_API_KEY,
+} from "@/dotenv";
 
-const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;
-const POIESIS_API_KEY = process.env.EXPO_PUBLIC_POIESIS_API_KEY;
+const API_URL = EXPO_PUBLIC_ANKY_API_URL;
+const POIESIS_API_KEY = EXPO_PUBLIC_POIESIS_API_KEY;
 
 export const getUserTransactions = async (
   user_id: string,

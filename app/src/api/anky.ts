@@ -1,8 +1,9 @@
 import axios from "axios";
 import { WritingSession } from "../types/Anky";
 import { prettyLog } from "../app/lib/logs";
+import { EXPO_PUBLIC_ANKY_API_URL } from "@/dotenv";
 
-const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;
+const API_URL = EXPO_PUBLIC_ANKY_API_URL;
 const POIESIS_API_KEY = process.env.EXPO_PUBLIC_POIESIS_API_KEY;
 
 export const processInitialWritingSessions = async (

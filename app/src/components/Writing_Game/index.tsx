@@ -23,6 +23,7 @@ import Animated, {
   interpolate,
 } from "react-native-reanimated";
 import { v4 as uuidv4 } from "uuid";
+import axios from "axios";
 import { Keystroke } from "@/src/types/Anky";
 import { useAnky } from "@/src/context/AnkyContext";
 import { useUser } from "@/src/context/UserContext";
@@ -97,7 +98,7 @@ const WritingGame = () => {
 
   const CHAR_DELAY = 33;
   const TIMEOUT_DURATION = 8000;
-  const MAX_SESSION_DURATION = 480000;
+  const MAX_SESSION_DURATION = 10000;
 
   useEffect(() => {
     resetAllWritingGameState();
@@ -181,15 +182,34 @@ const WritingGame = () => {
 
   const handleSessionEnded = async () => {
     try {
+      prettyLog(sessionLongString, "THE WRITING SESSION LONG STRING IS");
+      // const options = {
+      //   url: `https://scroll.anky.bot/insert/anky/data/${hash_of_content}.txt`,
+      //   method: "POST",
+      //   headers: {
+      //     "Content-Type": "application/json",
+      //     "x-api-key": "",
+      //   },
+      //   body: JSON.stringify(sessionLongString),
+      // };
+      // const response = await axios.request(options);
+      // console.log("****************************************************");
+      // console.log("****************************************************");
+      // console.log("****************************************************");
+      // console.log("****************************************************");
+      // prettyLog(response.data, "THE RESPONSE FROM SCROLL.ANKY.BOT IS");
+      // console.log("****************************************************");
+      // console.log("****************************************************");
+      // console.log("****************************************************");
+      // console.log("****************************************************");
+
       setWritingSession({
         ...writingSession,
         status: "completed",
       } as WritingSession);
       setIsUserWriting(false);
-      console.log("****************************************************");
-      console.log("****************************************************");
-      console.log("****************************************************");
-      console.log("****************************************************");
+      setDidUserWriteToday(true);
+
       const elapsedTime =
         new Date().getTime() -
         new Date(writingSession?.starting_timestamp!).getTime();
@@ -212,9 +232,11 @@ const WritingGame = () => {
         "elapsedTime > MAX_SESSION_DURATION",
         elapsedTime > MAX_SESSION_DURATION
       );
+
       console.log("****************************************************");
       console.log("****************************************************");
       if (elapsedTime > MAX_SESSION_DURATION) {
+        setDidUserWriteToday(true);
         console.log("this means that the anky is ready");
         setWritingSession({
           ...writingSession,
@@ -225,8 +247,6 @@ const WritingGame = () => {
           writingSession?.session_id!
         );
         prettyLog(new_user_ankys, "THE NEW USER ANKYS ARE");
-        setDidUserWriteToday(true);
-        setIsUserWriting(false);
       }
       const newConversation = [...conversationWithAnky, sessionLongString];
       setConversationWithAnky(newConversation);
@@ -251,7 +271,12 @@ const WritingGame = () => {
     const keystroke = keystrokeQueue.current.shift();
     if (keystroke && keystroke.key && keystroke.delta) {
       setSessionLongString((prev) => {
-        const newString = prev + "\n" + keystroke.key + " " + keystroke.delta;
+        const newString =
+          prev +
+          "\n" +
+          keystroke.key +
+          " " +
+          (keystroke?.delta! / 1000).toFixed(3);
         updateWritingSessionOnLocalStorageSimple(writingSessionId, newString);
         return newString;
       });

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -8,6 +8,8 @@ import {
   Dimensions,
   Pressable,
   Alert,
+  Animated,
+  Easing,
 } from "react-native";
 import * as Clipboard from "expo-clipboard";
 
@@ -45,7 +47,7 @@ const ProfileScreen = ({
 }: {
   setShowWritingGame: (show: boolean) => void;
 }) => {
-  const { logout } = usePrivy();
+  const { user } = usePrivy();
   const { ankyUser, setCreateAccountModalVisible } = useUser();
   const fid = ankyUser?.farcaster_account?.fid || 18350;
   const [viewMode, setViewMode] = useState<"ankys" | "drafts" | "collected">(
@@ -86,7 +88,49 @@ const ProfileScreen = ({
     enabled: !!fid,
   });
 
-  if (!fid) return <CreateProfileButton />;
+  const BlurredText = ({ text }: { text: string }) => {
+    const translateY = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+      const animate = () => {
+        Animated.sequence([
+          Animated.timing(translateY, {
+            toValue: 2,
+            duration: 2000,
+            useNativeDriver: true,
+            easing: Easing.inOut(Easing.sin),
+          }),
+          Animated.timing(translateY, {
+            toValue: -2,
+            duration: 2000,
+            useNativeDriver: true,
+            easing: Easing.inOut(Easing.sin),
+          }),
+        ]).start(() => animate());
+      };
+
+      animate();
+    }, []);
+
+    return (
+      <Animated.View style={{ alignSelf: "flex-start" }}>
+        <Text
+          style={{
+            fontSize: 16,
+            color: "#000",
+            opacity: 0.2,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.8,
+            shadowRadius: 8,
+            textAlign: "left",
+          }}
+        >
+          {text}
+        </Text>
+      </Animated.View>
+    );
+  };
 
   if (profileLoading)
     return (
@@ -146,7 +190,7 @@ const ProfileScreen = ({
       <View className="items-center p-5">
         <View className="flex flex-row justify-between w-full">
           <Text className="text-2xl font-bold mr-auto pl-2 mb-2">
-            @{userProfile?.username || "ಹನುಮಂತ"}
+            @{ankyUser?.farcaster_account?.username || "HanumanJi"}
           </Text>
 
           <View className="flex flex-row gap-4">
@@ -201,7 +245,11 @@ const ProfileScreen = ({
         <View className="flex flex-row justify-between w-full items-center">
           <View className="relative">
             <Image
-              source={{ uri: userProfile?.pfp_url || "" }}
+              source={{
+                uri:
+                  ankyUser?.farcaster_account?.pfp_url ||
+                  "https://github.com/jpfraneto/images/blob/main/anky.png?raw=true",
+              }}
               className="w-24 h-24 rounded-full mb-2.5"
             />
           </View>
@@ -222,24 +270,33 @@ const ProfileScreen = ({
           </View>
         </View>
 
-        <Text className="text-left text-2xl mt-2 w-full font-bold mb-1">
-          {userProfile?.display_name || "ಹನುಮಂತ"}
-        </Text>
-        <Text className="text-lg mb-1 w-full text-left">
-          {userProfile?.profile?.bio?.text || "ಪವನಸುತ | ಭಕ್ತಿ ಯೋಧ | ರಾಮ ಸೇವಕ"}
-        </Text>
+        {userProfile?.display_name ? (
+          <Text className="text-left text-2xl mt-2 w-full font-bold mb-1">
+            {userProfile?.display_name}
+          </Text>
+        ) : (
+          <BlurredText text="ಪವನಸುತ" />
+        )}
+
+        {userProfile?.profile?.bio?.text ? (
+          <Text className="text-lg mb-1 w-full text-left">
+            {userProfile?.profile?.bio?.text}
+          </Text>
+        ) : (
+          <BlurredText text="ಜಯ ಶ್ರೀರಾಮ | ಭಕ್ತಿಯುತ ವಾನರ | ರಾಮದೂತ | ಪವನಪುತ್ರ | ಮಹಾವೀರ | ಉಡುಪಿಗೆ ಹೋದರೆ ಪಕ್ಕಾ ನೆಚ್ಚಿನ ದೋಸೆ" />
+        )}
 
         <ElementsOfProfile viewMode={viewMode} setViewMode={setViewMode} />
         {ankyUser?.farcaster_account?.fid ? (
           renderContent()
         ) : (
-          <View className="flex-1 mt-4 items-center justify-start">
+          <View className="">
             <Pressable
               onPress={() => setCreateAccountModalVisible(true)}
-              className="px-8 py-4 rounded-2xl border-2 text-purple-800"
+              className="bg-purple-800/50 px-8 py-4 rounded-2xl border-2 border-purple-300 active:scale-95 active:bg-purple-700/50"
             >
-              <Text className="text-black text-2xl text-center">
-                login to start channeling $newen
+              <Text className="text-white text-2xl font-bold text-center">
+                {user ? "manifest your anky" : "login to setup your account"}
               </Text>
             </Pressable>
           </View>
@@ -330,25 +387,5 @@ const ElementsOfProfileContent = ({
         <UsersCollectedDisplay userCollectedAnkys={userCollectedAnkys} />
       )}
     </ScrollView>
-  );
-};
-
-const CreateProfileButton = () => {
-  const { setCreateAccountModalVisible } = useUser();
-  const createProfileFunction = async () => {
-    setCreateAccountModalVisible(true);
-  };
-  return (
-    <TouchableOpacity
-      className="flex-1 items-center justify-center bg-purple-400 rounded-xl mx-4 my-8 py-6 shadow-lg"
-      activeOpacity={0.7}
-      onPress={createProfileFunction}
-    >
-      <View className="items-center">
-        <Text className="text-black text-2xl mb-2 font-semibold">
-          Login and Create Account
-        </Text>
-      </View>
-    </TouchableOpacity>
   );
 };

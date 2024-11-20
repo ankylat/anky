@@ -104,14 +104,18 @@ const AnkyverseDialog = () => {
             isAnky ? styles.ankyBubble : styles.userBubble,
           ]}
         >
-          <Text
-            style={[
-              styles.messageText,
-              isAnky ? styles.ankyMessageText : styles.userMessageText,
-            ]}
-          >
-            {item.text}
-          </Text>
+          {item.text.split("\n").map((paragraph, index) => (
+            <Text
+              key={index}
+              style={[
+                styles.messageText,
+                isAnky ? styles.ankyMessageText : styles.userMessageText,
+                index > 0 && { marginTop: 8 },
+              ]}
+            >
+              {paragraph}
+            </Text>
+          ))}
         </View>
       </View>
     );

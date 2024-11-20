@@ -4,6 +4,13 @@ import { Cast } from "@/src/types/Cast";
 import { prettyLog } from "../app/lib/logs";
 import { Anky, WritingSession } from "../types/Anky";
 import { v4 as uuidv4 } from "uuid";
+import {
+  EXPO_PUBLIC_ANKY_API_URL,
+  EXPO_PUBLIC_POIESIS_API_KEY,
+} from "@/dotenv";
+
+const API_URL = EXPO_PUBLIC_ANKY_API_URL;
+const POIESIS_API_KEY = EXPO_PUBLIC_POIESIS_API_KEY;
 
 export const getUserProfile = async (
   fid: string
@@ -76,9 +83,6 @@ export const getUserProfile = async (
 //     throw error;
 //   }
 // };
-
-const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;
-const POIESIS_API_KEY = process.env.EXPO_PUBLIC_POIESIS_API_KEY;
 
 export const registerAnonUser = async (
   user: AnkyUser
