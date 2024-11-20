@@ -7,43 +7,60 @@
     "development": {
       "developmentClient": true,
       "distribution": "internal",
-      "env": {
-        "EXPO_PUBLIC_ANKY_API_URL": "https://poiesis.anky.bot",
-        "EXPO_PUBLIC_PRIVY_APP_ID": "cm2c8o5c408d77jxem23kc1ar",
-        "EXPO_PUBLIC_PRIVY_CLIENT_ID": "client-WY5chG7dTMwMMgFXh7TFpfohjoupiznBwKAx7W6nAjtrZ",
-        "EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME": "dppvay670"
-      }
-    },
-    "development-simulator": {
-      "developmentClient": true,
-      "distribution": "internal",
       "ios": {
-        "simulator": true
+        "resourceClass": "m-medium"
       },
       "env": {
         "EXPO_PUBLIC_ANKY_API_URL": "https://poiesis.anky.bot",
-        "EXPO_PUBLIC_PRIVY_APP_ID": "cm2c8o5c408d77jxem23kc1ar",
-        "EXPO_PUBLIC_PRIVY_CLIENT_ID": "client-WY5chG7dTMwMMgFXh7TFpfohjoupiznBwKAx7W6nAjtrZ",
+        "EXPO_PUBLIC_PRIVY_APP_ID": "cm3j3dabs005n10eo5kaiu4g7",
+        "EXPO_PUBLIC_PRIVY_CLIENT_ID": "client-WY5dbxNn7n6i5BcmWVu2QMB44qe6PgVkAaerhZi3RZGL1",
         "EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME": "dppvay670"
       }
     },
     "preview": {
       "distribution": "internal",
+      "ios": {
+        "resourceClass": "m-medium",
+        "simulator": false,
+        "buildConfiguration": "Release",
+        "credentialsSource": "remote"
+      },
       "env": {
         "EXPO_PUBLIC_ANKY_API_URL": "https://poiesis.anky.bot",
-        "EXPO_PUBLIC_PRIVY_APP_ID": "cm2c8o5c408d77jxem23kc1ar",
-        "EXPO_PUBLIC_PRIVY_CLIENT_ID": "client-WY5chG7dTMwMMgFXh7TFpfohjoupiznBwKAx7W6nAjtrZ",
-        "EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME": "dppvay670"
-      },
-      "android": {
-        "resourceClass": "large"
+        "EXPO_PUBLIC_PRIVY_APP_ID": "cm3j3dabs005n10eo5kaiu4g7",
+        "EXPO_PUBLIC_PRIVY_CLIENT_ID": "client-WY5dbxNn7n6i5BcmWVu2QMB44qe6PgVkAaerhZi3RZGL1",
+        "EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME": "dppvay670",
+        "EXPO_PUBLIC_POIESIS_API_KEY": "aloja"
       }
     },
     "production": {
-      "autoIncrement": true
+      "autoIncrement": true,
+      "ios": {
+        "resourceClass": "m-medium"
+      },
+      "env": {
+        "EXPO_PUBLIC_ANKY_API_URL": "https://poiesis.anky.bot",
+        "EXPO_PUBLIC_PRIVY_APP_ID": "cm3j3dabs005n10eo5kaiu4g7",
+        "EXPO_PUBLIC_PRIVY_CLIENT_ID": "client-WY5dbxNn7n6i5BcmWVu2QMB44qe6PgVkAaerhZi3RZGL1",
+        "EXPO_PUBLIC_CLOUDINARY_CLOUD_NAME": "dppvay670",
+        "EXPO_PUBLIC_POIESIS_API_KEY": "aloja"
+      }
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "appleId": "jpfraneto@gmail.com",
+        "ascAppId": "6738397257",
+        "appleTeamId": "84V63LKV45"
+      }
+    },
+    "preview": {
+      "ios": {
+        "appleId": "jpfraneto@gmail.com",
+        "ascAppId": "6738397257",
+        "appleTeamId": "84V63LKV45"
+      }
+    }
   }
 }

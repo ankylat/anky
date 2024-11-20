@@ -249,7 +249,7 @@ const ScreenTwo = ({
   sendCode: (args: { phone: string }) => Promise<any>;
 }) => {
   const { displayedText, streamEnded } = useTextStream(
-    "i need your phone number",
+    "i need an email address to identify you",
     44
   );
   return (

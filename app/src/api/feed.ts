@@ -29,6 +29,7 @@ export const getLandingFeed = async ({
   limit = 50,
 }: FeedOptions): Promise<FeedResponse> => {
   try {
+    return { casts: [], next: undefined };
     console.log("fetching landing feed", fid, viewer_fid, cursor, limit);
     const options = {
       method: "GET",

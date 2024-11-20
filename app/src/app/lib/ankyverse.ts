@@ -17,7 +17,7 @@ let cachedDate: string | null = null;
 
 function getCurrentAnkyverseDay(): AnkyverseDay {
   const now = new Date();
-  const today = now.toISOString().split("T")[0]; // Get current date in YYYY-MM-DD format
+  const today = now.toISOString().split("T")[0];
 
   if (cachedAnkyverseDay && cachedDate === today) {
     return cachedAnkyverseDay;
@@ -29,10 +29,10 @@ function getCurrentAnkyverseDay(): AnkyverseDay {
 }
 
 function getAnkyverseDay(date: Date): AnkyverseDay {
-  const ankyverseStart = new Date("2023-08-30T05:00:00-04:00");
+  const ankyverseStart = new Date("2023-08-10T05:00:00-04:00");
   const daysInSojourn = 96;
   const daysInSlumber = 21;
-  const cycleLength = daysInSojourn + daysInSlumber; // 117 days
+  const cycleLength = daysInSojourn + daysInSlumber;
   const kingdoms = [
     "Primordia",
     "Emblazion",
@@ -215,9 +215,15 @@ function decodeFromAnkyverseLanguage(input: string): string {
 
 const date = getAnkyverseDay(new Date());
 
+function getAnkyverseDayForGivenTimestamp(timestamp: number): AnkyverseDay {
+  const ankyverseDay = getAnkyverseDay(new Date(timestamp));
+  return ankyverseDay;
+}
+
 export {
   getAnkyverseDay,
   getCurrentAnkyverseDay,
   encodeToAnkyverseLanguage,
   decodeFromAnkyverseLanguage,
+  getAnkyverseDayForGivenTimestamp,
 };

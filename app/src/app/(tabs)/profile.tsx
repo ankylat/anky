@@ -46,7 +46,7 @@ const ProfileScreen = ({
   setShowWritingGame: (show: boolean) => void;
 }) => {
   const { logout } = usePrivy();
-  const { ankyUser } = useUser();
+  const { ankyUser, setCreateAccountModalVisible } = useUser();
   const fid = ankyUser?.farcaster_account?.fid || 18350;
   const [viewMode, setViewMode] = useState<"ankys" | "drafts" | "collected">(
     "ankys"
@@ -150,7 +150,7 @@ const ProfileScreen = ({
           </Text>
 
           <View className="flex flex-row gap-4">
-            <TouchableOpacity
+            {/* <TouchableOpacity
               onPress={() => {
                 Alert.alert("Settings", "Choose an option", [
                   {
@@ -194,7 +194,7 @@ const ProfileScreen = ({
               className="bg-blue-500 rounded-full p-2"
             >
               <Ionicons name="share-outline" size={24} color="white" />
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
         </View>
 
@@ -215,9 +215,9 @@ const ProfileScreen = ({
             </View>
             <View className="items-center">
               <Text className="text-3xl font-bold">
-                {collectedAnkys?.length || 0}
+                {collectedAnkys?.length || 1}
               </Text>
-              <Text className="text-xl text-gray-600">collected</Text>
+              <Text className="text-xl text-gray-600">sadhana</Text>
             </View>
           </View>
         </View>
@@ -233,7 +233,16 @@ const ProfileScreen = ({
         {ankyUser?.farcaster_account?.fid ? (
           renderContent()
         ) : (
-          <CreateProfileButton />
+          <View className="flex-1 mt-4 items-center justify-start">
+            <Pressable
+              onPress={() => setCreateAccountModalVisible(true)}
+              className="px-8 py-4 rounded-2xl border-2 text-purple-800"
+            >
+              <Text className="text-black text-2xl text-center">
+                login to start channeling $newen
+              </Text>
+            </Pressable>
+          </View>
         )}
       </View>
     </View>

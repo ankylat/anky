@@ -3,7 +3,7 @@ import { WritingSession } from "../types/Anky";
 import { prettyLog } from "../app/lib/logs";
 
 const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;
-const POIESIS_API_KEY = process.env.POIESIS_API_KEY;
+const POIESIS_API_KEY = process.env.EXPO_PUBLIC_POIESIS_API_KEY;
 
 export const processInitialWritingSessions = async (
   writingSessions: WritingSession[],
@@ -55,17 +55,7 @@ export const sendWritingConversationToAnky = async (
   conversation_so_far: string[]
 ): Promise<string> => {
   try {
-    console.log("****************************************************");
-    console.log("****************************************************");
-    console.log("****************************************************");
-    console.log("****************************************************");
-    prettyLog(conversation_so_far, "the conversation so far is");
-    console.log("****************************************************");
-    console.log("****************************************************");
-    console.log("****************************************************");
-    console.log("****************************************************");
     const endpoint = `${API_URL}/anky/process-writing-conversation`;
-    console.log("sending the conversation to anky", endpoint);
     const response = await axios.post(
       endpoint,
       { conversation_so_far },
@@ -77,7 +67,6 @@ export const sendWritingConversationToAnky = async (
         },
       }
     );
-    console.log("the response is", response);
 
     if (response.status !== 200) {
       console.error("Failed to send writing string:", response.status);

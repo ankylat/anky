@@ -1,12 +1,11 @@
 {
   "expo": {
-    "name": "Anky",
+    "name": "Anky Verse",
     "slug": "anky",
-    "version": "1.0.0",
+    "version": "0.5.1",
     "orientation": "portrait",
-    "assets": ["./assets/**/*"],
     "icon": "./assets/images/icon.png",
-    "scheme": "anky",
+    "scheme": "ankyverse",
     "userInterfaceStyle": "automatic",
     "splash": {
       "image": "./assets/images/splash.png",
@@ -15,7 +14,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "bot.anky.app"
+      "bundleIdentifier": "bot.anky.app",
+      "buildNumber": "0"
     },
     "android": {
       "adaptiveIcon": {

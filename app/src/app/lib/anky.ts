@@ -1,5 +1,7 @@
 import { sendWritingConversationToAnky } from "@/src/api/anky";
 import { prettyLog } from "./logs";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Anky, WritingSession } from "@/src/types/Anky";
 
 export async function sendWritingSessionConversationToAnky(
   conversation_so_far: string[]
@@ -124,4 +126,30 @@ export function extractSessionDataFromLongString(session_long_string: string): {
 
   console.log("Final extracted session data:", result);
   return result;
+}
+
+export async function getAllUserWrittenAnkysFromLocalStorage(): Promise<
+  string[]
+> {
+  try {
+    const allUserWrittenAnkys = await AsyncStorage.getItem(
+      "all_user_written_ankys"
+    );
+    if (!allUserWrittenAnkys) return [];
+    return JSON.parse(allUserWrittenAnkys);
+  } catch (error) {
+    console.error("Error getting all user written ankys:", error);
+    return [];
+  }
+}
+
+export async function updateAllUserWrittenAnkysOnLocalStorage(
+  new_writing_session_long_string: string
+) {
+  const allUserWrittenAnkys = await getAllUserWrittenAnkysFromLocalStorage();
+  const newAnkys = [...allUserWrittenAnkys, new_writing_session_long_string];
+  await AsyncStorage.setItem(
+    "all_user_written_ankys",
+    JSON.stringify(newAnkys)
+  );
 }
