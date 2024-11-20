@@ -125,3 +125,6 @@ smart_contracts/src/coverage/
 smart_contracts/src/out/
 
 smart_contracts/*.env
+
+app/ios
+app/android
