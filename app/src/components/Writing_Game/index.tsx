@@ -43,7 +43,9 @@ import {
 import MusicIcon from "@/assets/icons/music.svg";
 import {
   extractSessionDataFromLongString,
+  getAllUserWrittenAnkysFromLocalStorage,
   sendWritingSessionConversationToAnky,
+  updateAllUserWrittenAnkysOnLocalStorage,
 } from "@/src/app/lib/anky";
 import WritingGameModal from "./WritingGameModal";
 
@@ -62,6 +64,7 @@ const WritingGame = () => {
     conversationWithAnky,
     setIsUserWriting,
     setConversationWithAnky,
+    setUserAnkys,
   } = useAnky();
   const { ankyUser } = useUser();
 
@@ -94,7 +97,7 @@ const WritingGame = () => {
 
   const CHAR_DELAY = 33;
   const TIMEOUT_DURATION = 8000;
-  const MAX_SESSION_DURATION = 40000;
+  const MAX_SESSION_DURATION = 480000;
 
   useEffect(() => {
     resetAllWritingGameState();
@@ -187,7 +190,44 @@ const WritingGame = () => {
       console.log("****************************************************");
       console.log("****************************************************");
       console.log("****************************************************");
-
+      const elapsedTime =
+        new Date().getTime() -
+        new Date(writingSession?.starting_timestamp!).getTime();
+      prettyLog(elapsedTime, "THE ELAPSED TIME IS");
+      console.log("****************************************************");
+      console.log("****************************************************");
+      console.log(
+        "elapsedTime > MAX_SESSION_DURATION",
+        elapsedTime > MAX_SESSION_DURATION
+      );
+      console.log(
+        "elapsedTime > MAX_SESSION_DURATION",
+        elapsedTime > MAX_SESSION_DURATION
+      );
+      console.log(
+        "elapsedTime > MAX_SESSION_DURATION",
+        elapsedTime > MAX_SESSION_DURATION
+      );
+      console.log(
+        "elapsedTime > MAX_SESSION_DURATION",
+        elapsedTime > MAX_SESSION_DURATION
+      );
+      console.log("****************************************************");
+      console.log("****************************************************");
+      if (elapsedTime > MAX_SESSION_DURATION) {
+        console.log("this means that the anky is ready");
+        setWritingSession({
+          ...writingSession,
+          status: "completed",
+          is_anky: true,
+        } as WritingSession);
+        const new_user_ankys = await updateAllUserWrittenAnkysOnLocalStorage(
+          writingSession?.session_id!
+        );
+        prettyLog(new_user_ankys, "THE NEW USER ANKYS ARE");
+        setDidUserWriteToday(true);
+        setIsUserWriting(false);
+      }
       const newConversation = [...conversationWithAnky, sessionLongString];
       setConversationWithAnky(newConversation);
       const anky_new_prompt = await sendWritingSessionConversationToAnky(
@@ -227,6 +267,26 @@ const WritingGame = () => {
   };
 
   const handleScreenTap = async () => {
+    setWritingSession({
+      ...writingSession,
+      status: "writing",
+      starting_timestamp: new Date(),
+    } as WritingSession);
+    setTimeout(() => {
+      openWritingGameInSessionModal(
+        new Date().getTime() - sessionStartTime.current!
+      );
+    }, 10 * 1000);
+    setTimeout(() => {
+      openWritingGameInSessionModal(
+        new Date().getTime() - sessionStartTime.current!
+      );
+    }, 4 * 60 * 1000);
+    setTimeout(() => {
+      openWritingGameInSessionModal(
+        new Date().getTime() - sessionStartTime.current!
+      );
+    }, 6 * 60 * 1000);
     setPreparingWritingSession(false);
     setAnkyResponseReady(false);
     if (!writingSession) {
@@ -280,26 +340,14 @@ const WritingGame = () => {
       clearTimeout(timeoutRef.current);
     }
     timeoutRef.current = setTimeout(handleSessionEnded, TIMEOUT_DURATION);
-    setTimeout(() => {
-      openWritingGameInSessionModal();
-    }, 10 * 1000);
-    setTimeout(() => {
-      openWritingGameInSessionModal();
-    }, 4 * 60 * 1000);
-    setTimeout(() => {
-      openWritingGameInSessionModal();
-    }, 6 * 60 * 1000);
 
     lastKeystrokeTime.current = currentTime;
 
     processKeystrokeQueue();
   };
 
-  async function openWritingGameInSessionModal() {
-    setIsWritingSessionModalOpen(true);
-    setTimeout(() => {
-      setIsWritingSessionModalOpen(false);
-    }, 4444);
+  async function openWritingGameInSessionModal(elapsedTime: number) {
+    prettyLog(elapsedTime, "THE ELAPSED TIME (in seconds) IS");
   }
 
   const resetAllWritingGameState = () => {
@@ -327,11 +375,6 @@ const WritingGame = () => {
   }, []);
 
   const renderContent = () => {
-    console.log("RENDERING CONTENT");
-    console.log("RENDERING CONTENT");
-    console.log(writingSession);
-    console.log("RENDERING CONTENT");
-    console.log("RENDERING CONTENT");
     if (preparingWritingSession) {
       return (
         <TouchableWithoutFeedback onPress={handleScreenTap}>
@@ -415,7 +458,7 @@ const WritingGame = () => {
                   "last_user_wrote",
                   `S${ankyverseDay.currentSojourn}W${ankyverseDay.wink}`
                 );
-                router.push("/(tabs)/profile");
+                router.push("/(tabs)/anky");
               } else {
                 resetAllWritingGameState();
                 setPreparingWritingSession(true);

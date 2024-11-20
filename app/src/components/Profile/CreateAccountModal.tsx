@@ -7,6 +7,7 @@ import {
   TextInput,
   Linking,
   Platform,
+  Animated,
 } from "react-native";
 import { MaterialIcons, Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
@@ -18,12 +19,19 @@ import {
   isConnected,
   needsRecovery,
 } from "@privy-io/expo";
-import { useSmartWallets } from "@privy-io/expo/smart-wallets";
 import bigInt from "big-integer";
 
 import axios from "axios";
 import { prettyLog } from "@/src/app/lib/logs";
 import { useUser } from "@/src/context/UserContext";
+import { createWalletClient, custom, createPublicClient, http } from "viem";
+import { optimism } from "viem/chains";
+import idRegistryAbi from "@/src/constants/abi/idRegistryAbi.json";
+import ID_REGISTRY_EIP_712_TYPES from "@/src/constants/ID_REGISTRY_EIP_712_TYPES.json";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { AnkyUser } from "@/src/types/User";
+import { getAnkyUserLastWritingSession } from "@/src/app/lib/writingGame";
+import { shareAnkyWritingSessionAsCast } from "@/src/api/farcaster";
 
 type Props = {
   isVisible: boolean;
@@ -36,9 +44,10 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
   const [pinCode, setPinCode] = useState("");
   const [error, setError] = useState("");
   const [loggedIn, setLoggedIn] = useState(false);
+  const [loadingFarcasterAccountCreation, setLoadingFarcasterAccountCreation] =
+    useState(false);
 
   const { ankyUser } = useUser();
-  const { client } = useSmartWallets();
   const wallet = useEmbeddedWallet();
   const { user, isReady } = usePrivy();
   const emailRef = useRef<TextInput>(null);
@@ -65,6 +74,7 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
   };
 
   const handleEmailSubmit = async () => {
+    setError("");
     if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       try {
         await sendCode({ email });
@@ -72,11 +82,14 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
         setError("Failed to send verification code");
       }
     } else {
-      setError("Please enter a valid phone number");
+      setError(
+        "please enter a valid email. It doesn't need to be 'your' email"
+      );
     }
   };
 
   const handlePinSubmit = async () => {
+    setError("");
     if (pinCode.length === 6) {
       try {
         console.log("IN HEREEEE", pinCode, email);
@@ -187,9 +200,9 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
                       setPinCode(text);
                     }
                   }}
-                  className="bg-purple-400 p-4 rounded-2xl active:bg-purple-500"
+                  className="p-4 h-16 ml-2 flex rounded-2xl "
                 >
-                  <Text className="text-white text-xl">📋</Text>
+                  <Text className="text-white text-6xl mt-auto">📋</Text>
                 </Pressable>
               ) : (
                 <Pressable
@@ -224,82 +237,135 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
         return (
           <View className="space-y-6">
             <View className="space-y-6">
-              <Text className="text-center font-bold text-2xl text-purple-800">
-                Create your Farcaster account
-              </Text>
               <Pressable
                 className="bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500 py-4 rounded-2xl active:scale-95 transform transition-all duration-200 shadow-xl"
                 onPress={async () => {
+                  setLoadingFarcasterAccountCreation(true);
                   console.log("Create Farcaster account button pressed");
                   try {
-                    if (user && client) {
-                      const smartWallet = user.linked_accounts.find(
-                        (account) => account.type === "smart_wallet"
-                      );
-                      console.log("Found smart wallet:", smartWallet);
-
-                      if (!smartWallet?.address) {
-                        throw new Error("Smart wallet not found");
+                    if (user) {
+                      if (!wallet.account?.address) {
+                        wallet.create({ recoveryMethod: "privy" });
                       }
+                      prettyLog(wallet, "THE WALLET HERE IS");
 
                       const { data: payload } = await axios.post(
                         "https://farcaster.anky.bot/create-new-fid",
                         {
-                          user_wallet_address: smartWallet?.address,
+                          user_wallet_address: wallet.account?.address,
                         }
                       );
+                      prettyLog(payload, "THE PAYLOAD IS");
 
-                      const signature = await client.signTypedData({
-                        account: client.account,
-                        domain: {
-                          name: "Farcaster ID Registry",
-                          version: "1",
-                          chainId: 10, // Optimism
-                          verifyingContract:
-                            "0x00000000fc6c5f01fc30151999387bb99a9f489b",
-                        },
-                        types: {
-                          Transfer: [
-                            { name: "fid", type: "uint256" },
-                            { name: "to", type: "address" },
-                            { name: "nonce", type: "uint256" },
-                            { name: "deadline", type: "uint256" },
-                          ],
-                        },
-                        message: {
-                          fid: bigInt(payload.new_fid),
-                          to: smartWallet.address,
-                          nonce: bigInt(payload.nonce),
-                          deadline: bigInt(payload.deadline),
-                        },
+                      const getDeadline = () => {
+                        const now = Math.floor(Date.now() / 1000);
+                        const oneHour = 60 * 60;
+                        return now + oneHour;
+                      };
+                      const readNonce = async () => {
+                        const res: any = await publicClient.readContract({
+                          address: "0x00000000fc6c5f01fc30151999387bb99a9f489b",
+                          abi: idRegistryAbi,
+                          functionName: "nonces",
+                          args: [wallet.account?.address as `0x${string}`],
+                        });
+                        return res;
+                      };
+
+                      const publicClient = createPublicClient({
+                        chain: optimism,
+                        transport: http(),
                       });
 
-                      const res = await axios.post(
-                        "https://farcaster.anky.bot/create-new-fid-signed-message",
-                        {
-                          deadline: Number(payload.deadline),
-                          address: wallet.account?.address,
-                          fid: payload.new_fid,
-                          signature,
-                          user_id: ankyUser?.id,
-                        }
-                      );
+                      let nonce = await readNonce();
+                      const provider = await wallet.getProvider();
+                      if (!provider) return;
+                      const walletClient = createWalletClient({
+                        chain: optimism,
+                        transport: custom(provider),
+                      });
 
-                      console.log("Registration successful:", res.data);
-                      onClose();
+                      const deadline = getDeadline();
+                      if (nonce !== undefined) {
+                        const message = {
+                          fid: payload.new_fid,
+                          to: wallet.account?.address as `0x${string}`,
+                          nonce: nonce,
+                          deadline: deadline,
+                        };
+
+                        const signature = await walletClient.signTypedData({
+                          account: wallet.account?.address as `0x${string}`,
+                          domain: {
+                            name: "Farcaster IdRegistry",
+                            version: "1",
+                            chainId: 10,
+                            verifyingContract:
+                              "0x00000000Fc6c5F01Fc30151999387Bb99A9f489b",
+                          },
+                          types: ID_REGISTRY_EIP_712_TYPES.types,
+                          primaryType: "Transfer",
+                          message,
+                        });
+
+                        const res = await axios.post(
+                          "https://farcaster.anky.bot/create-new-fid-signed-message",
+                          {
+                            deadline: deadline,
+                            address: wallet.account?.address,
+                            fid: payload.new_fid,
+                            signature,
+                            user_id: ankyUser?.id,
+                          }
+                        );
+
+                        const fetchedAnkyUser = (await AsyncStorage.getItem(
+                          "ankyUser"
+                        )) as unknown as AnkyUser;
+                        if (fetchedAnkyUser) {
+                          const ankyUserObj = {
+                            ...fetchedAnkyUser,
+                            farcaster_account: {
+                              ...fetchedAnkyUser.farcaster_account,
+                              signer_uuid: res.data.signer.signer_uuid,
+                              fid: res.data.signer.fid,
+                            },
+                          };
+                          await AsyncStorage.setItem(
+                            "ankyUser",
+                            JSON.stringify(ankyUserObj)
+                          );
+                        }
+                        setLoadingFarcasterAccountCreation(false);
+                        const lastSession =
+                          await getAnkyUserLastWritingSession();
+                        if (lastSession) {
+                          shareAnkyWritingSessionAsCast(lastSession);
+                        }
+                        const responseFromPoiesis = await axios.post(
+                          "https://poiesis.anky.bot/anky/finished-anky-registration",
+                          {
+                            user_id: ankyUser?.id,
+                            signer_uuid: res.data.signer.signer_uuid,
+                            fid: res.data.signer.fid,
+                          }
+                        );
+                        prettyLog(responseFromPoiesis, "RESPONSE FROM POIESIS");
+                        onClose();
+                      }
                     }
                   } catch (error: any) {
-                    console.error("Error creating Farcaster account:", error);
-                    setError(
-                      error.message || "Failed to create Farcaster account"
-                    );
+                    console.error("Error invoking anky:", error);
+                    setError(error.message || "Failed to invoke your Anky");
                   }
                 }}
               >
-                <Text className="text-center p-4 bg-purple-500 rounded-full text-4xl font-bold text-black">
-                  CREATE ANKY
+                <Text className="text-center p-4 bg-purple-500 rounded-full  text-4xl font-bold text-black">
+                  INVOKE YOUR ANKY
                 </Text>
               </Pressable>
+
+              {loadingFarcasterAccountCreation && <LoadingAccountCreation />}
 
               {error && (
                 <Text className="text-center text-red-500 font-bold">
@@ -345,5 +411,86 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
         </Pressable>
       </Pressable>
     </Modal>
+  );
+}
+
+export function LoadingAccountCreation() {
+  const [lastSession, setLastSession] = useState<string | null>(null);
+  const [streamedText, setStreamedText] = useState("");
+  const [streamedSession, setStreamedSession] = useState("");
+  const CHAR_DELAY = 33;
+
+  useEffect(() => {
+    const fetchLastSession = async () => {
+      try {
+        const writingSessionsArray = await AsyncStorage.getItem(
+          "writing_sessions_array"
+        );
+        if (writingSessionsArray) {
+          const sessions = JSON.parse(writingSessionsArray);
+          if (sessions.length > 0) {
+            const lastSessionId = sessions[sessions.length - 1];
+            const sessionContent = await AsyncStorage.getItem(
+              `writing_session_${lastSessionId}`
+            );
+            if (sessionContent) {
+              setLastSession(sessionContent);
+              streamText(sessionContent.slice(0, 100));
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching last writing session:", error);
+      }
+    };
+
+    fetchLastSession();
+  }, []);
+
+  const streamText = (text: string) => {
+    let currentIndex = 0;
+    const loadingText = "✨ Creating your Farcaster account...";
+
+    // Stream the loading text
+    const loadingInterval = setInterval(() => {
+      if (currentIndex < loadingText.length) {
+        setStreamedText(loadingText.slice(0, currentIndex + 1));
+        currentIndex++;
+      } else {
+        clearInterval(loadingInterval);
+
+        // After loading text completes, stream the session text if it exists
+        if (text) {
+          let sessionIndex = 0;
+          const sessionInterval = setInterval(() => {
+            if (sessionIndex < text.length) {
+              setStreamedSession(text.slice(0, sessionIndex + 1));
+              sessionIndex++;
+            } else {
+              clearInterval(sessionInterval);
+            }
+          }, CHAR_DELAY);
+        }
+      }
+    }, CHAR_DELAY);
+
+    return () => {
+      clearInterval(loadingInterval);
+    };
+  };
+
+  return (
+    <View>
+      <Text className="text-center text-lg font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent animate-pulse">
+        {streamedText.split("").map((letter, index) => (
+          <Animated.Text key={index}>{letter}</Animated.Text>
+        ))}
+      </Text>
+      {lastSession && streamedSession && (
+        <Text className="text-center text-sm italic text-gray-400 mt-2">
+          "{streamedSession}..."
+        </Text>
+      )}
+    </View>
   );
 }

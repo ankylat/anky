@@ -3,7 +3,7 @@ import { NewenTransaction } from "../types/Anky";
 import { transactions } from "../app/lib/transactions";
 
 const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;
-const POIESIS_API_KEY = process.env.POIESIS_API_KEY;
+const POIESIS_API_KEY = process.env.EXPO_PUBLIC_POIESIS_API_KEY;
 
 export const getUserTransactions = async (
   user_id: string,

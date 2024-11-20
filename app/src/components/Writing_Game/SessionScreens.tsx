@@ -183,17 +183,16 @@ export const SessionEndScreen: React.FC<{
         </View>
       </View>
 
-      <TouchableOpacity
-        onPress={onNextStep}
-        //onPress={funFunction}
-        className="w-full flex-row items-center justify-center bg-white rounded-lg py-4 mb-4"
-      >
-        <MaterialCommunityIcons name="reload" size={24} color="black" />
-        <Text className="text-black text-center font-bold text-lg ml-2">
-          Try Again
-        </Text>
-      </TouchableOpacity>
-      <TouchableOpacity
+      {!writingSession?.is_anky && (
+        <TouchableOpacity
+          onPress={onNextStep}
+          //onPress={funFunction}
+          className="w-full flex-row items-center justify-center bg-white rounded-lg py-4 mb-4"
+        >
+          <MaterialCommunityIcons name="reload" size={24} color="black" />
+        </TouchableOpacity>
+      )}
+      {/* <TouchableOpacity
         //onPress={onNextStep
         onPress={printLocalStorage}
         className="w-full flex-row items-center justify-center bg-white rounded-lg py-4 mb-4"
@@ -226,7 +225,7 @@ export const SessionEndScreen: React.FC<{
         <Text className="text-black text-center font-bold text-lg ml-2">
           tabs
         </Text>
-      </TouchableOpacity>
+      </TouchableOpacity> */}
     </View>
   );
 };

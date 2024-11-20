@@ -3,28 +3,21 @@ import { AnkyUser, FarcasterAccount, UserMetadata } from "@/src/types/User";
 import { Cast } from "@/src/types/Cast";
 import { prettyLog } from "../app/lib/logs";
 import { Anky, WritingSession } from "../types/Anky";
-
-const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;
-const POIESIS_API_KEY = process.env.POIESIS_API_KEY;
-const NEYNAR_API_KEY = process.env.NEYNAR_API_KEY;
-console.log("THE NEYNAR API KEY IS", NEYNAR_API_KEY);
+import { v4 as uuidv4 } from "uuid";
 
 export const getUserProfile = async (
   fid: string
 ): Promise<FarcasterAccount> => {
-  console.log(
-    `[getUserProfile] Starting to fetch profile for fid: ${fid}`,
-    NEYNAR_API_KEY
-  );
   try {
     console.log("[getUserProfile] Constructing request options");
+    return { id: uuidv4(), fid: 18350, username: "anky.eth" };
     const options = {
       method: "GET",
       url: `https://api.neynar.com/v2/farcaster/user/bulk?fids=${fid}`,
       headers: {
         accept: "application/json",
         "x-neynar-experimental": "true",
-        "x-api-key": "4DF21FD5-FB60-426C-9521-FA2106A7E969",
+        "x-api-key": process.env.NEYNAR_API_KEY || "NEYNAR_API_DOCS",
       },
     };
     console.log("[getUserProfile] Request options:", options);
@@ -83,6 +76,9 @@ export const getUserProfile = async (
 //     throw error;
 //   }
 // };
+
+const API_URL = process.env.EXPO_PUBLIC_ANKY_API_URL;
+const POIESIS_API_KEY = process.env.EXPO_PUBLIC_POIESIS_API_KEY;
 
 export const registerAnonUser = async (
   user: AnkyUser

@@ -24,6 +24,7 @@ export interface FarcasterAccount {
   is_anonymous?: boolean;
   privy_account?: PrivyUserType;
   chosen_anky?: Anky;
+  signer_uuid?: string;
 }
 
 export interface Profile {

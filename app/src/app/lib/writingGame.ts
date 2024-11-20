@@ -234,3 +234,21 @@ export async function getUserLocalCollectedAnkys() {
 //   anky_id?: string | null;
 //   anky?: Anky | null;
 // }
+
+export async function fetchLocalWritingSessionFromId(
+  session_id: string
+): Promise<WritingSession | null> {
+  const this_writing_session = await AsyncStorage.getItem(
+    `session_${session_id}`
+  );
+  return this_writing_session ? JSON.parse(this_writing_session) : null;
+}
+
+export async function getAnkyUserLastWritingSession(): Promise<WritingSession | null> {
+  const writingSessions = await getUserLocalWritingSessions();
+  const last_writing_session_id = writingSessions[writingSessions.length - 1];
+  const last_writing_session = await fetchLocalWritingSessionFromId(
+    last_writing_session_id as unknown as string
+  );
+  return last_writing_session;
+}
