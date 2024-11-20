@@ -43,10 +43,14 @@
         {
           "icon": "./assets/images/icon.png",
           "color": "#ffffff",
-          "sounds": ["./assets/sounds/bell.mp3"]
+          "sounds": [
+            "./assets/sounds/bell.mp3"
+          ]
         }
       ],
-      "expo-localization"
+      "expo-localization",
+      "expo-asset",
+      "expo-font"
     ],
     "experiments": {
       "typedRoutes": true

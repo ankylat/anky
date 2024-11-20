@@ -1,3 +1,4 @@
+import "./lib/localization";
 import "fast-text-encoding";
 import "react-native-get-random-values";
 import "@ethersproject/shims";
@@ -9,6 +10,7 @@ import {
   DefaultTheme,
   ThemeProvider,
 } from "@react-navigation/native";
+
 import { useFonts } from "expo-font";
 import { router, Stack } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -45,6 +47,7 @@ export default function RootLayout() {
   });
 
   useEffect(() => {
+    router.push("/(tabs)/profile");
     if (loaded) {
       SplashScreen.hideAsync();
       // clearAllUserDataFromLocalStorage();

@@ -25,6 +25,7 @@ import Playground from "@/assets/icons/playground.svg";
 import Scroll from "@/assets/icons/scroll.svg";
 import CreateAccountModal from "@/src/components/Profile/CreateAccountModal";
 import { useUser } from "@/src/context/UserContext";
+import Animated, { FadeIn } from "react-native-reanimated";
 
 export default function TabLayout() {
   const { user } = usePrivy();
@@ -53,6 +54,8 @@ export default function TabLayout() {
 
   const ankyverseDay = getCurrentAnkyverseDay();
 
+  const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
+
   const handleProfilePress = () => {
     console.log("user", user);
     if (!user) {
@@ -73,7 +76,7 @@ export default function TabLayout() {
             height: 90,
             position: "relative",
           },
-          header: ({ route, options }) => {
+          header: ({ route, options }: { route: any; options: any }) => {
             return (
               <Header
                 title={options.title || route.name}
@@ -194,7 +197,7 @@ export default function TabLayout() {
         </View>
       )}
 
-      {!isUserWriting && didUserWriteToday && (
+      {true && (
         <View
           style={{
             position: "absolute",
@@ -207,10 +210,12 @@ export default function TabLayout() {
             zIndex: 1000,
           }}
         >
-          <TouchableOpacity
+          <AnimatedTouchable
+            entering={FadeIn.duration(1618)}
             style={{
               backgroundColor: ankyverseDay.currentColor.secondary,
               borderRadius: 9999,
+
               padding: 16,
               shadowColor: "#000",
               shadowOffset: { width: 0, height: 2 },
@@ -233,7 +238,7 @@ export default function TabLayout() {
             >
               👽
             </Text>
-          </TouchableOpacity>
+          </AnimatedTouchable>
         </View>
       )}
       <CreateAccountModal

@@ -21,7 +21,7 @@ const config = (() => {
     },
   };
 
-  updatedConfig.isCSSEnabled = true;
+  // updatedConfig.isCSSEnabled = true;
 
   return updatedConfig;
 })();

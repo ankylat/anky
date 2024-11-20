@@ -18,6 +18,8 @@ import {
   useEmbeddedWallet,
   isConnected,
   needsRecovery,
+  isNotCreated,
+  useIdentityToken,
 } from "@privy-io/expo";
 import bigInt from "big-integer";
 
@@ -32,6 +34,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { AnkyUser } from "@/src/types/User";
 import { getAnkyUserLastWritingSession } from "@/src/app/lib/writingGame";
 import { shareAnkyWritingSessionAsCast } from "@/src/api/farcaster";
+import { sendNewUserToPoiesis } from "@/src/api";
 
 type Props = {
   isVisible: boolean;
@@ -49,7 +52,9 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
 
   const { ankyUser } = useUser();
   const wallet = useEmbeddedWallet();
-  const { user, isReady } = usePrivy();
+  const { user, isReady, logout } = usePrivy();
+  const { getIdentityToken } = useIdentityToken();
+
   const emailRef = useRef<TextInput>(null);
 
   const { sendCode, loginWithCode, state } = useLoginWithEmail({
@@ -59,8 +64,6 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
     },
     onLoginSuccess(user, isNewUser) {
       console.log("Logged in successfully", { user, isNewUser });
-      wallet.create({ recoveryMethod: "privy" });
-
       setLoggedIn(true);
       handleNextPress(3);
     },
@@ -68,6 +71,33 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
       setError(error.message);
     },
   });
+
+  useEffect(() => {
+    if (user && isReady) {
+      userSetup();
+    }
+  }, [user]);
+
+  const userSetup = async () => {
+    try {
+      console.log("in here", user, ankyUser);
+      if (user && ankyUser) {
+        console.log("asdailsa");
+        if (isNotCreated(wallet)) {
+          console.log("creating the wallet");
+          await wallet.create({ recoveryMethod: "privy" });
+        }
+        const idToken = await getIdentityToken();
+
+        console.log("access token", idToken);
+        if (idToken) {
+          await sendNewUserToPoiesis(user, ankyUser, idToken);
+        }
+      }
+    } catch (error) {
+      console.log("error in user setup", error);
+    }
+  };
 
   const handleNextPress = (nextStep: number) => {
     setStep(nextStep);
@@ -93,11 +123,17 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
     if (pinCode.length === 6) {
       try {
         console.log("IN HEREEEE", pinCode, email);
-        await loginWithCode({
+        const response = await loginWithCode({
           code: pinCode,
           email,
         });
+        console.log("the response is", response);
+        if (!response) {
+          console.log("setting error to invalid verification code");
+          setError("Invalid verification code");
+        }
       } catch (err) {
+        console.log("There was an error");
         setError("Invalid verification code");
       }
     }
@@ -127,12 +163,13 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
                 value={email}
                 onChangeText={setEmail}
                 keyboardType="email-address"
+                autoCapitalize="none"
               />
               <Pressable
                 onPress={() => setEmail(email.slice(0, -1))}
-                className="bg-purple-400 p-4 rounded-2xl active:bg-purple-500"
+                className="ml-2 bg-purple-400 p-4 rounded-full active:bg-purple-500 w-16 h-16"
               >
-                <Text className="text-white text-xl">⌫</Text>
+                <Text className="text-white text-3xl">⌫</Text>
               </Pressable>
             </View>
             {error && (
@@ -159,17 +196,23 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
                 </Text>
               </Text>
 
-              <Pressable
-                className="bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500 py-4 rounded-2xl active:scale-95 transform transition-all duration-200 shadow-xl"
-                onPress={handleEmailSubmit}
-                disabled={state.status === "sending-code"}
-              >
-                <Text className="text-center text-xl font-bold text-black">
-                  {state.status === "sending-code"
-                    ? "✨ Sending Magic Code..."
-                    : "✨ Send Magic Code"}
-                </Text>
-              </Pressable>
+              {/^[a-zA-Z0-9._%\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(
+                email
+              ) && (
+                <Pressable
+                  className="bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500 py-4 px-6 rounded-2xl active:scale-95 transform transition-all duration-200 shadow-xl flex-row items-center justify-center"
+                  onPress={handleEmailSubmit}
+                  disabled={state.status === "sending-code"}
+                >
+                  <Text className="text-center text-xl font-bold text-black">
+                    {state.status === "sending-code" ? (
+                      <>✨ Sending Magic Code...</>
+                    ) : (
+                      <>🪄 Click to Send Magic Code</>
+                    )}
+                  </Text>
+                </Pressable>
+              )}
             </View>
           </View>
         );
@@ -200,19 +243,27 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
                       setPinCode(text);
                     }
                   }}
-                  className="p-4 h-16 ml-2 flex rounded-2xl "
+                  className="p-4 ml-2 flex rounded-2xl "
                 >
                   <Text className="text-white text-6xl mt-auto">📋</Text>
                 </Pressable>
               ) : (
                 <Pressable
-                  onPress={() => setPinCode(pinCode.slice(0, -1))}
-                  className="bg-purple-400 p-4 rounded-2xl active:bg-purple-500"
+                  onPress={() => {
+                    setError("");
+                    setPinCode(pinCode.slice(0, -1));
+                  }}
+                  className="ml-2 bg-purple-400 p-4 rounded-full active:bg-purple-500 w-16 h-16"
                 >
-                  <Text className="text-white text-xl">⌫</Text>
+                  <Text className="text-white text-3xl">⌫</Text>
                 </Pressable>
               )}
             </View>
+            {error && (
+              <Text className="text-pink-500 text-center font-bold">
+                {error}
+              </Text>
+            )}
 
             {pinCode.length == 6 && (
               <Pressable
@@ -235,25 +286,33 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
       case 3:
         console.log("Rendering step 3");
         return (
-          <View className="space-y-6">
+          <View className="space-y-6 relative">
             <View className="space-y-6">
               <Pressable
+                disabled={loadingFarcasterAccountCreation}
                 className="bg-gradient-to-r from-purple-500 via-pink-500 to-purple-500 py-4 rounded-2xl active:scale-95 transform transition-all duration-200 shadow-xl"
                 onPress={async () => {
-                  setLoadingFarcasterAccountCreation(true);
                   console.log("Create Farcaster account button pressed");
                   try {
+                    if (loadingFarcasterAccountCreation) return;
+                    setLoadingFarcasterAccountCreation(true);
                     if (user) {
                       if (!wallet.account?.address) {
                         wallet.create({ recoveryMethod: "privy" });
                       }
                       prettyLog(wallet, "THE WALLET HERE IS");
+                      const idToken = await getIdentityToken();
 
-                      const { data: payload } = await axios.post(
-                        "https://farcaster.anky.bot/create-new-fid",
-                        {
-                          user_wallet_address: wallet.account?.address,
-                        }
+                      const get_new_fid_options = {
+                        method: "GET",
+                        url: "https://poiesis.anky.bot/farcaster/get-new-fid",
+                        headers: {
+                          accept: "application/json",
+                          Authorization: `Bearer ${idToken}`,
+                        },
+                      };
+                      const { data: payload } = await axios.request(
+                        get_new_fid_options
                       );
                       prettyLog(payload, "THE PAYLOAD IS");
 
@@ -308,16 +367,25 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
                           message,
                         });
 
-                        const res = await axios.post(
-                          "https://farcaster.anky.bot/create-new-fid-signed-message",
-                          {
+                        const register_new_fid_options = {
+                          method: "POST",
+                          url: "https://poiesis.anky.bot/farcaster/register-new-fid",
+                          headers: {
+                            accept: "application/json",
+                            Authorization: `Bearer ${idToken}`,
+                          },
+                          data: {
                             deadline: deadline,
                             address: wallet.account?.address,
                             fid: payload.new_fid,
                             signature,
                             user_id: ankyUser?.id,
-                          }
-                        );
+                          },
+                        };
+
+                        const response_from_register_new_fid =
+                          await axios.request(register_new_fid_options);
+                        const res = response_from_register_new_fid.data;
 
                         const fetchedAnkyUser = (await AsyncStorage.getItem(
                           "ankyUser"
@@ -327,8 +395,8 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
                             ...fetchedAnkyUser,
                             farcaster_account: {
                               ...fetchedAnkyUser.farcaster_account,
-                              signer_uuid: res.data.signer.signer_uuid,
-                              fid: res.data.signer.fid,
+                              signer_uuid: res.signer.signer_uuid,
+                              fid: res.signer.fid,
                             },
                           };
                           await AsyncStorage.setItem(
@@ -342,15 +410,11 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
                         if (lastSession) {
                           shareAnkyWritingSessionAsCast(lastSession);
                         }
-                        const responseFromPoiesis = await axios.post(
-                          "https://poiesis.anky.bot/anky/finished-anky-registration",
-                          {
-                            user_id: ankyUser?.id,
-                            signer_uuid: res.data.signer.signer_uuid,
-                            fid: res.data.signer.fid,
-                          }
+
+                        prettyLog(
+                          response_from_register_new_fid,
+                          "response_from_register_new_fid"
                         );
-                        prettyLog(responseFromPoiesis, "RESPONSE FROM POIESIS");
                         onClose();
                       }
                     }
@@ -372,6 +436,27 @@ export default function CreateAccountModal({ isVisible, onClose }: Props) {
                   {error}
                 </Text>
               )}
+              <View className="flex-row justify-center space-x-4 mt-96">
+                <Pressable
+                  onPress={() => {
+                    setStep(1);
+                    setEmail("");
+                    setPinCode("");
+                    logout();
+                  }}
+                >
+                  <Text>Logout</Text>
+                </Pressable>
+              </View>
+              <View className="flex-row justify-center space-x-4 mt-22">
+                <Pressable
+                  onPress={() => {
+                    userSetup();
+                  }}
+                >
+                  <Text>user setup</Text>
+                </Pressable>
+              </View>
             </View>
           </View>
         );
