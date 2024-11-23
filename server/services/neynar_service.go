@@ -195,7 +195,7 @@ func (s *NeynarService) FetchUserCasts(fid int) ([]Cast, error) {
 	return neynarResponse.Casts, nil
 }
 
-func (s *NeynarService) WriteCast(apiKey, signerUUID, text, channelID, idem, sessionId string) (*types.Cast, error) {
+func (s *NeynarService) WriteCast(apiKey, signerUUID, cast_text, channelID, idem, sessionId string) (*types.Cast, error) {
 	log.Println("Starting WriteCast function")
 
 	url := "https://api.neynar.com/v2/farcaster/cast"
@@ -203,12 +203,12 @@ func (s *NeynarService) WriteCast(apiKey, signerUUID, text, channelID, idem, ses
 
 	payload := map[string]interface{}{
 		"signer_uuid": signerUUID,
-		"text":        text,
+		"text":        cast_text,
 		"channel_id":  channelID,
 		"idem":        idem,
 		"embeds": []map[string]string{
 			{
-				"url": fmt.Sprintf("https://poiesis.anky.bot/generated-anky-on-frame/%s", sessionId),
+				"url": fmt.Sprintf("https://farcaster.anky.bot/anky/%s", sessionId),
 			},
 		},
 	}

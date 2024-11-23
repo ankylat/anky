@@ -2,15 +2,18 @@ package services
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"os"
-	"strings"
 
+	"github.com/ankylat/anky/server/storage"
 	"github.com/ankylat/anky/server/types"
+	"github.com/ankylat/anky/server/utils"
+	"github.com/google/uuid"
 )
 
 type FarcasterService struct {
@@ -251,50 +254,124 @@ func (s *FarcasterService) makeRequest(method, url string, payload interface{}) 
 	return result, nil
 }
 
-func publishToFarcaster(session *types.WritingSession) (*types.Cast, error) {
-	log.Printf("Publishing to Farcaster for session ID: %s", session.ID)
-	fmt.Println("Publishing to Farcaster for session ID:", session.ID)
+func publishAnkyToFarcaster(writing string, sessionID string, userID string, ticker string, token_name string, userSignerUUID string) (*types.Cast, error) {
+	log.Printf("Publishing to Farcaster for session ID: %s", sessionID)
+	fmt.Println("Publishing to Farcaster for session ID:", sessionID)
 
 	neynarService := NewNeynarService()
 	fmt.Println("NeynarService initialized:", neynarService)
 
-	// Prepare the cast text
-	castText := session.Writing
-	if len(castText) > 300 {
-		lastPoint := strings.LastIndex(castText[:300], ".")
-		if lastPoint == -1 {
-			lastPoint = 297
-		}
-		castText = castText[:lastPoint] + "..."
-	}
+	sessionIdOnTheAnkyverse := utils.TranslateToTheAnkyverse(sessionID)
+	castText := sessionIdOnTheAnkyverse + "\n\n@clanker $" + ticker + " \"" + token_name + "\""
+
 	fmt.Println("Cast Text prepared:", castText)
 
 	apiKey := os.Getenv("NEYNAR_API_KEY")
 	signerUUID := os.Getenv("ANKY_SIGNER_UUID")
-	channelID := "anky" // Replace with your actual channel ID
-	idem := session.ID  // Using SessionID as a unique identifier for this cast
+	channelID := "anky"
+	idempotencyKey := sessionID
 
 	log.Printf("API Key: %s", apiKey)
 	log.Printf("Signer UUID: %s", signerUUID)
 	log.Printf("Channel ID: %s", channelID)
-	log.Printf("Idem: %s", idem)
+	log.Printf("idempotencyKey: %s", idempotencyKey)
 	log.Printf("Cast Text: %s", castText)
 
 	fmt.Println("API Key:", apiKey)
 	fmt.Println("Signer UUID:", signerUUID)
 	fmt.Println("Channel ID:", channelID)
-	fmt.Println("Idem:", idem)
+	fmt.Println("idempotencyKey:", idempotencyKey)
 	fmt.Println("Cast Text:", castText)
 
-	castResponse, err := neynarService.WriteCast(apiKey, signerUUID, castText, channelID, idem.String(), session.ID.String())
+	castResponse, err := neynarService.WriteCast(apiKey, userSignerUUID, castText, channelID, idempotencyKey, sessionID)
 	if err != nil {
 		log.Printf("Error publishing to Farcaster: %v", err)
 		fmt.Println("Error publishing to Farcaster:", err)
 		return nil, err
 	}
 
-	log.Printf("Farcaster publishing completed for session ID: %s", session.ID)
-	fmt.Println("Farcaster publishing completed for session ID:", session.ID)
+	log.Printf("Farcaster publishing completed for session ID: %s", sessionID)
+	fmt.Println("Farcaster publishing completed for session ID:", sessionID)
 
 	return castResponse, nil
+}
+
+func (s *FarcasterService) PublishFirstUserAnkyToFarcaster(userId uuid.UUID) {
+	log.Printf("🚀 Starting to publish first Anky to Farcaster for user ID: %s", userId)
+
+	// Create context
+	ctx := context.Background()
+	log.Println("📝 Created background context")
+
+	// Create store connection
+	log.Println("🔌 Attempting to create database connection...")
+	store, err := storage.NewPostgresStore()
+	if err != nil {
+		log.Printf("❌ Failed to create database connection: %v", err)
+		return
+	}
+	log.Println("✅ Successfully connected to database")
+
+	// Get all pending ankys for this user
+	log.Printf("🔍 Fetching pending Ankys for user ID: %s", userId)
+	pendingAnkys, err := store.GetAnkysByUserIDAndStatus(ctx, userId, "pending_to_cast")
+	if err != nil {
+		log.Printf("❌ Failed to fetch pending Ankys: %v", err)
+		return
+	}
+	log.Printf("📦 Found %d pending Ankys", len(pendingAnkys))
+
+	// Get user to check for Farcaster signer UUID
+	log.Printf("👤 Fetching user details for ID: %s", userId)
+	user, err := store.GetUserByID(ctx, userId)
+	if err != nil {
+		log.Printf("❌ Failed to fetch user details: %v", err)
+		return
+	}
+	log.Println("✅ Successfully retrieved user details")
+
+	// Validate Farcaster credentials
+	if user.FarcasterUser == nil || user.FarcasterUser.SignerUUID == "" {
+		log.Printf("⚠️ User %s does not have Farcaster credentials configured", userId)
+		return
+	}
+	log.Printf("🔑 Found Farcaster credentials for user. Signer UUID: %s", user.FarcasterUser.SignerUUID)
+
+	// Prepare cast text
+	log.Println("📝 Preparing cast text...")
+	translatedAnkySessionID := utils.TranslateToTheAnkyverse(pendingAnkys[0].WritingSessionID.String())
+	castText := translatedAnkySessionID + "@clanker $" + pendingAnkys[0].Ticker + " \"" + pendingAnkys[0].TokenName + "\""
+	log.Printf("✍️ Generated cast text: %s", castText)
+
+	// Cast each pending anky
+	log.Printf("🎭 Starting to process %d pending Ankys", len(pendingAnkys))
+	for i, anky := range pendingAnkys {
+		log.Printf("📣 Publishing Anky %d/%d (ID: %s) to Farcaster", i+1, len(pendingAnkys), anky.ID)
+
+		castResponse, err := publishAnkyToFarcaster(
+			castText,
+			anky.WritingSessionID.String(),
+			userId.String(),
+			anky.Ticker,
+			anky.TokenName,
+			user.FarcasterUser.SignerUUID,
+		)
+		if err != nil {
+			log.Printf("❌ Failed to publish Anky %s to Farcaster: %v", anky.ID, err)
+			continue
+		}
+		log.Printf("✅ Successfully published Anky to Farcaster. Cast hash: %s", castResponse.Hash)
+
+		// Update anky status
+		log.Printf("📝 Updating Anky %s status to completed", anky.ID)
+		anky.CastHash = castResponse.Hash
+		anky.Status = "completed"
+		err = store.UpdateAnky(ctx, anky)
+		if err != nil {
+			log.Printf("❌ Failed to update Anky %s status: %v", anky.ID, err)
+		} else {
+			log.Printf("✅ Successfully updated Anky %s status to completed", anky.ID)
+		}
+	}
+	log.Printf("🎉 Finished processing all pending Ankys for user %s", userId)
 }

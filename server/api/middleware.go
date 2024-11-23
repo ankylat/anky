@@ -2,14 +2,13 @@ package api
 
 import (
 	"context"
-	"encoding/base64"
-	"encoding/json"
-	"io"
+	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
-	"github.com/ankylat/anky/server/types"
+	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/time/rate"
 )
 
@@ -17,94 +16,88 @@ import (
 func PrivyAuth(appID, appSecret string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			log.Println("Starting PrivyAuth middleware")
+			log.Println("[PrivyAuth] Starting authentication")
 
-			// Check for the Authorization header
 			authHeader := r.Header.Get("Authorization")
 			if authHeader == "" {
-				log.Println("Missing authorization header")
+				log.Println("[PrivyAuth] Missing authorization header")
 				WriteJSON(w, http.StatusUnauthorized, ApiError{Error: "Missing authorization header"})
 				return
 			}
+			log.Printf("[PrivyAuth] Received authorization header: %s", authHeader[:10]+"...")
 
-			log.Printf("Received Authorization header: %s", authHeader)
+			token := strings.TrimPrefix(authHeader, "Bearer ")
+			log.Printf("[PrivyAuth] Processing token: %s", token[:10]+"...")
 
-			// Remove "Bearer " prefix if present
-			token := authHeader
-			if len(authHeader) > 7 && authHeader[:7] == "Bearer " {
-				token = authHeader[7:]
-				log.Println("Removed 'Bearer ' prefix from token")
+			// Define custom claims struct
+			type PrivyClaims struct {
+				jwt.RegisteredClaims
+				AppId  string `json:"aud,omitempty"`
+				UserId string `json:"sub,omitempty"`
 			}
 
-			// Create the Basic Auth header for Privy API
-			auth := base64.StdEncoding.EncodeToString([]byte(appID + ":" + appSecret))
-			log.Println("Created Basic Auth header")
+			// Parse and validate the token
+			log.Println("[PrivyAuth] Parsing JWT token")
+			parsedToken, err := jwt.ParseWithClaims(token, &PrivyClaims{}, func(token *jwt.Token) (interface{}, error) {
+				log.Printf("[PrivyAuth] Checking signing method: %s", token.Method.Alg())
+				if token.Method.Alg() != "ES256" {
+					log.Printf("[PrivyAuth] Invalid signing method: %s", token.Method.Alg())
+					return nil, fmt.Errorf("unexpected JWT signing method=%v", token.Header["alg"])
+				}
 
-			// Create a new request to Privy API
-			req, err := http.NewRequest("GET", "https://auth.privy.io/api/v1/users/me", nil)
+				log.Println("[PrivyAuth] Parsing public key")
+				pubKey, err := jwt.ParseECPublicKeyFromPEM([]byte(appSecret))
+				if err != nil {
+					log.Printf("[PrivyAuth] Failed to parse public key: %v", err)
+					return nil, fmt.Errorf("failed to parse public key: %v", err)
+				}
+				log.Println("[PrivyAuth] Public key parsed successfully")
+
+				return pubKey, nil
+			})
+
 			if err != nil {
-				log.Printf("Failed to create request: %v", err)
-				WriteJSON(w, http.StatusInternalServerError, ApiError{Error: "Failed to create request"})
+				log.Printf("[PrivyAuth] Token parsing failed: %v", err)
+				WriteJSON(w, http.StatusUnauthorized, ApiError{Error: fmt.Sprintf("Invalid token: %v", err)})
 				return
 			}
-			log.Println("Created new request to Privy API")
+			log.Println("[PrivyAuth] Token parsed successfully")
 
-			// Set the required headers for Privy API request
-			req.Header.Set("Authorization", "Basic "+auth)
-			req.Header.Set("privy-app-id", appID)
-			req.Header.Set("Authorization", "Bearer "+token)
-			log.Println("Set headers for Privy API request")
-
-			// Send the request to Privy API
-			client := &http.Client{}
-			log.Println("Sending request to Privy API")
-			resp, err := client.Do(req)
-			if err != nil {
-				log.Printf("Failed to send request: %v", err)
-				WriteJSON(w, http.StatusInternalServerError, ApiError{Error: "Failed to send request"})
+			claims, ok := parsedToken.Claims.(*PrivyClaims)
+			if !ok || !parsedToken.Valid {
+				log.Println("[PrivyAuth] Invalid token claims or token not valid")
+				WriteJSON(w, http.StatusUnauthorized, ApiError{Error: "Invalid token claims"})
 				return
 			}
-			defer resp.Body.Close()
-			log.Printf("Received response from Privy API with status: %s", resp.Status)
+			log.Printf("[PrivyAuth] Claims extracted successfully for user: %s", claims.UserId)
 
-			// Check if the response status is OK
-			if resp.StatusCode != http.StatusOK {
-				log.Printf("Invalid token. Status code: %d", resp.StatusCode)
-				WriteJSON(w, http.StatusUnauthorized, ApiError{Error: "Invalid token"})
+			// Validate specific claims
+			log.Printf("[PrivyAuth] Validating app ID: %s", claims.AppId)
+			if claims.AppId != appID {
+				log.Printf("[PrivyAuth] Invalid app ID: expected %s, got %s", appID, claims.AppId)
+				WriteJSON(w, http.StatusUnauthorized, ApiError{Error: "Invalid app ID"})
 				return
 			}
 
-			// Read and parse the response body
-			body, err := io.ReadAll(resp.Body)
-			if err != nil {
-				log.Printf("Failed to read response: %v", err)
-				WriteJSON(w, http.StatusInternalServerError, ApiError{Error: "Failed to read response"})
-				return
-			}
-			log.Printf("Response body: %s", string(body))
-
-			// Define a struct to hold the user information
-			var privyUser types.PrivyUser
-
-			// Unmarshal the JSON response into the privyUser struct
-			err = json.Unmarshal(body, &privyUser)
-			if err != nil {
-				log.Printf("Failed to parse response: %v", err)
-				WriteJSON(w, http.StatusInternalServerError, ApiError{Error: "Failed to parse response"})
+			log.Printf("[PrivyAuth] Validating issuer: %s", claims.Issuer)
+			if claims.Issuer != "privy.io" {
+				log.Printf("[PrivyAuth] Invalid issuer: %s", claims.Issuer)
+				WriteJSON(w, http.StatusUnauthorized, ApiError{Error: "Invalid issuer"})
 				return
 			}
 
-			// Store the privyUser in the request context
-			ctx := r.Context()
-			ctx = context.WithValue(ctx, "privyUser", privyUser)
-			r = r.WithContext(ctx)
-			log.Printf("Set privyUser in context: %+v", privyUser)
-
-			log.Println("PrivyAuth middleware completed successfully")
-			next.ServeHTTP(w, r)
+			// Store user ID in context
+			ctx := context.WithValue(r.Context(), UserIDKey, claims.UserId)
+			log.Printf("[PrivyAuth] Authentication successful for user: %s", claims.UserId)
+			next.ServeHTTP(w, r.WithContext(ctx))
 		})
 	}
 }
+
+// UserIDKey is a type-safe context key for user ID
+type contextKey string
+
+const UserIDKey contextKey = "userID"
 
 // Logger is a middleware function that logs request details
 func Logger(next http.Handler) http.Handler {

@@ -27,7 +27,8 @@ CREATE TABLE farcaster_users (
     custody_address VARCHAR(255),
     bio TEXT,
     follower_count INTEGER DEFAULT 0,
-    following_count INTEGER DEFAULT 0
+    following_count INTEGER DEFAULT 0,
+    signer_uuid VARCHAR(255)
 );
 
 CREATE TABLE users (

@@ -8,10 +8,12 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/ankylat/anky/server/storage"
 	"github.com/ankylat/anky/server/types"
+	"github.com/ankylat/anky/server/utils"
 	"github.com/google/uuid"
 	"golang.org/x/exp/rand"
 )
@@ -59,24 +61,36 @@ func NewAnkyService(store *storage.PostgresStore) (*AnkyService, error) {
 	}, nil
 }
 
-func (s *AnkyService) ProcessAnkyCreation(ctx context.Context, anky *types.Anky, writingSession *types.WritingSession) error {
+func (s *AnkyService) ProcessAnkyCreationFromWritingString(ctx context.Context, writing string, sessionID string, userID string) error {
+	fmt.Println("((((((((((((((((((((((((((((((((()))))))))))))))))))))))))))))))))")
+	fmt.Println("((((((((((((((((((((((((((((((((()))))))))))))))))))))))))))))))))")
+	fmt.Println("((((((((((((((((((((((((((((((((()))))))))))))))))))))))))))))))))")
+	fmt.Println("((((((((((((((((hereeeee))))))))))")
+	fmt.Println("((((((((((((((((((((((((((((((((()))))))))))))))))))))))))))))))))")
+	fmt.Println("((((((((((((((((((((((((((((((((()))))))))))))))))))))))))))))))))")
 
-	anky.Status = "starting_processing"
+	anky := &types.Anky{
+		Status: "starting_processing",
+	}
 	s.store.UpdateAnky(ctx, anky)
 
 	// 1. Generate Anky's reflection on the writing
-	reflection, err := s.GenerateAnkyReflection(writingSession)
+	anky_processing_response, err := s.GenerateAnkyReflectionFromRawString(writing)
 	if err != nil {
-		// TODO: handle processing error
-		// s.handleAnkyProcessingError(anky, "reflection_failed", err)
 		return err
 	}
+	fmt.Printf("Reflection: %s\n", anky_processing_response)
+	fmt.Printf("Reflection: %s\n", anky_processing_response)
+	fmt.Printf("Reflection: %s\n", anky_processing_response)
+	fmt.Printf("Reflection: %s\n", anky_processing_response)
 
 	anky.Status = "reflection_completed"
 	s.store.UpdateAnky(ctx, anky)
-	anky.ImagePrompt = reflection["imageprompt"]
-
-	anky.FollowUpPrompt = reflection["prompt"]
+	anky.AnkyReflection = anky_processing_response.reflection_to_user
+	anky.ImagePrompt = anky_processing_response.image_prompt
+	anky.Ticker = anky_processing_response.ticker
+	anky.TokenName = anky_processing_response.token_name
+	fmt.Printf("Anky++++++++++++++++++++++++++++++++++++++++: %+v\n", anky)
 
 	anky.Status = "going_to_generate_image"
 	s.store.UpdateAnky(ctx, anky)
@@ -128,7 +142,7 @@ func (s *AnkyService) ProcessAnkyCreation(ctx context.Context, anky *types.Anky,
 		return err
 	}
 
-	uploadResult, err := uploadImageToCloudinary(imageHandler, chosenImageURL, writingSession.ID.String())
+	uploadResult, err := uploadImageToCloudinary(imageHandler, chosenImageURL, sessionID)
 	if err != nil {
 		log.Printf("Error uploading image to Cloudinary: %v", err)
 		return err
@@ -143,16 +157,26 @@ func (s *AnkyService) ProcessAnkyCreation(ctx context.Context, anky *types.Anky,
 	// 5. Mark as complete
 	anky.Status = "casting_to_farcaster"
 	s.store.UpdateAnky(ctx, anky)
-
-	castResponse, err := publishToFarcaster(writingSession)
+	// Get user to check for Farcaster signer UUID
+	user, err := s.store.GetUserByID(ctx, uuid.MustParse(userID))
 	if err != nil {
-		log.Printf("Error publishing to Farcaster: %v", err)
+		log.Printf("Error getting user: %v", err)
 		return err
 	}
 
-	anky.CastHash = castResponse.Hash
+	if user.FarcasterUser != nil && user.FarcasterUser.SignerUUID != "" {
+		castResponse, err := publishAnkyToFarcaster(writing, sessionID, userID, anky.Ticker, anky.TokenName, user.FarcasterUser.SignerUUID)
+		if err != nil {
+			log.Printf("Error publishing to Farcaster: %v", err)
+			return err
+		}
 
-	anky.Status = "completed"
+		anky.CastHash = castResponse.Hash
+		anky.Status = "completed"
+	} else {
+		anky.Status = "pending_to_cast"
+	}
+
 	s.store.UpdateAnky(ctx, anky)
 
 	return nil
@@ -218,6 +242,230 @@ func (s *AnkyService) CreateUserProfile(ctx context.Context, userID uuid.UUID) (
 func (s *AnkyService) LinkAnkyWithFid(ctx context.Context, ankyID uuid.UUID, fid int) error {
 	// TODO: LINK ANKY WITH NEWLY CREATED FID
 	return nil
+}
+
+func (s *AnkyService) ReflectBackFromWritingSessionConversation(session []string) (string, error) {
+	log.Printf("Starting ReflectBackFromWritingSessionConversation with %d messages", len(session))
+	log.Printf("Writing session content: %+v", session)
+
+	llmService := NewLLMService()
+	log.Println("Created new LLM service")
+
+	chatRequest := types.ChatRequest{
+		Messages: []types.Message{
+			{
+				Role: "system",
+				Content: `You are an AI guide for deep self-exploration. Your role is to analyze the user's stream of consciousness writing and provide short, focused prompts to help them go deeper.
+
+				For each writing session, you'll receive:
+				1. The initial prompt
+				2. The user's writing session data with timing information
+				3. Previous exchanges in the conversation
+
+				Your responses should:
+				- Be less than 20 words
+				- Ask a specific, probing question based on their writing
+				- Help them explore their thoughts more deeply
+				- Understand which is the language of the user's writing and reply back in that same language.
+				
+				Do not make any refences to the process that you are following. Just reply with the inquiry. One line. As if you were ramana maharshi, piercing through the layers of the mind of the user.`,
+			},
+		},
+	}
+
+	log.Println("Building chat messages from session")
+	for i, content := range session {
+		fmt.Printf("Processing message %d: %s\n", i, content)
+		if i%2 == 0 { // Even indices are prompts/responses
+
+			chatRequest.Messages = append(chatRequest.Messages, types.Message{
+				Role:    "assistant",
+				Content: content,
+			})
+		} else { // Odd indices are writing sessions
+			// Parse the writing session data
+			writingSession, err := utils.ParseWritingSession(content)
+			if err != nil {
+				log.Printf("Error parsing writing session: %v", err)
+				return "", err
+			}
+
+			// Create context message with writing content and duration
+			minutes := len(writingSession.KeyStrokes) / 60
+			contextMsg := fmt.Sprintf("The user wrote for %d minutes. Here is their writing: %s",
+				minutes,
+				writingSession.RawContent)
+
+			chatRequest.Messages = append(chatRequest.Messages, types.Message{
+				Role:    "user",
+				Content: contextMsg,
+			})
+		}
+		log.Printf("Added message %d to chat request", i)
+	}
+
+	log.Println("Sending chat request to LLM service")
+	responseChan, err := llmService.SendChatRequest(chatRequest, false)
+	if err != nil {
+		log.Printf("Error sending chat request: %v", err)
+		return "", err
+	}
+
+	log.Println("Collecting response from LLM")
+	var fullResponse string
+	for response := range responseChan {
+		fullResponse += response
+		log.Printf("Received partial response: %s", response)
+	}
+
+	log.Printf("Completed reflection with response length: %d", len(fullResponse))
+	return fullResponse, nil
+}
+
+// AnkyProcessingResponse holds the structured response from the LLM chain
+type AnkyProcessingResponse struct {
+	reflection_to_user string
+	image_prompt       string
+	token_name         string
+	ticker             string
+}
+
+func (s *AnkyService) GenerateAnkyReflectionFromRawString(writing string) (*AnkyProcessingResponse, error) {
+	log.Printf("Starting integrated LLM processing chain for writing")
+
+	llmService := NewLLMService()
+
+	// Initialize conversation with system context and user's writing
+	chatRequest := types.ChatRequest{
+		Messages: []types.Message{
+			{
+				Role: "system",
+				Content: `You are an AI guide for deep self-exploration, helping transform personal writing into meaningful digital artifacts. 
+				Your role is to guide a multi-step process that weaves the user's writing into a cohesive story, visual representation, and memecoin identity.
+				
+				Maintain thematic consistency and personal connection throughout each stage. Build upon previous insights and symbolism.
+				Keep responses clear, meaningful, and deeply connected to the user's inner world.`,
+			},
+			{
+				Role:    "user",
+				Content: writing,
+			},
+		},
+	}
+
+	// Step 1: Generate reflection story
+	log.Println("Step 1: Generating reflection story")
+	chatRequest.Messages = append(chatRequest.Messages, types.Message{
+		Role: "system",
+		Content: `Based on the user's writing, generate a short story (max one page) that:
+		- Mirrors their core emotions and themes
+		- Uses rich metaphors and symbolism
+		- Creates a personal and meaningful narrative
+		- Avoids clichés and remains authentic to their experience
+		
+		Format: Provide only the story narrative.`,
+	})
+
+	story, err := s.processChatRequest(llmService, chatRequest)
+	if err != nil {
+		return nil, fmt.Errorf("error generating story: %v", err)
+	}
+	log.Printf("Generated reflection story: %s", story)
+
+	// Add story to conversation context
+	chatRequest.Messages = append(chatRequest.Messages, types.Message{
+		Role:    "assistant",
+		Content: story,
+	})
+
+	// Step 2: Generate image description
+	log.Println("Step 2: Generating image description")
+	chatRequest.Messages = append(chatRequest.Messages, types.Message{
+		Role: "system",
+		Content: `Using the themes and symbolism from the story you just created, generate a vivid visual description that:
+		- Captures the emotional essence of both the original writing and your story
+		- Maintains consistent metaphors and symbols
+		- Provides specific details about composition, lighting, and mood
+		- Creates a scene that resonates with the narrative journey
+		
+		Format: Provide a detailed image generation prompt.`,
+	})
+
+	imagePrompt, err := s.processChatRequest(llmService, chatRequest)
+	if err != nil {
+		return nil, fmt.Errorf("error generating image prompt: %v", err)
+	}
+	log.Printf("Generated image prompt: %s", imagePrompt)
+
+	// Add image prompt to conversation context
+	chatRequest.Messages = append(chatRequest.Messages, types.Message{
+		Role:    "assistant",
+		Content: imagePrompt,
+	})
+
+	// Step 3: Generate token name
+	log.Println("Step 3: Generating token name")
+	chatRequest.Messages = append(chatRequest.Messages, types.Message{
+		Role: "system",
+		Content: `Drawing from the narrative and imagery we've created, generate a three-word token name that:
+		- Distills the core essence of this journey
+		- Maintains thematic consistency with the story and image
+		- Creates a poetic and meaningful identifier
+		
+		Format: Return only three words, separated by spaces.`,
+	})
+
+	tokenName, err := s.processChatRequest(llmService, chatRequest)
+	if err != nil {
+		return nil, fmt.Errorf("error generating token name: %v", err)
+	}
+	log.Printf("Generated token name: %s", tokenName)
+
+	// Add token name to conversation context
+	chatRequest.Messages = append(chatRequest.Messages, types.Message{
+		Role:    "assistant",
+		Content: tokenName,
+	})
+
+	// Step 4: Generate ticker symbol
+	log.Println("Step 4: Generating ticker symbol")
+	chatRequest.Messages = append(chatRequest.Messages, types.Message{
+		Role: "system",
+		Content: `Finally, create a unique ticker symbol (max 24 characters) that:
+		- Reflects the essence of our generated narrative, image, and token name
+		- Feels personally meaningful yet cryptic
+		- Creates an intriguing and memorable identifier
+		
+		Format: Return only the lowercase ticker symbol.`,
+	})
+
+	ticker, err := s.processChatRequest(llmService, chatRequest)
+	if err != nil {
+		return nil, fmt.Errorf("error generating ticker: %v", err)
+	}
+	log.Printf("Generated ticker symbol: %s", ticker)
+
+	return &AnkyProcessingResponse{
+		reflection_to_user: story,
+		image_prompt:       imagePrompt,
+		token_name:         tokenName,
+		ticker:             ticker,
+	}, nil
+}
+
+// Helper function to process chat requests and extract response
+func (s *AnkyService) processChatRequest(llmService *LLMService, request types.ChatRequest) (string, error) {
+	responseChan, err := llmService.SendChatRequest(request, false)
+	if err != nil {
+		return "", err
+	}
+
+	var fullResponse string
+	for partialResponse := range responseChan {
+		fullResponse += partialResponse
+	}
+
+	return strings.TrimSpace(fullResponse), nil
 }
 
 func (s *AnkyService) GenerateAnkyReflection(session *types.WritingSession) (map[string]string, error) {

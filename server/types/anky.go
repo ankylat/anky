@@ -95,6 +95,7 @@ type FarcasterUser struct {
 	Bio            string `json:"bio"`
 	FollowerCount  int    `json:"follower_count"`
 	FollowingCount int    `json:"following_count"`
+	SignerUUID     string `json:"signer_uuid"`
 }
 
 type UserMetadata struct {
@@ -210,6 +211,9 @@ type Anky struct {
 	CreatedAt     time.Time `json:"created_at" bson:"created_at"`
 	LastUpdatedAt time.Time `json:"last_updated_at" bson:"last_updated_at"`
 	FID           int       `json:"fid" bson:"fid"`
+
+	Ticker    string `json:"ticker" bson:"ticker"`
+	TokenName string `json:"token_name" bson:"token_name"`
 }
 
 type AnkyOnProfile struct {

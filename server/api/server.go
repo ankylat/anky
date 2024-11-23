@@ -1,9 +1,11 @@
 package api
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -17,7 +19,6 @@ import (
 	"github.com/ankylat/anky/server/utils"
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/gorilla/websocket"
 )
 
 func WriteJSON(w http.ResponseWriter, status int, v any) error {
@@ -43,161 +44,20 @@ func makeHTTPHandleFunc(f apiFunc) http.HandlerFunc {
 type APIServer struct {
 	listenAddr string
 	store      *storage.PostgresStore
-	hub        *Hub
-}
-
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		return true // Be careful with this in production
-	},
-}
-
-type WritingMessage struct {
-	Type    string `json:"type"`
-	Content string `json:"content"`
-	UserID  string `json:"userId"`
 }
 
 // Add WebSocket message types
-type WSMessage struct {
-	Type    string      `json:"type"`
-	Payload interface{} `json:"payload"`
-}
-
-// Add WebSocket client structure
-type Client struct {
-	conn *websocket.Conn
-	send chan []byte
-}
-
-// Add WebSocket hub to manage connections
-type Hub struct {
-	clients    map[*Client]bool
-	broadcast  chan []byte
-	register   chan *Client
-	unregister chan *Client
-}
-
-func newHub() *Hub {
-	return &Hub{
-		clients:    make(map[*Client]bool),
-		broadcast:  make(chan []byte),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
-	}
-}
 
 func NewAPIServer(listenAddr string, store *storage.PostgresStore) (*APIServer, error) {
 	return &APIServer{
 		listenAddr: listenAddr,
 		store:      store,
-		hub:        newHub(),
 	}, nil
 }
 
-func (s *APIServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Printf("Error upgrading to WebSocket: %v", err)
-		return
-	}
-
-	client := &Client{
-		conn: conn,
-		send: make(chan []byte, 256),
-	}
-	s.hub.register <- client
-
-	// Start goroutines for reading and writing
-	go client.writePump(s.hub)
-	go client.readPump(s.hub, s)
-}
-
-func (c *Client) writePump(hub *Hub) {
-	defer func() {
-		c.conn.Close()
-	}()
-
-	for {
-		select {
-		case message, ok := <-c.send:
-			if !ok {
-				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
-				return
-			}
-
-			w, err := c.conn.NextWriter(websocket.TextMessage)
-			if err != nil {
-				return
-			}
-			w.Write(message)
-
-			if err := w.Close(); err != nil {
-				return
-			}
-		}
-	}
-}
-
-func (s *APIServer) handleWSMessage(msg WSMessage) (*WSMessage, error) {
-	switch msg.Type {
-	case "writing":
-		// Handle writing message
-		return &WSMessage{
-			Type:    "writing_response",
-			Payload: msg.Payload,
-		}, nil
-	default:
-		return nil, fmt.Errorf("unknown message type: %s", msg.Type)
-	}
-}
-
-func (c *Client) readPump(hub *Hub, s *APIServer) {
-	defer func() {
-		hub.unregister <- c
-		c.conn.Close()
-	}()
-
-	for {
-		_, message, err := c.conn.ReadMessage()
-		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("WebSocket error: %v", err)
-			}
-			break
-		}
-
-		// Handle incoming message
-		var wsMessage WSMessage
-		if err := json.Unmarshal(message, &wsMessage); err != nil {
-			log.Printf("Error unmarshaling message: %v", err)
-			continue
-		}
-
-		// Handle different message types
-		response, err := s.handleWSMessage(wsMessage)
-		if err != nil {
-			log.Printf("Error handling message: %v", err)
-			errorResponse := WSMessage{
-				Type: "error",
-				Payload: map[string]string{
-					"error": err.Error(),
-				},
-			}
-			responseBytes, _ := json.Marshal(errorResponse)
-			c.send <- responseBytes
-			continue
-		}
-
-		// Send response back to client
-		responseBytes, _ := json.Marshal(response)
-		c.send <- responseBytes
-	}
-}
-
 func (s *APIServer) Run() error {
+	log.Printf("Loaded Privy App ID: %s", os.Getenv("PRIVY_APP_ID"))
+	log.Printf("Loaded Privy Public Key length: %d", len(os.Getenv("PRIVY_PUBLIC_KEY")))
 	router := mux.NewRouter()
 
 	router.HandleFunc("/", makeHTTPHandleFunc(s.handleHelloWorld))
@@ -208,13 +68,13 @@ func (s *APIServer) Run() error {
 	router.HandleFunc("/users/{userId}", makeHTTPHandleFunc(s.handleUpdateUser)).Methods("PUT")
 	router.HandleFunc("/users/{userId}", makeHTTPHandleFunc(s.handleDeleteUser)).Methods("DELETE")
 	router.HandleFunc("/users/create-profile/{userId}", makeHTTPHandleFunc(s.handleCreateUserProfile)).Methods("POST")
+	router.Handle("/user/register-privy-user", PrivyAuth(os.Getenv("PRIVY_APP_ID"), os.Getenv("PRIVY_PUBLIC_KEY"))(makeHTTPHandleFunc(s.handleRegisterPrivyUser))).Methods("POST")
 
 	// Privy user routes
 	router.HandleFunc("/privy-users/${id}", makeHTTPHandleFunc(s.handleCreatePrivyUser)).Methods("POST")
 
 	// Writing session routes
 	router.HandleFunc("/writing-session-started", makeHTTPHandleFunc(s.handleWritingSessionStarted)).Methods("POST")
-	router.HandleFunc("/writing-session-ended", makeHTTPHandleFunc(s.handleWritingSessionEnded)).Methods("POST")
 	router.HandleFunc("/writing-sessions/{id}", makeHTTPHandleFunc(s.handleGetWritingSession)).Methods("GET")
 	router.HandleFunc("/users/{userId}/writing-sessions", makeHTTPHandleFunc(s.handleGetUserWritingSessions)).Methods("GET")
 
@@ -228,17 +88,425 @@ func (s *APIServer) Run() error {
 	router.HandleFunc("/anky/messages-prompt", makeHTTPHandleFunc(s.handleMessagesPrompt)).Methods("POST")
 	router.HandleFunc("/anky/raw-writing-session", makeHTTPHandleFunc(s.handleRawWritingSession)).Methods("POST")
 
+	router.HandleFunc("/anky/process-writing-conversation", makeHTTPHandleFunc(s.handleProcessWritingConversation)).Methods("POST")
+	router.HandleFunc("/anky/finished-anky-registration", makeHTTPHandleFunc(s.handleFinishedAnkyRegistration)).Methods("POST")
+
+	router.Handle("/farcaster/get-new-fid", PrivyAuth(os.Getenv("PRIVY_APP_ID"), os.Getenv("PRIVY_PUBLIC_KEY"))(makeHTTPHandleFunc(s.handleGetNewFID))).Methods("POST")
+	router.Handle("/farcaster/register-new-fid", PrivyAuth(os.Getenv("PRIVY_APP_ID"), os.Getenv("PRIVY_PUBLIC_KEY"))(makeHTTPHandleFunc(s.handleRegisterNewFID))).Methods("POST")
 	// newen routes
 	router.HandleFunc("/newen/transactions/{userId}", makeHTTPHandleFunc(s.handleGetUserTransactions)).Methods("GET")
 
 	// Badge routes
 	router.HandleFunc("/users/{userId}/badges", makeHTTPHandleFunc(s.handleGetUserBadges)).Methods("GET")
 
-	// WebSocket routes
-	router.HandleFunc("/ws/writing", s.handleWebSocket)
+	// WebSocket routes: TODO
 
 	log.Println("Server running on port:", s.listenAddr)
 	return http.ListenAndServe(s.listenAddr, router)
+}
+
+func (s *APIServer) handleRegisterNewFID(w http.ResponseWriter, r *http.Request) error {
+	log.Println("=== Starting handleRegisterNewFID endpoint ===")
+
+	var req struct {
+		Deadline  int       `json:"deadline"`
+		Address   string    `json:"address"`
+		FID       int       `json:"fid"`
+		Signature string    `json:"signature"`
+		UserID    uuid.UUID `json:"user_id"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("❌ Failed to decode request body: %v", err)
+		return fmt.Errorf("error decoding request body: %w", err)
+	}
+
+	log.Printf("📥 Received request to register new FID with params: %+v", req)
+
+	pendingAnkys, err := s.store.GetAnkysByUserIDAndStatus(r.Context(), req.UserID, "pending_to_cast")
+	if err != nil {
+		log.Printf("❌ Failed to get pending ankys: %v", err)
+		return fmt.Errorf("error getting pending ankys: %w", err)
+	}
+
+	// Prepare request to Neynar API
+	neynarReq := struct {
+		Signature                   string `json:"signature"`
+		FID                         int    `json:"fid"`
+		RequestedUserCustodyAddress string `json:"requested_user_custody_address"`
+		Deadline                    int    `json:"deadline"`
+		Fname                       string `json:"fname"`
+	}{
+		Signature:                   req.Signature,
+		FID:                         req.FID,
+		RequestedUserCustodyAddress: req.Address,
+		Deadline:                    req.Deadline,
+		Fname:                       pendingAnkys[0].TokenName,
+	}
+
+	jsonData, err := json.Marshal(neynarReq)
+	if err != nil {
+		log.Printf("❌ Failed to marshal Neynar request data: %v", err)
+		return fmt.Errorf("error marshaling neynar request: %w", err)
+	}
+
+	log.Printf("🔄 Preparing Neynar API request with data: %+v", neynarReq)
+
+	// Call Neynar API
+	client := &http.Client{}
+	neynarResp, err := http.NewRequest("POST", "https://api.neynar.com/v2/farcaster/user", bytes.NewBuffer(jsonData))
+	if err != nil {
+		log.Printf("❌ Failed to create Neynar API request: %v", err)
+		return fmt.Errorf("error creating neynar request: %w", err)
+	}
+
+	log.Println("🔑 Adding headers to Neynar request...")
+	neynarResp.Header.Add("accept", "application/json")
+	neynarResp.Header.Add("content-type", "application/json")
+	neynarResp.Header.Add("x-api-key", os.Getenv("NEYNAR_API_KEY"))
+
+	log.Println("📡 Sending request to Neynar API...")
+	resp, err := client.Do(neynarResp)
+	if err != nil {
+		log.Printf("❌ Failed to call Neynar API: %v", err)
+		return fmt.Errorf("error calling neynar API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var result struct {
+		Success bool `json:"success"`
+		Signer  struct {
+			SignerUUID string `json:"signer_uuid"`
+			FID        int    `json:"fid"`
+		} `json:"signer"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		log.Printf("❌ Failed to decode Neynar API response: %v", err)
+		return fmt.Errorf("error decoding neynar response: %w", err)
+	}
+
+	if !result.Success {
+		log.Println("❌ Neynar API call was not successful")
+		return fmt.Errorf("neynar API call was not successful")
+	}
+
+	log.Printf("✅ Successfully received response from Neynar API: %+v", result)
+
+	// Update user with new Farcaster data
+	log.Printf("🔄 Fetching user with ID: %s", req.UserID)
+	user, err := s.store.GetUserByID(r.Context(), req.UserID)
+	if err != nil {
+		log.Printf("❌ Failed to get user: %v", err)
+		return fmt.Errorf("error getting user: %w", err)
+	}
+
+	log.Println("🔄 Updating user's Farcaster data...")
+	if user.FarcasterUser == nil {
+		log.Println("📝 Creating new FarcasterUser object for user")
+		user.FarcasterUser = &types.FarcasterUser{}
+	}
+	user.FarcasterUser.SignerUUID = result.Signer.SignerUUID
+	user.FarcasterUser.FID = result.Signer.FID
+	user.FarcasterUser.CustodyAddress = req.Address
+	user.FID = result.Signer.FID
+
+	log.Println("💾 Saving updated user data to database...")
+	if err := s.store.UpdateUser(r.Context(), req.UserID, user); err != nil {
+		log.Printf("❌ Failed to update user: %v", err)
+		return fmt.Errorf("error updating user: %w", err)
+	}
+
+	log.Printf("✅ Successfully updated user with new Farcaster data: %+v", user)
+
+	log.Println("🚀 Launching goroutine to publish first Anky to Farcaster...")
+	go services.NewFarcasterService().PublishFirstUserAnkyToFarcaster(req.UserID)
+
+	log.Println("✅ Registration complete - sending success response")
+	return WriteJSON(w, http.StatusOK, map[string]bool{"success": true})
+}
+
+func (s *APIServer) handleGetNewFID(w http.ResponseWriter, r *http.Request) error {
+	log.Println("=== Starting handleGetNewFID endpoint ===")
+
+	// Check total number of FIDs
+	numberOfFids, err := s.store.CountNumberOfFids(context.Background())
+	if err != nil {
+		log.Printf("❌ Failed to count total FIDs in database. Error: %v", err)
+		return fmt.Errorf("error counting FIDs: %w", err)
+	}
+	log.Printf("📊 Current total number of FIDs: %d", numberOfFids)
+
+	// Check if we've hit the 504 FID limit
+	if numberOfFids == 504 {
+		log.Println("🛑 Cannot create new FID - reached maximum limit of 504")
+		return WriteJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "the fifth season of anky is complete",
+		})
+	}
+
+	// Parse the incoming request
+	var req struct {
+		UserWalletAddress string    `json:"user_wallet_address"`
+		UserID            uuid.UUID `json:"user_id"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("❌ Failed to parse request body. Error: %v", err)
+		return fmt.Errorf("error decoding request body: %w", err)
+	}
+	log.Printf("👉 Processing request for wallet address: %s", req.UserWalletAddress)
+	log.Printf("👉 Processing request for user ID: %s", req.UserID)
+
+	pendingAnkys, err := s.store.GetAnkysByUserIDAndStatus(r.Context(), req.UserID, "pending_to_cast")
+	if err != nil {
+		log.Printf("❌ Failed to get pending ankys: %v", err)
+		return fmt.Errorf("error getting pending ankys: %w", err)
+	}
+
+	if len(pendingAnkys) == 0 {
+		log.Println("❌ No pending Ankys found for user - cannot proceed with FID registration")
+		return WriteJSON(w, http.StatusBadRequest, map[string]string{
+			"error": "You need to write your first Anky (8 minutes of writing) before getting a Farcaster ID",
+		})
+	}
+	log.Printf("✅ Found %d pending Ankys for user", len(pendingAnkys))
+
+	// Set up Neynar API call
+	client := &http.Client{}
+	neynarReq, err := http.NewRequest("GET", "https://api.neynar.com/v2/farcaster/user/fid", nil)
+	if err != nil {
+		log.Printf("❌ Failed to create Neynar API request. Error: %v", err)
+		return fmt.Errorf("error creating Neynar request: %w", err)
+	}
+	log.Println("🔄 Making request to Neynar API to get new FID...")
+
+	neynarReq.Header.Add("api_key", os.Getenv("NEYNAR_API_KEY"))
+
+	resp, err := client.Do(neynarReq)
+	if err != nil {
+		log.Printf("❌ Neynar API call failed. Error: %v", err)
+		return fmt.Errorf("error calling Neynar API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var neynarResp struct {
+		FID int `json:"fid"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&neynarResp); err != nil {
+		log.Printf("❌ Failed to parse Neynar API response. Error: %v", err)
+		return fmt.Errorf("error decoding Neynar response: %w", err)
+	}
+	log.Printf("✅ Successfully received new FID from Neynar: %d", neynarResp.FID)
+
+	// Calculate expiration deadline (1 hour from now)
+	deadline := time.Now().Unix() + 3600
+	log.Printf("⏰ Setting deadline for FID registration: %d (1 hour from now)", deadline)
+
+	// Get nonce (placeholder)
+	nonce := 0 // TODO: Implement actual contract nonce retrieval
+	log.Printf("🔢 Using nonce value: %d", nonce)
+
+	// Prepare response
+	response := map[string]string{
+		"new_fid":        fmt.Sprintf("%d", neynarResp.FID),
+		"deadline":       fmt.Sprintf("%d", deadline),
+		"nonce":          fmt.Sprintf("%d", nonce),
+		"address":        req.UserWalletAddress,
+		"number_of_fids": fmt.Sprintf("%d", numberOfFids),
+	}
+
+	log.Printf("✨ Sending final response to client: %+v", response)
+	return WriteJSON(w, http.StatusOK, response)
+}
+
+func (s *APIServer) handleRegisterPrivyUser(w http.ResponseWriter, r *http.Request) error {
+	log.Println("[RegisterPrivyUser] Starting registration process")
+
+	type RequestPrivyUser struct {
+		ID               string                `json:"id"`
+		CreatedAt        int64                 `json:"created_at"`
+		LinkedAccounts   []types.LinkedAccount `json:"linked_accounts"`
+		HasAcceptedTerms bool                  `json:"has_accepted_terms"`
+		IsGuest          bool                  `json:"is_guest"`
+		UserID           string                `json:"user_id"`
+	}
+
+	var req struct {
+		User     *RequestPrivyUser `json:"user"`
+		AnkyUser struct {
+			ID            string              `json:"id"`
+			Settings      interface{}         `json:"settings"`
+			WalletAddress string              `json:"wallet_address"`
+			CreatedAt     string              `json:"created_at"`
+			Metadata      *types.UserMetadata `json:"metadata"`
+		} `json:"ankyUser"`
+	}
+
+	bodyBytes, _ := io.ReadAll(r.Body)
+	log.Printf("[RegisterPrivyUser] Raw request body: %s", string(bodyBytes))
+	r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes))
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("[RegisterPrivyUser] Error parsing JSON: %v", err)
+		return err
+	}
+	log.Printf("[RegisterPrivyUser] Decoded request: %+v", req)
+
+	if req.User == nil {
+		log.Println("[RegisterPrivyUser] Missing user data in request")
+		return fmt.Errorf("missing user data")
+	}
+	log.Printf("[RegisterPrivyUser] Processing user with ID: %s", req.User.UserID)
+
+	userUUID, err := uuid.Parse(req.User.UserID)
+	if err != nil {
+		log.Printf("[RegisterPrivyUser] Error parsing UUID from %s: %v", req.User.UserID, err)
+		return err
+	}
+	log.Printf("[RegisterPrivyUser] Parsed UUID: %s", userUUID)
+
+	createdAt := time.Unix(req.User.CreatedAt, 0)
+	log.Printf("[RegisterPrivyUser] User creation time: %v", createdAt)
+
+	log.Printf("[RegisterPrivyUser] Fetching existing user with ID: %s", userUUID)
+	user, err := s.store.GetUserByID(r.Context(), userUUID)
+	if err != nil {
+		log.Printf("[RegisterPrivyUser] Error fetching user: %v", err)
+		return err
+	}
+	log.Printf("[RegisterPrivyUser] Found existing user: %+v", user)
+
+	user.PrivyUser = &types.PrivyUser{
+		DID:              req.User.ID,
+		UserID:           userUUID,
+		CreatedAt:        createdAt,
+		LinkedAccounts:   req.User.LinkedAccounts,
+		HasAcceptedTerms: req.User.HasAcceptedTerms,
+		IsGuest:          req.User.IsGuest,
+	}
+	user.PrivyDID = req.User.ID
+	log.Printf("[RegisterPrivyUser] Updated user with Privy details: %+v", user.PrivyUser)
+
+	if err := s.store.UpdateUser(r.Context(), userUUID, user); err != nil {
+		log.Printf("[RegisterPrivyUser] Error updating user: %v", err)
+		return err
+	}
+	log.Println("[RegisterPrivyUser] Successfully updated user in database")
+
+	return WriteJSON(w, http.StatusOK, map[string]string{
+		"message": "Successfully registered Privy user",
+	})
+}
+
+func (s *APIServer) handleFinishedAnkyRegistration(w http.ResponseWriter, r *http.Request) error {
+	// Parse request body
+	var req struct {
+		UserID     uuid.UUID `json:"user_id"`
+		SignerUUID string    `json:"signer_uuid"`
+		FID        int       `json:"fid"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return fmt.Errorf("error decoding request body: %v", err)
+	}
+
+	// Get existing user
+	user, err := s.store.GetUserByID(r.Context(), req.UserID)
+	if err != nil {
+		return fmt.Errorf("error getting user: %v", err)
+	}
+
+	// Update user with new farcaster properties
+	user.FarcasterUser = &types.FarcasterUser{
+		SignerUUID: req.SignerUUID,
+	}
+	user.FID = req.FID
+
+	// Update user in database
+	if err := s.store.UpdateUser(r.Context(), req.UserID, user); err != nil {
+		return fmt.Errorf("error updating user: %v", err)
+	}
+
+	return WriteJSON(w, http.StatusOK, map[string]string{
+		"message": "Successfully updated user with farcaster details",
+	})
+}
+
+func (s *APIServer) handleProcessWritingConversation(w http.ResponseWriter, r *http.Request) error {
+	ctx := r.Context()
+	log.Println("Starting handleProcessWritingConversation...")
+
+	// Define request structure
+	type RequestBody struct {
+		ConversationSoFar []string `json:"conversation_so_far"`
+	}
+
+	// Parse request body
+	var req RequestBody
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("Error decoding request body: %v", err)
+		return err
+	}
+	log.Printf("Received %d messages to process", len(req.ConversationSoFar))
+	// Print the conversation so far for debugging
+	log.Printf("Conversation so far: %+v", req.ConversationSoFar)
+	for i, msg := range req.ConversationSoFar {
+		log.Printf("Message %d: %s", i, msg)
+	}
+
+	// Check the last writing session
+	if len(req.ConversationSoFar) > 0 {
+		lastMsg := req.ConversationSoFar[len(req.ConversationSoFar)-1]
+		writingSession, err := utils.ParseWritingSession(lastMsg)
+		if err != nil {
+			log.Printf("Error parsing last writing session: %v", err)
+		} else {
+			// Calculate total session time
+			var totalTime = 8000
+			for _, keystroke := range writingSession.KeyStrokes {
+				totalTime += keystroke.Delay
+			}
+			fmt.Println("Total time for session:", totalTime)
+			fmt.Println("((((((((((((((((((((((((((((((((()))))))))))))))))))))))))))))))))")
+			fmt.Println("((((((((((((((((((((((((((((((((()))))))))))))))))))))))))))))))))")
+			fmt.Println("((((((((((((((((((((((((((((((((()))))))))))))))))))))))))))))))))")
+			fmt.Println("((((((((((((((((((((((((((((((((()))))))))))))))))))))))))))))))))")
+			fmt.Println("((((((((((((((((((((((((((((((((()))))))))))))))))))))))))))))))))")
+			fmt.Println("((((((((((((((((((((((((((((((((()))))))))))))))))))))))))))))))))")
+			// If session was longer than 480 seconds (8 minutes)
+			if totalTime > 480000 { // Convert to milliseconds
+				log.Printf("Long writing session detected (%d ms). Triggering Anky creation", totalTime)
+				go func() {
+					ankyService, err := services.NewAnkyService(s.store)
+					if err != nil {
+						log.Printf("Error creating anky service for long session: %v", err)
+						return
+					}
+					ankyService.ProcessAnkyCreationFromWritingString(ctx, writingSession.RawContent, writingSession.SessionID, writingSession.UserID)
+				}()
+			}
+		}
+	}
+
+	// Call service to process conversation
+	ankyService, err := services.NewAnkyService(s.store)
+	if err != nil {
+		log.Printf("Error creating anky service: %v", err)
+		return err
+	}
+
+	response, err := ankyService.ReflectBackFromWritingSessionConversation(req.ConversationSoFar)
+	if err != nil {
+		log.Printf("Error processing writing conversation: %v", err)
+		return err
+	}
+	log.Printf("Successfully generated response of length: %d", len(response))
+
+	return WriteJSON(w, http.StatusOK, map[string]string{
+		"prompt": response,
+	})
 }
 
 func (s *APIServer) handleHelloWorld(w http.ResponseWriter, r *http.Request) error {
@@ -264,6 +532,9 @@ func (s *APIServer) handleRegisterAnonymousUser(w http.ResponseWriter, r *http.R
 	log.Printf("user metadata is: %+v", newUser.UserMetadata)
 
 	user := types.NewUser(newUser.ID, newUser.IsAnonymous, time.Now().UTC(), newUser.UserMetadata)
+	if user == nil {
+		return fmt.Errorf("failed to create new user object")
+	}
 
 	log.Printf("Created new user object with wallet address: %s", user.WalletAddress)
 
@@ -274,6 +545,11 @@ func (s *APIServer) handleRegisterAnonymousUser(w http.ResponseWriter, r *http.R
 	}
 	user.JWT = tokenString
 	log.Println("Generated JWT token for user")
+
+	// Validate store is initialized
+	if s.store == nil {
+		return fmt.Errorf("database store is not initialized")
+	}
 
 	if err := s.store.CreateUser(ctx, user); err != nil {
 		log.Printf("Error storing user in database: %v", err)
@@ -550,135 +826,6 @@ func (s *APIServer) handleWritingSessionStarted(w http.ResponseWriter, r *http.R
 	return WriteJSON(w, http.StatusOK, writingSession)
 }
 
-// Start of Selection
-// POST /writing-session-ended
-func (s *APIServer) handleWritingSessionEnded(w http.ResponseWriter, r *http.Request) error {
-	ctx := r.Context()
-
-	fmt.Println("Handling writing session ended request...")
-
-	newWritingSessionEndRequest := new(types.CreateWritingSessionEndRequest)
-	if err := json.NewDecoder(r.Body).Decode(newWritingSessionEndRequest); err != nil {
-		http.Error(w, fmt.Sprintf("Error decoding request body: %v", err), http.StatusBadRequest)
-		return nil
-	}
-	fmt.Printf("Decoded writing session end request: %+v\n", newWritingSessionEndRequest)
-
-	fmt.Printf("Looking up writing session with ID: %s\n", newWritingSessionEndRequest.SessionID)
-	writingSession, err := s.store.GetWritingSessionById(ctx, newWritingSessionEndRequest.SessionID)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("Error getting writing session: %v", err), http.StatusInternalServerError)
-		return nil
-	}
-
-	fmt.Println("Updating writing session fields...")
-	writingSession.EndingTimestamp = &newWritingSessionEndRequest.EndingTimestamp
-	writingSession.WordsWritten = newWritingSessionEndRequest.WordsWritten
-	writingSession.NewenEarned = newWritingSessionEndRequest.NewenEarned
-	writingSession.TimeSpent = &newWritingSessionEndRequest.TimeSpent
-	writingSession.IsAnky = newWritingSessionEndRequest.IsAnky
-	writingSession.Writing = newWritingSessionEndRequest.Text
-
-	fmt.Printf("Parsed ParentAnkyID: %s\n", newWritingSessionEndRequest.ParentAnkyID)
-	if newWritingSessionEndRequest.ParentAnkyID != "" {
-		parentAnkyID, err := uuid.Parse(newWritingSessionEndRequest.ParentAnkyID)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Invalid ParentAnkyID: %v", err), http.StatusBadRequest)
-			return err
-		}
-		writingSession.ParentAnkyID = &parentAnkyID
-	}
-
-	writingSession.AnkyResponse = &newWritingSessionEndRequest.AnkyResponse
-	writingSession.Status = newWritingSessionEndRequest.Status
-
-	fmt.Printf("Writing session fields updated: %+v\n", writingSession)
-
-	if writingSession.IsAnky {
-		bgCtx := context.Background()
-
-		fmt.Println("Initiating Anky creation process...")
-
-		// Validate UUIDs before creating Anky
-		if writingSession.ID == uuid.Nil {
-			return fmt.Errorf("writing session ID is nil")
-		}
-		if writingSession.UserID == uuid.Nil {
-			return fmt.Errorf("user ID is nil")
-		}
-
-		anky := types.NewAnky(writingSession.ID, writingSession.Prompt, writingSession.UserID)
-
-		// Additional validation
-		if anky.ID == uuid.Nil {
-			return fmt.Errorf("generated anky ID is nil")
-		}
-
-		log.Printf("Creating Anky - ID: %s, UserID: %s, WritingSessionID: %s",
-			anky.ID, anky.UserID, anky.WritingSessionID)
-
-		if err := s.store.CreateAnky(ctx, anky); err != nil {
-			log.Printf("Error creating initial anky record: %v", err)
-			return fmt.Errorf("failed to create anky record: %v", err)
-		}
-		fmt.Println("Initial Anky record created in database.")
-
-		ankyService, err := services.NewAnkyService(s.store)
-		if err != nil {
-			log.Printf("Error creating anky service: %v", err)
-			return fmt.Errorf("failed to create anky service: %v", err)
-		}
-		fmt.Println("Anky service created successfully.")
-
-		// Create error channel with buffer
-		errChan := make(chan error, 1)
-		doneChan := make(chan bool, 1)
-
-		go func() {
-			defer close(errChan)
-			defer close(doneChan)
-
-			log.Printf("Starting ProcessAnkyCreation for Anky ID: %s", anky.ID)
-			if err := ankyService.ProcessAnkyCreation(bgCtx, anky, writingSession); err != nil {
-				log.Printf("Error processing Anky creation: %v", err)
-				anky.Status = "failed"
-				if updateErr := s.store.UpdateAnky(bgCtx, anky); updateErr != nil {
-					log.Printf("Error updating Anky status: %v", updateErr)
-				}
-				errChan <- err
-				return
-			}
-			log.Printf("Successfully completed ProcessAnkyCreation for Anky ID: %s", anky.ID)
-			doneChan <- true
-		}()
-
-		// Set a timeout for the goroutine
-		select {
-		case err := <-errChan:
-			if err != nil {
-				log.Printf("Received error from ProcessAnkyCreation: %v", err)
-				// Continue execution despite error, as this is async
-			}
-		case <-time.After(2 * time.Second): // Adjust timeout as needed
-			log.Println("ProcessAnkyCreation started successfully in background")
-		}
-
-		writingSession.AnkyID = &anky.ID
-		fmt.Printf("Anky ID set in writing session: %s\n", anky.ID)
-	}
-
-	fmt.Printf("Saving writing session with updated status: %s\n", writingSession.Status)
-	if err := s.store.UpdateWritingSession(ctx, writingSession); err != nil {
-		fmt.Printf("Error updating writing session: %v\n", err)
-		return nil
-	}
-
-	fmt.Println("Writing session successfully updated:")
-	fmt.Printf("%+v\n", writingSession)
-
-	return WriteJSON(w, http.StatusOK, writingSession)
-}
-
 func (s *APIServer) handleGetWritingSession(w http.ResponseWriter, r *http.Request) error {
 	ctx := r.Context()
 	sessionID, err := getSessionID(r)
@@ -699,68 +846,75 @@ func (s *APIServer) handleGetWritingSession(w http.ResponseWriter, r *http.Reque
 	return WriteJSON(w, http.StatusOK, session)
 }
 func (s *APIServer) handleRawWritingSession(w http.ResponseWriter, r *http.Request) error {
-	log.Println("Starting handleRawWritingSession...")
-	log.Printf("Request method: %s", r.Method)
-	log.Printf("Request headers: %+v", r.Header)
+	fmt.Println("=== Starting handleRawWritingSession endpoint ===")
+	fmt.Printf("🔍 Received %s request with headers: %+v\n", r.Method, r.Header)
 
 	// Read and decode JSON request
 	var requestData struct {
 		WritingString string `json:"writingString"`
 	}
 
+	fmt.Println("👉 Attempting to decode request body...")
 	if err := json.NewDecoder(r.Body).Decode(&requestData); err != nil {
-		log.Printf("Error decoding JSON request: %v", err)
+		fmt.Printf("❌ Failed to decode request body: %v\n", err)
 		return err
 	}
 	defer r.Body.Close()
 
-	log.Printf("Raw writing string: %s", requestData.WritingString)
+	fmt.Printf("📝 Received writing string (first 50 chars): %s...\n", requestData.WritingString[:min(50, len(requestData.WritingString))])
 
 	// Split the writing string into lines
+	fmt.Println("✂️ Splitting writing string into lines...")
 	lines := strings.Split(requestData.WritingString, "\n")
-	log.Printf("Number of lines split from writing string: %d", len(lines))
+	fmt.Printf("📊 Found %d lines in writing string\n", len(lines))
 
 	if len(lines) < 4 {
-		log.Printf("Invalid format - insufficient lines. Got %d lines, expected at least 4", len(lines))
+		fmt.Printf("❌ Invalid format: Not enough lines (got %d, need at least 4)\n", len(lines))
 		return fmt.Errorf("invalid writing session format: insufficient lines (got %d, need at least 4)", len(lines))
 	}
 
 	// Extract metadata from first 4 lines
+	fmt.Println("🔍 Extracting metadata from first 4 lines...")
 	userId := strings.TrimSpace(lines[0])
 	sessionId := strings.TrimSpace(lines[1])
 	prompt := strings.TrimSpace(lines[2])
 	startingTimestamp := strings.TrimSpace(lines[3])
 
-	log.Printf("Extracted metadata:")
-	log.Printf("- User ID (length: %d): '%s'", len(userId), userId)
-	log.Printf("- Session ID (length: %d): '%s'", len(sessionId), sessionId)
-	log.Printf("- Prompt (length: %d): '%s'", len(prompt), prompt)
-	log.Printf("- Starting Timestamp (length: %d): '%s'", len(startingTimestamp), startingTimestamp)
+	fmt.Println("📋 Extracted metadata:")
+	fmt.Printf("👤 User ID: %s\n", userId)
+	fmt.Printf("🔑 Session ID: %s\n", sessionId)
+	fmt.Printf("💭 Prompt: %s\n", prompt)
+	fmt.Printf("⏰ Starting Timestamp: %s\n", startingTimestamp)
 
 	// Get writing content (remaining lines)
 	writingContent := strings.Join(lines[4:], "\n")
-	log.Printf("Writing content length: %d bytes", len(writingContent))
-	log.Printf("First 100 chars of writing content: %s", writingContent[:min(100, len(writingContent))])
+	fmt.Printf("📜 Writing content length: %d bytes\n", len(writingContent))
+	fmt.Printf("📖 Preview of writing content: %s...\n", writingContent[:min(100, len(writingContent))])
 
 	// Create data directory structure if it doesn't exist
+	fmt.Println("📁 Setting up directory structure...")
 	userDir := fmt.Sprintf("data/writing_sessions/%s", userId)
 	if err := os.MkdirAll(userDir, 0755); err != nil {
-		log.Printf("Error creating directory structure: %v", err)
+		fmt.Printf("❌ Failed to create directory structure: %v\n", err)
 		return err
 	}
+	fmt.Printf("✅ Created/verified directory: %s\n", userDir)
 
 	// Save individual writing session file
+	fmt.Println("💾 Saving individual writing session file...")
 	sessionFilePath := fmt.Sprintf("%s/%s.txt", userDir, sessionId)
 	if err := os.WriteFile(sessionFilePath, []byte(requestData.WritingString), 0644); err != nil {
-		log.Printf("Error writing session file: %v", err)
+		fmt.Printf("❌ Failed to write session file: %v\n", err)
 		return err
 	}
+	fmt.Printf("✅ Saved session file to: %s\n", sessionFilePath)
 
 	// Update all_writing_sessions.txt
+	fmt.Println("📝 Updating master sessions list...")
 	allSessionsPath := fmt.Sprintf("%s/all_writing_sessions.txt", userDir)
 	f, err := os.OpenFile(allSessionsPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		log.Printf("Error opening all_writing_sessions.txt: %v", err)
+		fmt.Printf("❌ Failed to open all_writing_sessions.txt: %v\n", err)
 		return err
 	}
 	defer f.Close()
@@ -768,21 +922,22 @@ func (s *APIServer) handleRawWritingSession(w http.ResponseWriter, r *http.Reque
 	// Add newline before new session ID if file is not empty
 	fileInfo, err := f.Stat()
 	if err != nil {
-		log.Printf("Error getting file info: %v", err)
+		fmt.Printf("❌ Failed to get file info: %v\n", err)
 		return err
 	}
 
 	if fileInfo.Size() > 0 {
 		if _, err := f.WriteString("\n"); err != nil {
-			log.Printf("Error writing newline: %v", err)
+			fmt.Printf("❌ Failed to write newline: %v\n", err)
 			return err
 		}
 	}
 
 	if _, err := f.WriteString(sessionId); err != nil {
-		log.Printf("Error writing session ID: %v", err)
+		fmt.Printf("❌ Failed to write session ID: %v\n", err)
 		return err
 	}
+	fmt.Println("✅ Successfully updated master sessions list")
 
 	response := map[string]interface{}{
 		"userId":            userId,
@@ -792,48 +947,56 @@ func (s *APIServer) handleRawWritingSession(w http.ResponseWriter, r *http.Reque
 		"writingContent":    writingContent,
 	}
 
-	log.Println("Preparing to send response...")
-	log.Printf("Response object: %+v", response)
+	fmt.Println("🔄 Preparing response...")
+	fmt.Printf("📦 Response object: %+v\n", response)
 
 	err = WriteJSON(w, http.StatusOK, response)
 	if err != nil {
-		log.Printf("Error writing JSON response: %v", err)
+		fmt.Printf("❌ Failed to write JSON response: %v\n", err)
 		return err
 	}
 
-	log.Println("Successfully completed handleRawWritingSession")
+	fmt.Println("✨ Successfully completed handleRawWritingSession")
 	// Get feedback from Anky about the writing session
+	err = WriteJSON(w, http.StatusOK, response)
+	if err != nil {
+		fmt.Printf("❌ Failed to write JSON response with feedback: %v\n", err)
+		return err
+	}
+
+	// Parse the writing session
+	fmt.Println("🔍 Parsing writing session...")
+	session, err := utils.ParseWritingSession(writingContent)
+	if err != nil {
+		fmt.Printf("❌ Failed to parse writing session: %v\n", err)
+		return err
+	}
+
+	// Create a slice to store the conversation
+	fmt.Println("💬 Creating conversation for reflection...")
+	conversation := []string{
+		fmt.Sprintf("The user wrote for %d minutes. Here is what they wrote: %s",
+			len(session.KeyStrokes)/60, // Rough estimate of minutes based on keystrokes
+			session.RawContent),
+	}
+
+	// Get reflection from Anky service
+	fmt.Println("🤖 Getting reflection from Anky service...")
 	ankyService, err := services.NewAnkyService(s.store)
 	if err != nil {
-		log.Printf("Error creating AnkyService: %v", err)
+		fmt.Printf("❌ Failed to create anky service: %v\n", err)
 		return err
 	}
-
-	// Create writing session object for feedback
-	writingSession := &types.WritingSession{
-		ID:        uuid.MustParse(sessionId),
-		UserID:    userId,
-		Writing:   writingContent,
-		TimeSpent: int(time.Since(startingTimestamp).Seconds()),
-	}
-
-	feedback, err := ankyService.OnboardingConversation(ctx, userId, []*types.WritingSession{writingSession}, []string{})
+	reflection, err := ankyService.ReflectBackFromWritingSessionConversation(conversation)
 	if err != nil {
-		log.Printf("Error getting Anky feedback: %v", err)
+		fmt.Printf("❌ Failed to get reflection: %v\n", err)
 		return err
 	}
 
-	// Update response with feedback
-	response["ankyFeedback"] = feedback
-
-	// Send updated response
-	err = WriteJSON(w, http.StatusOK, response)
-	if err != nil {
-		log.Printf("Error writing JSON response with feedback: %v", err)
-		return err
-	}
-
-	return nil
+	// Add reflection to response
+	fmt.Println("✍️ Adding reflection to response...")
+	response["reflection"] = reflection
+	return WriteJSON(w, http.StatusOK, "ok, but why?")
 }
 
 func (s *APIServer) handleGetUserWritingSessions(w http.ResponseWriter, r *http.Request) error {

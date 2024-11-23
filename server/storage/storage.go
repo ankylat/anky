@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
@@ -41,7 +42,7 @@ type Storage interface {
 	UpdateAnky(ctx context.Context, anky *types.Anky) error
 	GetAnkyByID(ctx context.Context, ankyID uuid.UUID) (*types.Anky, error)
 	GetAnkysByUserID(ctx context.Context, userID uuid.UUID, limit int, offset int) ([]*types.Anky, error)
-
+	GetAnkysByUserIDAndStatus(ctx context.Context, userID uuid.UUID, status string) ([]*types.Anky, error)
 	// Badge operations
 	GetUserBadges(ctx context.Context, userID uuid.UUID) ([]*types.Badge, error)
 }
@@ -120,9 +121,22 @@ func (s *PostgresStore) GetUsers(ctx context.Context, limit int, offset int) ([]
 }
 
 func (s *PostgresStore) GetUserByID(ctx context.Context, userID uuid.UUID) (*types.User, error) {
+	log.Printf("[DB] Getting user with ID: %s", userID)
+
 	query := `SELECT * FROM users WHERE id = $1`
+	log.Printf("[DB] Executing query: %s with ID: %s", query, userID)
+
 	row := s.db.QueryRow(ctx, query, userID)
-	return scanIntoUser(row)
+	log.Printf("[DB] Got row, attempting to scan")
+
+	user, err := scanIntoUser(row)
+	if err != nil {
+		log.Printf("[DB] Error scanning user: %v", err)
+		return nil, err
+	}
+
+	log.Printf("[DB] Successfully scanned user: %+v", user)
+	return user, nil
 }
 
 func (s *PostgresStore) CreateUser(ctx context.Context, user *types.User) error {
@@ -144,23 +158,86 @@ func (s *PostgresStore) CreateUser(ctx context.Context, user *types.User) error 
 	return err
 }
 
+func (s *PostgresStore) GetAnkysByUserIDAndStatus(ctx context.Context, userID uuid.UUID, status string) ([]*types.Anky, error) {
+	query := `SELECT * FROM ankys WHERE user_id = $1 AND status = $2`
+	rows, err := s.db.Query(ctx, query, userID, status)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ankys by user ID and status: %w", err)
+	}
+	defer rows.Close()
+
+	ankys := make([]*types.Anky, 0)
+	for rows.Next() {
+		anky, err := scanIntoAnky(rows)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan anky: %w", err)
+		}
+		ankys = append(ankys, anky)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over rows: %w", err)
+	}
+
+	return ankys, nil
+}
+
+func (s *PostgresStore) CountNumberOfFids(ctx context.Context) (int, error) {
+	query := `SELECT COUNT(*) FROM farcaster_users`
+	row := s.db.QueryRow(ctx, query)
+	var count int
+	err := row.Scan(&count)
+	return count, err
+}
+
 func (s *PostgresStore) UpdateUser(ctx context.Context, userID uuid.UUID, user *types.User) error {
+	log.Printf("[DB] Updating user %s", userID)
+
+	if user.FarcasterUser == nil {
+		log.Printf("[DB] FarcasterUser is nil")
+		user.FarcasterUser = &types.FarcasterUser{}
+	}
+
+	if user.Settings == nil {
+		log.Printf("[DB] Settings is nil")
+		user.Settings = &types.UserSettings{}
+	}
+
+	settingsJSON, err := json.Marshal(user.Settings)
+	if err != nil {
+		log.Printf("[DB] Error marshaling settings: %v", err)
+		return err
+	}
+
 	query := `
 		UPDATE users 
-		SET privy_did = $1, fid = $2, settings = $3, seed_phrase = $4, 
-			wallet_address = $5, jwt = $6, updated_at = CURRENT_TIMESTAMP 
+		SET privy_did = $1, 
+			fid = $2, 
+			settings = $3, 
+			seed_phrase = $4,
+			wallet_address = $5, 
+			jwt = $6, 
+			updated_at = CURRENT_TIMESTAMP,
+			is_anonymous = false
 		WHERE id = $7
 	`
-	_, err := s.db.Exec(ctx, query,
+	_, err = s.db.Exec(ctx, query,
 		user.PrivyDID,
 		user.FID,
-		user.Settings,
+		settingsJSON,
 		user.SeedPhrase,
 		user.WalletAddress,
 		user.JWT,
 		userID,
 	)
-	return err
+
+	if err != nil {
+		log.Printf("[DB] Update error: %v", err)
+		return err
+	}
+
+	log.Printf("[DB] Successfully updated user")
+	return nil
 }
 
 func (s *PostgresStore) DeleteUser(ctx context.Context, userID uuid.UUID) error {
@@ -437,20 +514,48 @@ func (s *PostgresStore) GetUserBadges(ctx context.Context, userID uuid.UUID) ([]
 
 func scanIntoUser(row pgx.Row) (*types.User, error) {
 	user := new(types.User)
+	var isAnonymous bool
+	var settings interface{}
+	var metadataID *uuid.UUID
+	var farcasterUserID *uuid.UUID
+
+	log.Printf("[DB] Starting to scan row")
 	err := row.Scan(
 		&user.ID,
 		&user.PrivyDID,
 		&user.FID,
-		&user.Settings,
+		&settings,
 		&user.SeedPhrase,
 		&user.WalletAddress,
-		&user.JWT,
 		&user.CreatedAt,
 		&user.UpdatedAt,
+		&user.JWT,
+		&isAnonymous,
+		&farcasterUserID,
+		&metadataID,
 	)
 	if err != nil {
+		log.Printf("[DB] Scan error: %v", err)
 		return nil, fmt.Errorf("failed to scan user: %w", err)
 	}
+	log.Printf("[DB] Successfully scanned basic fields")
+
+	user.IsAnonymous = isAnonymous
+
+	// Convert settings
+	if settings != nil {
+		settingsBytes, err := json.Marshal(settings)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal settings: %w", err)
+		}
+		var userSettings types.UserSettings
+		if err := json.Unmarshal(settingsBytes, &userSettings); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal settings: %w", err)
+		}
+		user.Settings = &userSettings
+	}
+
+	log.Printf("[DB] Completed user scan: %+v", user)
 	return user, nil
 }
 
